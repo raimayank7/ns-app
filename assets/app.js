@@ -3,47 +3,12 @@
    (linked to bills, part payments, advances), purchase bills and returns, expenses, dues with ageing,
    party statements (print, PDF, WhatsApp reminder), cash and bank books, opening balances, one-click convert.
    Accounts come from NSBooks (books.js); every record lives in the data home's 'doc' store, so the receipt and
-   voucher sites can print what is saved here. Screen words: NS.t('app.<key>') when a language pack has it, else English below. */
+   voucher sites can print what is saved here. Screen words: NS.t('app.<key>') (English in i18n.js, other languages in engine/lang). */
 (function () {
   'use strict';
   var $ = NS.$, $$ = NS.$$, esc = NS.esc, num = NS.num, r2 = NS.r2, money = NS.money, B = NSBooks, key = B.key;
-  var EN = {
-    title: 'Nivesh Sahayak App', home: 'Dashboard', sales: 'Sales', buy: 'Purchases and expenses', money: 'Money in and out', dues: 'Dues', parties: 'Parties', cash: 'Cash and bank',
-    biz: 'Business', nobiz: 'Add your business first', nobizp: 'Your business name, address and GSTIN are typed once in My data and used on every document.', addbiz: 'Add my business',
-    today: 'Sales today', month: 'Sales this month', recv: 'To receive', pay: 'To pay', cashin: 'Cash in hand', bank: 'Bank and UPI',
-    quick: 'Quick add', newinv: 'New invoice', min: 'Money received', mout: 'Money paid', pbill: 'Purchase bill', exp: 'Expense', ob: 'Opening balance', pret: 'Purchase return',
-    overdue: 'Oldest dues', nodues: 'Nobody owes you anything right now.', recent: 'Latest entries', none: 'Nothing here yet.',
-    remind: 'WhatsApp reminder', stmt: 'Statement', recpay: 'Record payment', open: 'Open', edit: 'Edit', del: 'Delete', print: 'Print', pdf: 'Share PDF', convert: 'Convert to',
-    search: 'Search by name or number', all: 'All', unpaid: 'Due', paid: 'Paid', part: 'Part paid', left: '{a} due',
-    d_invoice: 'Invoice', d_cashmemo: 'Cash memo', d_credit: 'Credit note', d_debit: 'Debit note', d_quote: 'Quotation', d_estimate: 'Estimate', d_proforma: 'Proforma invoice', d_so: 'Sales order', d_challan: 'Delivery challan',
-    d_receipt: 'Money received', d_adv: 'Advance received', d_ref: 'Refund paid', d_voucher: 'Payment', d_vexp: 'Expense paid (voucher)', d_pbill: 'Purchase bill', d_pret: 'Purchase return', d_exp: 'Expense', d_ob: 'Opening balance', d_self: 'Self invoice', d_po: 'Purchase order',
-    date: 'Date', party: 'Party', cust: 'Customer', supp: 'Supplier', amount: 'Amount (₹)', mode: 'Paid by', ref: 'Cheque / UTR / reference no.', note: 'Note',
-    m_cash: 'Cash', m_upi: 'UPI', m_cheque: 'Cheque', m_bank: 'Bank transfer', m_card: 'Card', m_dd: 'Demand draft', m_other: 'Other', m_credit: 'Not paid yet (on credit)',
-    tdsin: 'TDS cut by the customer (₹)', tdsinh: 'Only if they paid less because of TDS. The bill is settled by the money plus the TDS.',
-    tdsout: 'TDS you cut (%)', tdsouth: 'Only if you deduct TDS from this payment. Ask your accountant which section applies.',
-    against: 'Against which bills?', againsth: 'Ticked bills are settled first, oldest first. Anything left stays as an advance.', noopen: 'No unpaid bills. The whole amount is saved as an advance.',
-    advleft: '{a} will be kept as an advance.', settle: 'Settles {a}', tickall: 'Tick oldest first',
-    sno: 'Supplier\'s bill no.', due: 'Due date', gstin: 'Supplier GSTIN', state: 'Supplier state', items: 'Items', item: 'Item / service', hsn: 'HSN/SAC', qty: 'Qty', rate: 'Rate (₹)', gst: 'GST %', addline: '+ Add a line', rmline: 'Remove line',
-    nogst: 'No GST on this bill (unregistered supplier or exempt goods)', round: 'Round off the total', taxable: 'Taxable value', tax: 'GST', total: 'Total', origno: 'Return against bill no.',
-    paidnow: 'Paid now?', paidnowh: 'Pick how you paid if you paid at once. A payment entry is saved with it.',
-    cat: 'Expense type', payee: 'Paid to', incgst: 'GST included in the amount (%)', itc: 'I will claim input tax credit on this GST', inter: 'Bill from another state (IGST)', billno: 'Bill / receipt no.',
-    side: 'Who owes whom on the start date?', s_recv: 'They owe me', s_pay: 'I owe them', obh: 'Use this once per party for money already due before you started using the app, for example on 1 April.',
-    save: 'Save', cancel: 'Cancel', saved: 'Saved', deleted: 'Deleted', cdel: 'Delete {x}? This cannot be undone.', need: 'Please fill: {f}', samebill: 'A purchase bill {no} from {p} is already saved. Save another?',
-    from: 'From', to: 'To', opening: 'Opening balance', closing: 'Closing balance', debit: 'Debit (₹)', credit: 'Credit (₹)', balance: 'Balance (₹)', particulars: 'Particulars',
-    dr: 'Dr', cr: 'Cr', theyowe: '{p} owes you {a}', weowe: 'You owe {p} {a}', settled: 'All settled with {p}',
-    age: 'Age', a0: '0–30 days', a1: '31–60 days', a2: '61–90 days', a3: 'Over 90 days', totaldue: 'Total due', days: '{n} days', ageh: 'Age is counted from the bill date.',
-    wamsg: 'Dear {p},\nThis is a gentle reminder that {a} is due to {b} as on {d}.{bills}\nPlease pay at your earliest convenience.{upi}\nThank you.',
-    wabills: '\nBills: {l}', waupi: '\nUPI: {u}', nophone: 'No phone number saved for {p}. Add it in My data, or pick the contact in WhatsApp.',
-    cashbook: 'Cash book', bankbook: 'Bank book (UPI, cheque, transfer, card)', in: 'In (₹)', out: 'Out (₹)', cbh: 'Every cash and bank entry from your sales, receipts, payments, purchase bills and expenses.',
-    makeinv: 'Invoice', makeso: 'Sales order', makedc: 'Delivery challan', made: 'Made: {x}',
-    stp: 'Statement of account', stpfor: 'Statement of account of {p}', stpfrom: 'From {a} to {b}', gen: 'Made with the Nivesh Sahayak App on {d}',
-    local: 'Saved only on this site in this browser, because the data home could not load. It moves into the data home next time.', vault: 'Saved in this browser\'s data home, shared by every Nivesh Sahayak tool. Nothing is sent to us.',
-    help: 'How it works', helpp: 'Bills you make on billing., cash-memo. and credit-note. show up here by themselves. Record money received and paid here; the app links it to bills, keeps advances and works out dues and cash in hand.',
-    invfix: 'Invoices settled here are marked Paid on the billing site too.', ex_rent: 'Rent', ex_power: 'Electricity', ex_salary: 'Salary and wages', ex_transport: 'Transport and freight', ex_phone: 'Phone and internet', ex_repair: 'Repairs and maintenance',
-    ex_office: 'Office expenses', ex_fuel: 'Fuel', ex_bank: 'Bank charges', ex_prof: 'Professional fees', ex_ads: 'Advertising', ex_misc: 'Miscellaneous',
-    back: '‹ Back', more: 'Show more', fy: 'Financial year {y}', advance: 'Advance', advh: 'Money received or paid ahead of a bill.', advof: 'Advance with {p}: {a}'
-  };
-  function T(k, v) { var s = NS.t('app.' + k, v); if (s !== 'app.' + k) return s; s = EN[k] != null ? EN[k] : k; return v ? s.replace(/\{(\w+)\}/g, function (m, x) { return v[x] != null ? v[x] : m; }) : s; }
+
+  function T(k, v) { return NS.t('app.' + k, v); }   /* screen words: the 'app.' keys of i18n.js and the language packs */
 
   var LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
   var TOOLS = (window.NS_CFG && NS_CFG.tools) || [];
@@ -112,6 +77,9 @@
   function labels() {
     $$('[data-sec]').forEach(function (b) { $('span', b).textContent = T(b.getAttribute('data-sec')); });
     $$('[data-t]').forEach(function (e) { e.textContent = T(e.getAttribute('data-t')); });
+    /* the guide exists in every language: point its link at the one on screen */
+    var L = NS.lang ? NS.lang() : 'en';
+    $$('a[href$="how-it-works/"]').forEach(function (a) { a.setAttribute('href', L === 'en' ? '/how-it-works/' : '/' + L + '/how-it-works/'); });
   }
   function noBiz() {
     return '<div class="card"><h2>' + esc(T('nobiz')) + '</h2><p>' + esc(T('nobizp')) + '</p><p><a class="btn primary" href="' + myUrl('#biz') + '">' + esc(T('addbiz')) + '</a></p></div>';
