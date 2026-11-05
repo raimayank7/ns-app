@@ -28,7 +28,7 @@
       var site = (d.type === 'note' && d.kind === 'debit' ? 'debit-note' : SITEOF[d.type || 'invoice']), app = d.app && !/^(receipt|voucher|cashmemo)$/.test(d.type || '');
       if (!site && !/^(pbill|exp|ob|contra)$/.test(d.type)) return;   /* other sites' records (rent, salary, petty cash…) open there */
       out.push({ k: 'doc', label: A.docName(d) + (d.no ? ' ' + d.no : ''), sub: [B.partyName(d), A.ldate(d.date), NS.money(A.amountOf(d))].filter(Boolean).join(' · '),
-        run: function () { if (site && !app) A.openUrl(A.toolUrl(site) + '?open=' + encodeURIComponent(d.id)); else if (!site || app) A.openForm(formOf(d), { rec: d }); } });
+        run: function () { if (site && !app) A.openUrl(A.docUrl ? A.docUrl(d) : A.toolUrl(site) + '?open=' + encodeURIComponent(d.id)); else if (!site || app) A.openForm(formOf(d), { rec: d }); } });
     });
     C.item.forEach(function (it) { out.push({ k: 'item', label: it.desc, sub: [T('qk_item'), it.hsn && 'HSN ' + it.hsn, it.rate !== '' && it.rate != null && NS.money(NS.num(it.rate))].filter(Boolean).join(' · '), run: function () { A.openUrl(A.myUrl('#item')); } }); });
     return out;
