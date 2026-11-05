@@ -107,9 +107,9 @@
       $('[data-mode]').textContent = T(NSStore.mode() === 'vault' ? 'vault' : 'local');
       labels();
       document.documentElement.classList.toggle('app-in', !!BIZ);
-      if (!BIZ) { pane.innerHTML = noBiz(); return; }
-      pane.innerHTML = bizBar() + (EXT[cur] ? EXT[cur].html(arg) : ({ home: homeHtml, sales: salesHtml, buy: buyHtml, money: moneyHtml, dues: duesHtml, parties: partiesHtml, cash: cashHtml, st: stHtml })[cur]());
-      wire(pane);
+      if (!BIZ) { pane.innerHTML = noBiz(); wireSample(pane); return; }
+      pane.innerHTML = sampleNote() + bizBar() + (EXT[cur] ? EXT[cur].html(arg) : ({ home: homeHtml, sales: salesHtml, buy: buyHtml, money: moneyHtml, dues: duesHtml, parties: partiesHtml, cash: cashHtml, st: stHtml })[cur]());
+      wire(pane); wireSample(pane);
       if (EXT[cur] && EXT[cur].wire) EXT[cur].wire(pane, arg);
       if (focus) { var h2 = $('h2', pane); if (h2) { h2.tabIndex = -1; h2.focus({ preventScroll: true }); } }
     });
@@ -122,7 +122,17 @@
     $$('a[href$="how-it-works/"]').forEach(function (a) { a.setAttribute('href', L === 'en' ? '/how-it-works/' : '/' + L + '/how-it-works/'); });
   }
   function noBiz() {
-    return '<div class="card"><h2>' + esc(T('nobiz')) + '</h2><p>' + esc(T('nobizp')) + '</p><p><a class="btn primary" href="' + myUrl('#biz') + '">' + esc(T('addbiz')) + '</a></p></div>';
+    return '<div class="card"><h2>' + esc(T('nobiz')) + '</h2><p>' + esc(T('nobizp')) + '</p><p><a class="btn primary" href="' + myUrl('#biz') + '">' + esc(T('addbiz')) + '</a></p></div>' +
+      (window.NSSample && !DOOR ? '<div class="card sample-try"><h3>' + esc(T('sm_try')) + '</h3><p>' + esc(T('sm_tryp')) + '</p><p><button type="button" class="btn" data-sample>' + esc(T('sm_try')) + '</button></p></div>' : '');
+  }
+  /* sample data: shown on every screen while it is there, with one tap to take it away */
+  function sampleNote() {
+    return window.NSSample && NSSample.has(C.biz) ? '<div class="note sample-note"><span>' + esc(T('sm_on')) + '</span><button type="button" class="btn sm" data-unsample>' + esc(T('sm_rm')) + '</button></div>' : '';
+  }
+  function wireSample(pane) {
+    var a = $('[data-sample]', pane), r = $('[data-unsample]', pane);
+    if (a) a.addEventListener('click', function () { a.disabled = true; NSSample.add().then(function () { NS.toast(T('sm_added')); go(''); show(); }, function (e) { a.disabled = false; NS.toast(NS.t('nosave', { e: e.message }), 'bad'); }); });
+    if (r) r.addEventListener('click', function () { if (!confirm(T('sm_conf'))) return; r.disabled = true; NSSample.remove().then(function () { NS.toast(T('sm_gone')); show(); }); });
   }
   function bizBar() {
     var bz = C.biz.length < 2 ? '' : '<label for="app-biz">' + esc(T('biz')) + '</label><select id="app-biz" data-biz>' + C.biz.map(function (b) {

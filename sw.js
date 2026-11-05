@@ -1,5 +1,5 @@
-const CACHE = 'ns-app-e696ab5dd8';
-const SHELL = ["/", "/assets/base.css?v=43209db185", "/assets/doc.css?v=1271e229c4", "/assets/i18n.js?v=20d2624350", "/assets/store.js?v=eb98e624a1", "/assets/core.js?v=b989e14141", "/assets/books.js?v=bd520cbe51", "/assets/app.js?v=bde1b7c449", "/assets/money.js?v=89487992b1", "/assets/app.css?v=55690da594"];
+const CACHE = 'ns-app-245b55dd86';
+const SHELL = ["/", "/assets/base.css?v=43209db185", "/assets/doc.css?v=1271e229c4", "/assets/i18n.js?v=35f4e03546", "/assets/store.js?v=eb98e624a1", "/assets/core.js?v=b989e14141", "/assets/books.js?v=bd520cbe51", "/assets/app.js?v=60e74a04c2", "/assets/money.js?v=89487992b1", "/assets/sample.js?v=5d9def4518", "/assets/app.css?v=1d4284a7e9"];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(n => n.startsWith('ns-') && n !== CACHE).map(n => caches.delete(n)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

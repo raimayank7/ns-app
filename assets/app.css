@@ -163,3 +163,7 @@ html.app-in .hero,html.app-in .app-about{display:none}
 html.app-in .hub{margin-top:18px}
 @media (max-width:860px){.app-frame{height:calc(100dvh - 200px);min-height:440px}}
 @media print{html.app-frame-on .hd,html.app-frame-on .hub-nav,html.app-frame-on .frame-bar,html.app-frame-on .ft{display:none!important}}
+
+/* sample data */
+.sample-note{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px 12px;margin:0 0 12px}
+.sample-try{border-style:dashed}
