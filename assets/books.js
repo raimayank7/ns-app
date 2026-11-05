@@ -12,7 +12,11 @@
      self                        purchase from an unregistered supplier (supplier is owed the taxable value; GST on reverse charge)
      pbill bill / return         purchase bill from a supplier (we owe it) / purchase return (we owe less)
      exp                         expense; mode 'credit' = not paid yet (we owe the payee)
-     ob                          opening balance of a party: side 'recv' (they owe us) or 'pay' (we owe them)
+     ob                          opening balance: side 'recv' (a party owes us), 'pay' (we owe a party), 'cash' or 'bank' (no party)
+     contra                      cash deposited in the bank (from 'cash', to 'bank') or withdrawn (from 'bank', to 'cash')
+   chq: { date, bank, st, on } on a receipt or voucher paid by cheque: st 'hand' (received, not deposited), 'dep' (deposited),
+     'iss' (issued by us), 'ok' (cleared on date 'on'), 'bounce' (bounced: the record is left out of the books, so its bills are due again).
+     Until it clears, the money sits in 'chq-in' (cheques received) or 'chq-out' (cheques issued) instead of 'bank'.
    alloc: [{ id, amt }] on a receipt or app voucher links money to bills; whatever is not linked settles the oldest bills first. */
 (function (G) {
   'use strict';
@@ -22,6 +26,9 @@
   var UT = { '04': 1, '26': 1, '31': 1, '35': 1, '38': 1 };
   var BANKISH = { upi: 1, cheque: 1, bank: 1, card: 1, dd: 1, other: 1 };
   function moneyAcct(mode) { return BANKISH[mode] ? 'bank' : 'cash'; }
+  function bounced(d) { return !!(d.chq && d.chq.st === 'bounce' && d.mode === 'cheque'); }
+  /* where the money of a receipt / voucher went: a cheque not cleared yet is not in the bank */
+  function payAcct(d, out) { return d.mode === 'cheque' && d.chq && d.chq.st && d.chq.st !== 'ok' ? (out ? 'chq-out' : 'chq-in') : moneyAcct(d.mode); }
 
   /* tax split of an item document (same rules as docs.js totals) */
   function itemTotals(d) {
@@ -51,8 +58,14 @@
 
   /* kind of each record for the books: 'sale', 'sret' (credit note), 'sdeb' (debit note), 'in', 'refund', 'out', 'outexp', 'buy', 'pret', 'exp', 'ob', or '' (not in the books) */
   function role(d) {
+    if (bounced(d)) return '';
     switch (d.type || 'invoice') {
-      case 'invoice': case 'cashmemo': return 'sale';
+      case 'invoice': case 'cashmemo': case 'pharma': return 'sale';   /* pharma: pharmacy.niveshsahayak.in */
+      case 'resto': return d.status === 'open' ? '' : 'sale';   /* restaurant: a running table is not a sale yet */
+      case 'lr': return 'sale';   /* bilty: freight earned; the payer is the customer */
+      case 'fee': return 'sale';   /* fee receipt: fees received (status paid) */
+      case 'job': return d.print === 'bill' ? 'sale' : '';   /* job card: a sale once it is a service bill */
+      case 'rabill': return 'sale';   /* contractor RA bill: value of work in this bill (retention and TDS settle at payment) */
       case 'note': return d.kind === 'debit' ? 'sdeb' : 'sret';
       case 'receipt': return d.kind === 'ref' ? 'refund' : 'in';
       case 'voucher': return d.forBill ? 'out' : 'outexp';
@@ -60,6 +73,7 @@
       case 'pbill': return d.kind === 'return' ? 'pret' : 'buy';
       case 'exp': return 'exp';
       case 'ob': return 'ob';
+      case 'contra': return 'contra';
     }
     return '';
   }
@@ -81,14 +95,14 @@
       if (R === 'sale' && d.status === 'paid' && !d.paidBy) { dr(moneyAcct(d.payMode || 'cash'), t.total); cr(partyName(d) ? P : 'p:cash-customer', t.total); }
     } else if (R === 'in') {
       amt = num(d.amount); var tds = num(d.tds);
-      dr(moneyAcct(d.mode), amt); dr('tds-receivable', tds); cr(P, amt + tds);
+      dr(payAcct(d), amt); dr('tds-receivable', tds); cr(P, amt + tds);
     } else if (R === 'refund') {
-      amt = num(d.amount); dr(P, amt); cr(moneyAcct(d.mode), amt);
+      amt = num(d.amount); dr(P, amt); cr(payAcct(d, true), amt);
     } else if (R === 'out' || R === 'outexp') {
       var gross = (d.lines || []).reduce(function (a, l) { return a + num(l.amt); }, 0), tdsOut = r2(gross * num(d.tdsRate) / 100);
       if (R === 'out') dr(P, gross);
       else (d.lines || []).forEach(function (l) { dr('exp:' + key(l.head || 'Miscellaneous'), num(l.amt)); });
-      cr(moneyAcct(d.mode), gross - tdsOut); cr('tds-payable', tdsOut);
+      cr(payAcct(d, true), gross - tdsOut); cr('tds-payable', tdsOut);
     } else if (R === 'buy' || R === 'pret') {
       t = itemTotals(d);
       var s2 = R === 'pret' ? cr : dr, o2 = R === 'pret' ? dr : cr, buys = R === 'pret' ? 'purchase-return' : 'purchases';
@@ -107,15 +121,18 @@
       dr('exp:' + key(d.cat || 'Miscellaneous'), amt - itc);
       if (itc) { if (d.inter) dr('gst-in-igst', itc); else { dr('gst-in-cgst', r2(itc / 2)); dr('gst-in-sgst', itc - r2(itc / 2)); } }
       if (d.mode === 'credit') cr(partyName(d) ? P : 'p:unknown', amt); else cr(moneyAcct(d.mode), amt);
+    } else if (R === 'contra') {
+      amt = num(d.amount); dr(d.to === 'cash' ? 'cash' : 'bank', amt); cr(d.from === 'bank' ? 'bank' : 'cash', amt);
     } else if (R === 'ob') {
       amt = num(d.amount);
-      if (d.side === 'pay') { dr('opening', amt); cr(P, amt); } else { dr(P, amt); cr('opening', amt); }
+      if (d.side === 'cash' || d.side === 'bank') { dr(d.side, amt); cr('opening', amt); }   /* cash in hand / bank balance on the start date */
+      else if (d.side === 'pay') { dr('opening', amt); cr(P, amt); } else { dr(P, amt); cr('opening', amt); }
     }
     return L;
   }
 
   /* the business's records in date order (same date: sales and bills before money, so a same-day payment settles them) */
-  var ORDER = { ob: 0, sale: 1, sdeb: 1, buy: 1, exp: 1, sret: 2, pret: 2, 'in': 3, out: 3, outexp: 3, refund: 3 };
+  var ORDER = { ob: 0, sale: 1, sdeb: 1, buy: 1, exp: 1, sret: 2, pret: 2, 'in': 3, out: 3, outexp: 3, refund: 3, contra: 4 };
   function inBooks(docs, biz) {
     var b = key(biz);
     return docs.filter(function (d) { return role(d) && (!b || bizOf(d) === b); }).sort(function (x, y) {
@@ -170,7 +187,7 @@
         if (d.type === 'self' && d.status === 'sipaid') credits.push({ side: 'pay', amt: t.taxable, to: d.id, date: d.date });
       }
       else if (R === 'exp' && d.mode === 'credit') bill(d, 'pay', num(d.amount));
-      else if (R === 'ob') bill(d, d.side === 'pay' ? 'pay' : 'recv', num(d.amount));
+      else if (R === 'ob' && d.side !== 'cash' && d.side !== 'bank') bill(d, d.side === 'pay' ? 'pay' : 'recv', num(d.amount));
       else if (R === 'in') credits.push({ side: 'recv', amt: num(d.amount) + num(d.tds), alloc: d.alloc, d: d });
       else if (R === 'sret') credits.push({ side: 'recv', amt: itemTotals(d).total, origNo: d.orig && d.orig.no, d: d });
       else if (R === 'refund') bill(d, 'recv', num(d.amount));   /* a refund paid out makes the customer "owe" it back against their advance */
@@ -225,22 +242,24 @@
     return { open: open, rows: rows, close: bal, dr: r2(rows.reduce(function (a, r) { return a + r.dr; }, 0)), cr: r2(rows.reduce(function (a, r) { return a + r.cr; }, 0)) };
   }
 
-  /* one account's lines (cash book, bank book) between two dates */
+  /* one account's lines (cash book, bank book) between two dates; a cleared cheque reaches the bank on the day it cleared */
   function book(docs, biz, acct, from, to) {
     var open = 0, rows = [];
-    inBooks(docs, biz).forEach(function (d) {
-      var dr = 0, cr = 0;
+    inBooks(docs, biz).map(function (d) {
+      return { d: d, date: acct === 'bank' && d.mode === 'cheque' && d.chq && d.chq.st === 'ok' && d.chq.on ? d.chq.on : d.date };
+    }).sort(function (x, y) { return (x.date || '').localeCompare(y.date || ''); }).forEach(function (x) {
+      var d = x.d, dr = 0, cr = 0;
       postings(d).forEach(function (l) { if (l.a === acct) { dr += l.dr; cr += l.cr; } });
       if (!dr && !cr) return;
-      if (from && d.date < from) { open = r2(open + dr - cr); return; }
-      if (to && d.date > to) return;
-      rows.push({ d: d, date: d.date, dr: r2(dr), cr: r2(cr) });
+      if (from && x.date < from) { open = r2(open + dr - cr); return; }
+      if (to && x.date > to) return;
+      rows.push({ d: d, date: x.date, dr: r2(dr), cr: r2(cr) });
     });
     var bal = open; rows.forEach(function (r) { bal = r2(bal + r.dr - r.cr); r.bal = bal; });
     return { open: open, rows: rows, close: bal };
   }
 
   var API = { num: num, r2: r2, key: key, role: role, itemTotals: itemTotals, postings: postings, inBooks: inBooks, parties: parties, accounts: accounts,
-    bills: bills, ageing: ageing, statement: statement, book: book, daysBetween: daysBetween, moneyAcct: moneyAcct, partyName: partyName };
+    bills: bills, ageing: ageing, statement: statement, book: book, daysBetween: daysBetween, moneyAcct: moneyAcct, payAcct: payAcct, bounced: bounced, partyName: partyName };
   if (typeof module !== 'undefined' && module.exports) module.exports = API; else G.NSBooks = API;
 })(this);

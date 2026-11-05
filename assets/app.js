@@ -3,7 +3,8 @@
    (linked to bills, part payments, advances), purchase bills and returns, expenses, dues with ageing,
    party statements (print, PDF, WhatsApp reminder), cash and bank books, opening balances, one-click convert.
    Accounts come from NSBooks (books.js); every record lives in the data home's 'doc' store, so the receipt and
-   voucher sites can print what is saved here. Screen words: NS.t('app.<key>') (English in i18n.js, other languages in engine/lang). */
+   voucher sites can print what is saved here. Screen words: NS.t('app.<key>') (English in i18n.js, other languages in engine/lang).
+   Door sites (khata., purchase. ...) show only some sections (#app data-secs) and add their own through window.NSApp (money.js). */
 (function () {
   'use strict';
   var $ = NS.$, $$ = NS.$$, esc = NS.esc, num = NS.num, r2 = NS.r2, money = NS.money, B = NSBooks, key = B.key;
@@ -20,6 +21,8 @@
   var SALES = { invoice: 1, cashmemo: 1, note: 1, quote: 1, proforma: 1, so: 1, challan: 1 };
   var CONVERT = { quote: ['so', 'challan', 'invoice'], proforma: ['invoice'], so: ['challan', 'invoice'], challan: ['invoice'] };
   var SECS = ['home', 'sales', 'buy', 'money', 'dues', 'parties', 'cash', 'st'];
+  /* EXT: sections added by other files (NSApp.addSection); DOOR: the sections a door site shows (#app data-secs), first = start */
+  var EXT = {}, DOOR = null;
 
   var C = { biz: [], party: [], item: [], doc: [] }, CFG = {}, BIZ = null, cur = 'home', arg = '', q = '', filt = 'all';
 
@@ -44,13 +47,15 @@
     if (ty === 'receipt') return T(d.kind === 'adv' ? 'd_adv' : d.kind === 'ref' ? 'd_ref' : 'd_receipt');
     if (ty === 'voucher') return T(d.forBill ? 'd_voucher' : 'd_vexp');
     if (ty === 'pbill') return T(d.kind === 'return' ? 'd_pret' : 'd_pbill');
+    if (ty === 'contra') return T(d.from === 'bank' ? 'd_withdraw' : 'd_deposit');
     return T('d_' + ty);
   }
   function ldate(iso) { return NS.fmtDate(iso); }
   function fyStart(iso) { return NS.fy(iso).slice(0, 4) + '-04-01'; }
   function amountOf(d) {
     var R = B.role(d);
-    if (R === 'in' || R === 'refund' || R === 'exp' || R === 'ob') return num(d.amount);
+    if (R === 'in' || R === 'refund' || R === 'exp' || R === 'ob' || R === 'contra' || B.bounced(d) && d.type === 'receipt') return num(d.amount);
+    if (B.bounced(d)) return r2((d.lines || []).reduce(function (a, l) { return a + num(l.amt); }, 0));
     if (R === 'out' || R === 'outexp') return r2((d.lines || []).reduce(function (a, l) { return a + num(l.amt); }, 0));
     return num(d.total);
   }
@@ -58,7 +63,8 @@
   /* ---------- sections ---------- */
   function route() {
     var h = decodeURIComponent(location.hash.slice(1)), p = h.split('/');
-    cur = SECS.indexOf(p[0]) >= 0 ? p[0] : 'home'; arg = p.slice(1).join('/');
+    cur = SECS.indexOf(p[0]) >= 0 || EXT[p[0]] ? p[0] : 'home'; arg = p.slice(1).join('/');
+    if (DOOR && DOOR.indexOf(cur) < 0 && cur !== 'st') { cur = DOOR[0]; arg = ''; }
     show(true);
   }
   function go(h) { location.hash = h; }
@@ -69,8 +75,9 @@
       $('[data-mode]').textContent = T(NSStore.mode() === 'vault' ? 'vault' : 'local');
       labels();
       if (!BIZ) { pane.innerHTML = noBiz(); return; }
-      pane.innerHTML = bizBar() + ({ home: homeHtml, sales: salesHtml, buy: buyHtml, money: moneyHtml, dues: duesHtml, parties: partiesHtml, cash: cashHtml, st: stHtml })[cur]();
+      pane.innerHTML = bizBar() + (EXT[cur] ? EXT[cur].html(arg) : ({ home: homeHtml, sales: salesHtml, buy: buyHtml, money: moneyHtml, dues: duesHtml, parties: partiesHtml, cash: cashHtml, st: stHtml })[cur]());
       wire(pane);
+      if (EXT[cur] && EXT[cur].wire) EXT[cur].wire(pane, arg);
       if (focus) { var h2 = $('h2', pane); if (h2) { h2.tabIndex = -1; h2.focus({ preventScroll: true }); } }
     });
   }
@@ -118,13 +125,16 @@
     if (!list.length) return '<p class="soft">' + esc(T('none')) + '</p>';
     var left = opts.left || {};
     return '<ul class="rows">' + list.map(function (d) {
-      var ty = d.type || 'invoice', site = SITEOF[ty], appMade = d.app || /^(pbill|exp|ob)$/.test(ty), pills = '';
+      var ty = d.type || 'invoice', site = SITEOF[ty], appMade = d.app || /^(pbill|exp|ob|contra)$/.test(ty), pills = '';
       if (left[d.id] != null) pills = left[d.id] <= 0.004 ? '<span class="pill ok">' + esc(T('paid')) + '</span>' : left[d.id] < amountOf(d) - 0.004 ? '<span class="pill warn">' + esc(T('left', { a: money(left[d.id]) })) + '</span>' : '<span class="pill warn">' + esc(T('unpaid')) + '</span>';
       if (d.nextNo) pills += ' <span class="pill">' + esc(T('made', { x: d.nextNo })) + '</span>';
+      if (B.bounced(d)) pills += ' <span class="pill bad">' + esc(T('c_bounce')) + '</span>';
+      else if (d.mode === 'cheque' && d.chq && d.chq.st && d.chq.st !== 'ok') pills += ' <span class="pill warn">' + esc(T('c_' + d.chq.st)) + '</span>';
       if (d.status === 'inv' && d.invNo) pills += ' <span class="pill ok">' + esc(T('made', { x: d.invNo })) + '</span>';
       var acts = [];
-      if (appMade && !/^(receipt|voucher)$/.test(ty)) acts.push('<button type="button" class="btn sm" data-edit="' + d.id + '">' + esc(T('edit')) + '</button>');
-      else if (site) acts.push('<a class="btn sm" href="' + toolUrl(site) + '?open=' + encodeURIComponent(d.id) + '">' + esc(T('open')) + '</a>');
+      if (d.photo) acts.push('<button type="button" class="btn sm" data-photo="' + d.id + '">' + esc(T('photo')) + '</button>');
+      if (appMade && ty !== 'cashmemo') acts.push('<button type="button" class="btn sm" data-edit="' + d.id + '">' + esc(T('edit')) + '</button>');
+      if (site && (!appMade || /^(receipt|voucher|cashmemo)$/.test(ty))) acts.push('<a class="btn sm" href="' + toolUrl(site) + '?open=' + encodeURIComponent(d.id) + '">' + esc(T('open')) + '</a>');
       if (left[d.id] > 0.004 && (ty === 'invoice' || ty === 'cashmemo')) acts.push('<button type="button" class="btn sm" data-form="min" data-for="' + d.id + '">' + esc(T('recpay')) + '</button>');
       if (left[d.id] > 0.004 && ty === 'pbill') acts.push('<button type="button" class="btn sm" data-form="mout" data-for="' + d.id + '">' + esc(T('recpay')) + '</button>');
       if (CONVERT[ty] && !opts.noconv) acts.push('<select class="sm conv" data-conv="' + d.id + '" aria-label="' + esc(T('convert')) + ' ' + esc(d.no || '') + '"><option value="">' + esc(T('convert')) + '…</option>' +
@@ -256,14 +266,34 @@
   }
   function onClick(e) {
     var b = e.target.closest('button'); if (!b) return;
-    if (b.hasAttribute('data-form')) openForm(b.getAttribute('data-form'), { forId: b.getAttribute('data-for'), party: b.getAttribute('data-party') });
+    if (b.hasAttribute('data-form')) openForm(b.getAttribute('data-form'), { forId: b.getAttribute('data-for'), party: b.getAttribute('data-party'), mode: b.getAttribute('data-mode'), side: b.getAttribute('data-side') || '' });
+    else if (b.hasAttribute('data-photo')) showPhoto(b.getAttribute('data-photo'));
     else if (b.hasAttribute('data-edit')) { var d = C.doc.filter(function (x) { return x.id === b.getAttribute('data-edit'); })[0]; if (d) openForm(formOf(d), { rec: d }); }
     else if (b.hasAttribute('data-del')) delRec(b.getAttribute('data-del'));
     else if (b.hasAttribute('data-wa')) whatsapp(b.getAttribute('data-wa'));
     else if (b.hasAttribute('data-print')) window.print();
     else if (b.hasAttribute('data-pdf')) { var p = B.parties(mine(), bizName())[arg]; NS.sharePdf($$('[data-sheet]'), 'Statement ' + (p ? p.name : arg) + ' ' + stTo, 'a4', 'Statement of account', ''); }
   }
-  function formOf(d) { return d.type === 'exp' ? 'exp' : d.type === 'ob' ? 'ob' : d.type === 'pbill' ? (d.kind === 'return' ? 'pret' : 'pbill') : d.type === 'receipt' ? 'min' : 'mout'; }
+  function showPhoto(id) {
+    var d = C.doc.filter(function (x) { return x.id === id; })[0]; if (!d || !d.photo) return;
+    var w = window.open('', '_blank'); if (!w) return;
+    fetch(d.photo).then(function (r) { return r.blob(); }).then(function (b) { w.location.href = URL.createObjectURL(b); });
+  }
+  /* a phone photo of the supplier's bill, made smaller (longest side 1400 px, JPEG) so the data home stays light */
+  function shrinkPhoto(file) {
+    return new Promise(function (res, rej) {
+      var img = new Image(), u = URL.createObjectURL(file);
+      img.onload = function () {
+        var k = Math.min(1, 1400 / Math.max(img.width, img.height)), c = document.createElement('canvas');
+        c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(u);
+        res(c.toDataURL('image/jpeg', 0.72));
+      };
+      img.onerror = function () { URL.revokeObjectURL(u); rej(new Error('img')); };
+      img.src = u;
+    });
+  }
+  function formOf(d) { return d.type === 'contra' ? 'contra' : d.type === 'exp' ? 'exp' : d.type === 'ob' ? 'ob' : d.type === 'pbill' ? (d.kind === 'return' ? 'pret' : 'pbill') : d.type === 'receipt' ? 'min' : 'mout'; }
 
   function delRec(id) {
     var d = C.doc.filter(function (x) { return x.id === id; })[0]; if (!d) return;
@@ -318,9 +348,10 @@
       h = '<div class="fg">' + fld('f-date', T('date'), inp('f-date', rec ? rec.date : today, { type: 'date', req: 1 })) +
         fld('f-party', T(out ? 'supp' : 'cust'), inp('f-party', party, { req: 1, list: 'dl-party' }) + partyList(out ? 'supplier' : 'customer')) +
         fld('f-amt', T('amount'), inp('f-amt', amt, { mode: 'decimal', ltr: 1, req: 1 })) +
-        fld('f-mode', T('mode'), sel('f-mode', rec ? rec.mode : 'upi', modeOpts())) +
+        fld('f-mode', T('mode'), sel('f-mode', rec ? rec.mode : o.mode || 'upi', modeOpts())) +
         (out ? fld('f-tds', T('tdsout'), inp('f-tds', rec ? rec.tdsRate : '', { mode: 'decimal', ltr: 1 }), { hint: T('tdsouth') }) : fld('f-tds', T('tdsin'), inp('f-tds', rec ? rec.tds : '', { mode: 'decimal', ltr: 1 }), { hint: T('tdsinh') })) +
         fld('f-ref', T('ref'), inp('f-ref', rec ? rec.ref : '', { ltr: 1 })) +
+        chqFields(out, rec && rec.chq) +
         fld('f-note', T('note'), inp('f-note', rec ? (out ? (rec.lines && rec.lines[0] || {}).desc : rec.purpose) : ''), { wide: 1 }) + '</div>' +
         '<fieldset class="alloc"><legend>' + esc(T('against')) + '</legend><p class="soft">' + esc(T('againsth')) + '</p><div data-alloc></div><p class="soft" data-advleft></p></fieldset>';
     } else if (kind === 'pbill' || kind === 'pret') {
@@ -335,8 +366,9 @@
         '<fieldset><legend>' + esc(T('items')) + '</legend><div data-lines></div><button type="button" class="btn sm" data-addline>' + esc(T('addline')) + '</button>' +
         '<label class="chk"><input type="checkbox" id="f-nogst"' + (r.noGst ? ' checked' : '') + '> ' + esc(T('nogst')) + '</label><label class="chk"><input type="checkbox" id="f-round"' + (r.round !== false ? ' checked' : '') + '> ' + esc(T('round')) + '</label>' +
         '<div class="sum" data-sum></div></fieldset>' +
-        (kind === 'pbill' && !rec ? '<div class="fg">' + fld('f-mode', T('paidnow'), sel('f-mode', 'credit', modeOpts(true)), { hint: T('paidnowh') }) + '</div>' : '');
-      F.lines = JSON.parse(JSON.stringify(r.items));
+        (kind === 'pbill' && !rec ? '<div class="fg">' + fld('f-mode', T('paidnow'), sel('f-mode', 'credit', modeOpts(true)), { hint: T('paidnowh') }) + '</div>' : '') +
+        '<div class="fg"><div class="f wide"><label for="f-photo">' + esc(T('photo')) + '</label><input type="file" id="f-photo" accept="image/*"><small class="soft">' + esc(T('photoh')) + '</small><div class="photo-pv" data-photo-pv></div></div></div>';
+      F.lines = JSON.parse(JSON.stringify(r.items)); F.photo = r.photo || '';
     } else if (kind === 'exp') {
       var x = rec || { date: today, mode: 'cash', gst: '' };
       h = '<div class="fg">' + fld('f-date', T('date'), inp('f-date', x.date, { type: 'date', req: 1 })) +
@@ -348,10 +380,22 @@
         fld('f-gst', T('incgst'), sel('f-gst', x.gst || '', [['', '—'], ['5', '5%'], ['12', '12%'], ['18', '18%'], ['40', '40%']])) +
         '<div class="f wide"><label class="chk"><input type="checkbox" id="f-itc"' + (x.itc ? ' checked' : '') + '> ' + esc(T('itc')) + '</label><label class="chk"><input type="checkbox" id="f-inter"' + (x.inter ? ' checked' : '') + '> ' + esc(T('inter')) + '</label></div>' +
         fld('f-note', T('note'), inp('f-note', x.notes || ''), { wide: 1 }) + '</div>';
+    } else if (kind === 'csale') {
+      h = '<p class="soft">' + esc(T('csaleh')) + '</p><div class="fg">' + fld('f-date', T('date'), inp('f-date', today, { type: 'date', req: 1 })) +
+        fld('f-party', T('cust'), inp('f-party', party, { req: 1, list: 'dl-party' }) + partyList('customer')) +
+        fld('f-amt', T('amount'), inp('f-amt', '', { mode: 'decimal', ltr: 1, req: 1 })) +
+        fld('f-phone', T('phone'), inp('f-phone', (C.party.filter(function (p) { return key(p.name) === key(party); })[0] || {}).phone || '', { mode: 'tel', ltr: 1 })) +
+        fld('f-desc', T('given'), inp('f-desc', ''), { wide: 1 }) + fld('f-due', T('due'), inp('f-due', '', { type: 'date' })) + '</div>';
+    } else if (kind === 'contra') {
+      var cx = rec || { date: today, from: 'cash' };
+      h = '<p class="soft">' + esc(T('contrah')) + '</p><div class="fg">' + fld('f-date', T('date'), inp('f-date', cx.date, { type: 'date', req: 1 })) +
+        fld('f-dir', T('contra'), sel('f-dir', cx.from, [['cash', T('d_deposit')], ['bank', T('d_withdraw')]])) +
+        fld('f-amt', T('amount'), inp('f-amt', cx.amount || '', { mode: 'decimal', ltr: 1, req: 1 })) +
+        fld('f-ref', T('ref'), inp('f-ref', cx.ref || '', { ltr: 1 })) + fld('f-note', T('note'), inp('f-note', cx.notes || ''), { wide: 1 }) + '</div>';
     } else if (kind === 'ob') {
       var ob = rec || { date: fyStart(today), side: 'recv' };
-      h = '<p class="soft">' + esc(T('obh')) + '</p><div class="fg">' + fld('f-party', T('party'), inp('f-party', party, { req: 1, list: 'dl-party' }) + partyList()) +
-        fld('f-side', T('side'), sel('f-side', ob.side, [['recv', T('s_recv')], ['pay', T('s_pay')]])) +
+      h = '<p class="soft">' + esc(T('obh')) + '</p><div class="fg">' + fld('f-side', T('side'), sel('f-side', o.side || ob.side, [['recv', T('s_recv')], ['pay', T('s_pay')], ['cash', T('s_cash')], ['bank', T('s_bank')]])) +
+        fld('f-party', T('party'), inp('f-party', party, { req: 1, list: 'dl-party' }) + partyList()) +
         fld('f-amt', T('amount'), inp('f-amt', ob.amount || '', { mode: 'decimal', ltr: 1, req: 1 })) +
         fld('f-date', T('date'), inp('f-date', ob.date, { type: 'date', req: 1 })) + '</div>';
     }
@@ -361,12 +405,45 @@
     var al = $('[data-addline]', form);
     if (al) al.addEventListener('click', function () { F.lines.push({ desc: '', hsn: '', qty: 1, rate: '', gst: $('#f-nogst', form).checked ? 0 : 18 }); drawLines(); });
     if (F.lines) drawLines();
-    if (kind === 'min' || kind === 'mout') drawAlloc(true);
+    if (kind === 'min' || kind === 'mout') { drawAlloc(true); chqShow(); }
+    if (kind === 'ob') obShow();
+    if (F.lines) drawPhoto();
     dlg.showModal();
     var first = $('input:not([type=date]),select', form); if (first && !first.value) first.focus();
   }
+  function chqFields(out, c) {
+    c = c || {};
+    var st = out ? ['iss', 'ok', 'bounce'] : ['hand', 'dep', 'ok', 'bounce'];
+    return '<div class="f wide chqf" data-chqf><div class="fg">' + fld('f-cdate', T('cdate'), inp('f-cdate', c.date || '', { type: 'date' }), { hint: T('cdateh') }) +
+      fld('f-cbank', T('cbank'), inp('f-cbank', c.bank || '')) +
+      fld('f-cst', T('cst'), sel('f-cst', c.st || st[0], st.map(function (x) { return [x, T('c_' + x)]; }))) +
+      fld('f-con', T('con'), inp('f-con', c.on || '', { type: 'date' })) + '</div></div>';
+  }
+  function chqShow() {
+    var box = $('[data-chqf]', form); if (!box) return;
+    box.hidden = $('#f-mode', form).value !== 'cheque';
+    var on = $('#f-con', form); on.closest('.f').hidden = $('#f-cst', form).value !== 'ok';
+    if ($('#f-cst', form).value === 'ok' && !on.value) on.value = NS.today();
+  }
+  function chqFromForm() {
+    if ($('#f-mode', form).value !== 'cheque') return null;
+    var st = $('#f-cst', form).value;
+    return { date: $('#f-cdate', form).value || $('#f-date', form).value, bank: $('#f-cbank', form).value.trim(), st: st, on: st === 'ok' ? $('#f-con', form).value || NS.today() : '' };
+  }
+  function drawPhoto() {
+    var box = $('[data-photo-pv]', form); if (!box) return;
+    box.innerHTML = F.photo ? '<img src="' + F.photo + '" alt="' + esc(T('photo')) + '"><button type="button" class="btn sm" data-photo-rm>' + esc(T('photorm')) + '</button>' : '';
+    var rm = $('[data-photo-rm]', box); if (rm) rm.addEventListener('click', function () { F.photo = ''; $('#f-photo', form).value = ''; drawPhoto(); });
+  }
+  function obShow() {   /* cash in hand / bank balance: no party */
+    var p = $('#f-party', form), own = /^(cash|bank)$/.test($('#f-side', form).value);
+    p.closest('.f').hidden = own; p.required = !own; if (own) p.value = '';
+  }
   function onFormInput(e) {
     var id = e.target.id || '';
+    if (id === 'f-mode' || id === 'f-cst') chqShow();
+    if (id === 'f-side' && $('#f-party', form) && F.kind === 'ob') obShow();
+    if (id === 'f-photo') { if (e.type === 'change' && e.target.files[0]) shrinkPhoto(e.target.files[0]).then(function (u) { F.photo = u; drawPhoto(); }).catch(function () { NS.toast(T('photobad'), 'bad'); }); return; }
     if (F.lines && e.target.hasAttribute('data-li')) { var i = +e.target.getAttribute('data-li'), k = e.target.getAttribute('data-lk'); F.lines[i][k] = e.target.value; if (k === 'desc') fillItem(i); drawSum(); return; }
     if (F.lines && /f-(nogst|round|state)/.test(id)) drawSum();
     /* the first two digits of a GSTIN are the supplier's state code */
@@ -392,7 +469,7 @@
   }
   function billFromForm() {
     var d = { type: 'pbill', kind: F.kind === 'pret' ? 'return' : 'bill', seller: sellerCopy(), buyer: { name: $('#f-party', form).value.trim(), gstin: $('#f-gstin', form).value.trim().toUpperCase(), state: $('#f-state', form).value },
-      no: $('#f-no', form).value.trim(), date: $('#f-date', form).value, noGst: $('#f-nogst', form).checked, round: $('#f-round', form).checked,
+      no: $('#f-no', form).value.trim(), date: $('#f-date', form).value, noGst: $('#f-nogst', form).checked, round: $('#f-round', form).checked, photo: F.photo || '',
       items: F.lines.filter(function (L) { return String(L.desc).trim() || num(L.rate); }).map(function (L) { return { desc: String(L.desc).trim(), hsn: String(L.hsn || '').trim(), qty: L.qty === '' ? 1 : num(L.qty), unit: 'Nos', rate: num(L.rate), gst: num(L.gst) }; }) };
     if ($('#f-due', form)) d.due = $('#f-due', form).value; else d.orig = { no: $('#f-orig', form).value.trim() };
     var t = B.itemTotals(d), total = r2(t.taxable + t.cgst + t.sgst + t.igst);   /* IGST when the supplier's state differs from ours */
@@ -454,6 +531,7 @@
         d.buyer = Object.assign(rec ? rec.buyer : { addr: '', phone: '', gstin: '', pan: '' }, { name: party });
       }
       d.total = amt;
+      var cq = chqFromForm(); if (cq) d.chq = cq; else delete d.chq;
       jobs.push(savePartyRole(party, out ? 'supplier' : 'customer'));
       return Promise.all(jobs).then(function () { return NSStore.put('doc', d); }).then(function (saved) { return markPaid(saved); }).then(done);
     }
@@ -488,9 +566,25 @@
       if (party) jobs.push(savePartyRole(party, 'supplier'));
       return Promise.all(jobs).then(function () { return NSStore.put('doc', d); }).then(done);
     }
+    if (k === 'csale') {   /* a sale on credit (udhaar) is saved as an unpaid cash memo, so cash-memo. can print it */
+      var amt2 = r2(num($('#f-amt', form).value)), date2 = $('#f-date', form).value, ph = $('#f-phone', form).value.trim();
+      d = { type: 'cashmemo', kind: 'cashmemo', app: 1, no: nextNo('cashmemo', 'CM', date2), date: date2, due: $('#f-due', form).value, deliv: '', orig: { no: '', date: '' }, reason: 'ret', tr: { veh: '', tname: '', lr: '' },
+        paper: 'th80', design: 'classic', copies: 1, pos: '', rc: false, recv: '', ref: '', seller: sellerCopy(),
+        buyer: { name: party, addr: '', city: '', pin: '', state: BIZ.state || '', gstin: '', phone: ph }, ship: null, einv: null, irn: null,
+        items: [{ desc: $('#f-desc', form).value.trim() || 'Goods on credit', hsn: '', qty: 1, unit: 'Nos', rate: amt2, disc: '', gst: 0 }],
+        round: false, comp: true, notes: '', terms: '', status: 'unpaid', copyLabel: '', withGst: false, valid: '', total: amt2 };
+      return savePartyRole(party, 'customer', { phone: ph }).then(function () { return NSStore.put('doc', d); }).then(done);
+    }
+    if (k === 'contra') {
+      var fr = $('#f-dir', form).value;
+      d = Object.assign(rec || { type: 'contra', app: 1, no: '' }, { date: $('#f-date', form).value, seller: sellerCopy(), from: fr, to: fr === 'cash' ? 'bank' : 'cash', amount: r2(num($('#f-amt', form).value)), ref: $('#f-ref', form).value.trim(), notes: $('#f-note', form).value.trim() });
+      d.total = d.amount;
+      return NSStore.put('doc', d).then(done);
+    }
     if (k === 'ob') {
-      d = Object.assign(rec || { type: 'ob', app: 1 }, { date: $('#f-date', form).value, seller: sellerCopy(), buyer: { name: party }, side: $('#f-side', form).value, amount: r2(num($('#f-amt', form).value)) });
+      d = Object.assign(rec || { type: 'ob', app: 1 }, { date: $('#f-date', form).value, seller: sellerCopy(), buyer: { name: /^(cash|bank)$/.test($('#f-side', form).value) ? '' : party }, side: $('#f-side', form).value, amount: r2(num($('#f-amt', form).value)) });
       d.total = d.amount; d.no = '';
+      if (!d.buyer.name) return NSStore.put('doc', d).then(done);
       return savePartyRole(party, d.side === 'pay' ? 'supplier' : 'customer').then(function () { return NSStore.put('doc', d); }).then(done);
     }
   }
@@ -513,14 +607,23 @@
         if (d.type !== 'invoice' && d.type !== 'cashmemo') return;
         var linked = (pay.alloc || []).some(function (a) { return a.id === d.id; });
         if (linked && !open[d.id] && d.status !== 'paid') { d.status = 'paid'; d.paidBy = pay.id; jobs.push(NSStore.put('doc', d)); }
-        else if (d.paidBy === pay.id && !linked) { d.status = 'unpaid'; delete d.paidBy; jobs.push(NSStore.put('doc', d)); }
+        else if (d.paidBy === pay.id && (!linked || open[d.id] > 0.004)) { d.status = 'unpaid'; delete d.paidBy; jobs.push(NSStore.put('doc', d)); }
       });
       return Promise.all(jobs);
     });
   }
 
+  /* for door sites and extra sections (money.js) */
+  window.NSApp = {
+    T: T, B: B, addSection: function (name, html, wire) { EXT[name] = { html: html, wire: wire }; }, show: show, openForm: openForm,
+    mine: mine, biz: function () { return BIZ; }, bizName: bizName, data: function () { return C; }, docName: docName, enName: enName, amountOf: amountOf,
+    rowsHtml: rowsHtml, leftMap: leftMap, searchBar: searchBar, match: match, byDate: byDate, fyStart: fyStart, toolUrl: toolUrl, myUrl: myUrl, ldate: ldate,
+    range: function (f, t) { if (f) stFrom = f; if (t) stTo = t; if (!stTo) stTo = NS.today(); if (!stFrom) stFrom = fyStart(stTo); return [stFrom, stTo]; },
+    markPaid: markPaid, q: function () { return q; }, filt: function (f) { if (f != null) filt = f; return filt; }
+  };
   function init() {
     if (!$('#app')) return;
+    var ds = $('#app').getAttribute('data-secs'); if (ds) DOOR = ds.split(/\s+/);
     $$('[data-sec]').forEach(function (b) { b.addEventListener('click', function () { q = ''; filt = 'all'; }); });
     window.addEventListener('hashchange', route);
     document.addEventListener('ns-lang', function () { show(); });
