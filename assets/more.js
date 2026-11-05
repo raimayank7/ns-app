@@ -463,7 +463,7 @@
         '</tbody><tfoot><tr><th>Total</th>' + TR.all.map(function (v) { return '<th class="n">' + money(v, false) + '</th>'; }).join('') + '<th class="n">' + money(TR.all.reduce(function (s, v) { return s + v; }, 0), false) + '</th><th></th></tr></tfoot></table>';
     }
     return '<div class="pane-hd"><h2>' + esc(T('profit')) + '</h2><div class="quick"><button type="button" class="btn" data-b2print>' + esc(A.T('print')) + '</button><button type="button" class="btn" data-b2csv="profit">' + esc(A.T('csv')) + '</button></div></div>' +
-      '<p class="soft">' + esc(T('profith')) + '</p>' + dates() +
+      '<p class="soft">' + esc(T('profith')) + '</p><p class="soft">' + esc(NS.t('uf.pfapp')) + '</p>' + dates() +
       '<div class="tiles"><div class="tile"><span>' + esc(T('sv')) + '</span><b>' + money(t.value) + '</b></div><div class="tile"><span>' + esc(T('cv')) + '</span><b>' + money(t.cost) + '</b></div>' +
         '<div class="tile' + (t.profit < 0 ? ' neg' : '') + '"><span>' + esc(T('pv')) + '</span><b>' + money(t.profit) + '</b></div><div class="tile"><span>' + esc(T('mv')) + '</span><b>' + NS.qty(t.pct) + '%</b></div></div>' +
       (t.unknown ? '<p class="soft">' + esc(T('unknown', { n: t.unknown })) + '</p>' : '') +

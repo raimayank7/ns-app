@@ -8,7 +8,7 @@
   if (!A || !document.getElementById('app') || document.getElementById('app').getAttribute('data-secs')) return;   /* full app only, not door sites */
   var $ = NS.$, $$ = NS.$$, esc = NS.esc, B = A.B, T = A.T;
   var SITEOF = { invoice: 'billing', quote: 'quotation', proforma: 'proforma', so: 'sales-order', challan: 'challan', po: 'purchase-order', self: 'self-invoice', note: 'credit-note', cashmemo: 'cash-memo', receipt: 'receipt', voucher: 'voucher' };
-  var NEW = [['billing', 'invoice'], ['quotation', 'quote'], ['proforma', 'proforma'], ['sales-order', 'so'], ['challan', 'challan'], ['purchase-order', 'po'], ['credit-note', 'note'], ['cash-memo', 'cashmemo'], ['receipt', 'receipt'], ['voucher', 'voucher']];
+  var NEW = [['billing', 'invoice'], ['quotation', 'quote'], ['proforma', 'proforma'], ['sales-order', 'so'], ['challan', 'challan'], ['purchase-order', 'po'], ['credit-note', 'note', 'k.credit'], ['debit-note', 'note', 'k.debit'], ['cash-memo', 'cashmemo'], ['receipt', 'receipt'], ['voucher', 'voucher']];
   var FORMS = ['min', 'mout', 'pbill', 'exp', 'ob'];
   function formOf(d) { return d.type === 'contra' ? 'contra' : d.type === 'exp' ? 'exp' : d.type === 'ob' ? 'ob' : d.type === 'pbill' ? (d.kind === 'return' ? 'pret' : 'pbill') : d.type === 'receipt' ? 'min' : 'mout'; }
   function typing(e) { var t = e.target; return t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)); }
@@ -21,11 +21,11 @@
     var C = A.data(), out = [];
     $$('[data-sec]').forEach(function (a) { out.push({ k: 'go', label: a.textContent.trim(), sub: T('qk_go'), run: function () { location.hash = a.getAttribute('href').replace(/^#?/, ''); } }); });
     FORMS.forEach(function (f) { out.push({ k: 'act', label: '+ ' + T(f), sub: T('qk_new'), run: function () { A.openForm(f); } }); });
-    NEW.forEach(function (n) { out.push({ k: 'act', label: '+ ' + NS.t('Doc.' + n[1]), sub: T('qk_new'), run: function () { A.openUrl(A.toolUrl(n[0])); } }); });
+    NEW.forEach(function (n) { out.push({ k: 'act', label: '+ ' + NS.t(n[2] || 'Doc.' + n[1]), sub: T('qk_new'), run: function () { A.openUrl(A.toolUrl(n[0])); } }); });
     out.push({ k: 'go', label: NS.t('my.title'), sub: T('qk_go'), run: function () { A.openUrl(A.myUrl()); } });
     C.party.forEach(function (p) { out.push({ k: 'party', label: p.name, sub: [T('qk_party'), p.gstin, p.phone, p.city].filter(Boolean).join(' · '), run: function () { location.hash = 'st/' + encodeURIComponent(B.key(p.name)); } }); });
     A.mine().slice().sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); }).forEach(function (d) {
-      var site = SITEOF[d.type || 'invoice'], app = d.app && !/^(receipt|voucher|cashmemo)$/.test(d.type || '');
+      var site = (d.type === 'note' && d.kind === 'debit' ? 'debit-note' : SITEOF[d.type || 'invoice']), app = d.app && !/^(receipt|voucher|cashmemo)$/.test(d.type || '');
       if (!site && !/^(pbill|exp|ob|contra)$/.test(d.type)) return;   /* other sites' records (rent, salary, petty cash…) open there */
       out.push({ k: 'doc', label: A.docName(d) + (d.no ? ' ' + d.no : ''), sub: [B.partyName(d), A.ldate(d.date), NS.money(A.amountOf(d))].filter(Boolean).join(' · '),
         run: function () { if (site && !app) A.openUrl(A.toolUrl(site) + '?open=' + encodeURIComponent(d.id)); else if (!site || app) A.openForm(formOf(d), { rec: d }); } });
