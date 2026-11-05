@@ -3,7 +3,8 @@
    a quotation, a purchase bill, expenses and opening balances. Every record carries sample: 1 and every name ends
    in "(sample)", so NSSample.remove() takes away exactly these records and nothing the user typed.
    Batch 1 fields are filled too, so the new features have something to show: credit limit and credit days (Gill Builders is over its limit),
-   wholesale price type, item categories with MRP / wholesale / purchase price, freight on bill S01, and bill S01 repeats every month. */
+   wholesale price type, item categories with MRP / wholesale / purchase price, freight on bill S01, and bill S01 repeats every month.
+   Party and item groups (meta 'groups', core.js NS.groupsOf) with one sub-group each; they carry sample: 1 and go with remove(). */
 (function () {
   'use strict';
   var r2 = NS.r2;
@@ -23,17 +24,24 @@
 
   var BIZ = { name: 'Sharma Hardware' + TAG, addr: 'Shop 12, Gill Road', city: 'Ludhiana', pin: '141003', state: '03', gstin: gstin('03ABCPS1234K1Z'), reg: 'regular',
     phone: '98140 00000', email: '', bankName: 'Sample Bank', bankAcc: '000111222333', bankIfsc: 'SBIN0000001', bankBranch: 'Ludhiana', upi: 'sharmahardware@upi' };
+  /* groups: fixed ids, so adding the sample twice never makes two of them */
+  var GROUPS = {
+    party: [{ id: 'gsmp-ldh', name: 'Ludhiana customers' + TAG, under: 'debtors', sample: 1 }, { id: 'gsmp-bld', name: 'Builders' + TAG, under: 'gsmp-ldh', sample: 1 },
+      { id: 'gsmp-steel', name: 'Steel suppliers' + TAG, under: 'creditors', sample: 1 }],
+    item: [{ id: 'gsmp-hw', name: 'Hardware' + TAG, under: '', sample: 1 }, { id: 'gsmp-paint', name: 'Paints' + TAG, under: 'gsmp-hw', sample: 1 },
+      { id: 'gsmp-plumb', name: 'Plumbing' + TAG, under: '', sample: 1 }]
+  };
   var PARTIES = [
-    { name: 'Gill Builders' + TAG, role: 'customer', addr: 'Model Town', city: 'Ludhiana', pin: '141002', state: '03', gstin: gstin('03AAFFG5678L1Z'), phone: '98150 00001', ptype: 'wholesale', climit: 5000, cdays: 30 },
-    { name: 'Verma Paints' + TAG, role: 'customer', addr: 'Chaura Bazar', city: 'Ludhiana', pin: '141008', state: '03', gstin: gstin('03AAGPV2468M1Z'), phone: '98720 00002', cdays: 15 },
+    { name: 'Gill Builders' + TAG, group: 'gsmp-bld', role: 'customer', addr: 'Model Town', city: 'Ludhiana', pin: '141002', state: '03', gstin: gstin('03AAFFG5678L1Z'), phone: '98150 00001', ptype: 'wholesale', climit: 5000, cdays: 30 },
+    { name: 'Verma Paints' + TAG, group: 'gsmp-ldh', role: 'customer', addr: 'Chaura Bazar', city: 'Ludhiana', pin: '141008', state: '03', gstin: gstin('03AAGPV2468M1Z'), phone: '98720 00002', cdays: 15 },
     { name: 'Delhi Decor' + TAG, role: 'customer', addr: 'Kirti Nagar', city: 'New Delhi', pin: '110015', state: '07', gstin: gstin('07AAHCD1357N1Z'), phone: '99110 00003' },
-    { name: 'Punjab Steel Mart' + TAG, role: 'supplier', addr: 'Focal Point', city: 'Ludhiana', pin: '141010', state: '03', gstin: gstin('03AAJFP9753P1Z'), phone: '98880 00004' }
+    { name: 'Punjab Steel Mart' + TAG, group: 'gsmp-steel', role: 'supplier', addr: 'Focal Point', city: 'Ludhiana', pin: '141010', state: '03', gstin: gstin('03AAJFP9753P1Z'), phone: '98880 00004' }
   ];
   var ITEMS = [
-    { desc: 'Door hinge 4 inch' + TAG, hsn: '8302', unit: 'Nos', rate: 45, gst: 18, kind: 'goods', cat: 'Hardware', wrate: 40, mrp: 55, prate: 32 },
-    { desc: 'Wall putty 20 kg' + TAG, hsn: '3214', unit: 'Bag', rate: 650, gst: 18, kind: 'goods', cat: 'Paints', wrate: 610, mrp: 720, prate: 540 },
-    { desc: 'PVC pipe 1 inch' + TAG, hsn: '3917', unit: 'Mtr', rate: 120, gst: 18, kind: 'goods', cat: 'Plumbing', wrate: 110, mrp: 140, prate: 90 },
-    { desc: 'Paint brush 2 inch' + TAG, hsn: '9603', unit: 'Nos', rate: 60, gst: 18, kind: 'goods', cat: 'Paints', wrate: 52, mrp: 75, prate: 40 }
+    { desc: 'Door hinge 4 inch' + TAG, hsn: '8302', unit: 'Nos', rate: 45, gst: 18, kind: 'goods', cat: 'Hardware' + TAG, group: 'gsmp-hw', wrate: 40, mrp: 55, prate: 32 },
+    { desc: 'Wall putty 20 kg' + TAG, hsn: '3214', unit: 'Bag', rate: 650, gst: 18, kind: 'goods', cat: 'Paints' + TAG, group: 'gsmp-paint', wrate: 610, mrp: 720, prate: 540 },
+    { desc: 'PVC pipe 1 inch' + TAG, hsn: '3917', unit: 'Mtr', rate: 120, gst: 18, kind: 'goods', cat: 'Plumbing' + TAG, group: 'gsmp-plumb', wrate: 110, mrp: 140, prate: 90 },
+    { desc: 'Paint brush 2 inch' + TAG, hsn: '9603', unit: 'Nos', rate: 60, gst: 18, kind: 'goods', cat: 'Paints' + TAG, group: 'gsmp-paint', wrate: 52, mrp: 75, prate: 40 }
   ];
 
   function seller() { var s = JSON.parse(JSON.stringify(BIZ)); return s; }
@@ -53,7 +61,15 @@
   function add() {
     var A = window.NSApp, put = function (s, r) { r.sample = 1; return NSStore.put(s, r); };
     var C = PARTIES, bills = [];
-    return put('biz', seller()).then(function (b) {
+    return NSStore.meta('groups').then(function (m) {
+      m = m && typeof m === 'object' ? m : {};
+      ['party', 'item'].forEach(function (k) {
+        var list = Array.isArray(m[k]) ? m[k] : [];
+        GROUPS[k].forEach(function (g) { if (!list.some(function (x) { return x.id === g.id; })) list.push(JSON.parse(JSON.stringify(g))); });
+        m[k] = list;
+      });
+      return NSStore.meta('groups', m);
+    }).then(function () { return put('biz', seller()); }).then(function (b) {
       try { localStorage.setItem('ns-app-biz', b.id); } catch (e) {}
       return Promise.all(C.map(function (p) { return put('party', JSON.parse(JSON.stringify(p))); }).concat(ITEMS.map(function (it) { return put('item', JSON.parse(JSON.stringify(it))); })));
     }).then(function () {
@@ -111,6 +127,22 @@
       L[1].forEach(function (p) { if (isS(p, 'name')) jobs.push(NSStore.del('party', p.id)); });
       L[2].forEach(function (it) { if (isS(it, 'desc')) jobs.push(NSStore.del('item', it.id)); });
       L[3].forEach(function (d) { if (d.sample || names.indexOf(d.seller && d.seller.name) >= 0) jobs.push(NSStore.del('doc', d.id)); });
+      /* sample groups go too, unless the user has put own parties, items or groups in them */
+      var gl = function (s, k) { return L[s].filter(function (r) { return !isS(r, k); }).map(function (r) { return r.group; }); };
+      var keep = { party: gl(1, 'name'), item: gl(2, 'desc') };
+      jobs.push(NSStore.meta('groups').then(function (m) {
+        if (!m || typeof m !== 'object') return;
+        var cut = false;
+        ['party', 'item'].forEach(function (k) {
+          var list = Array.isArray(m[k]) ? m[k] : [];
+          m[k] = list.filter(function (g) {
+            var drop = g.sample && keep[k].indexOf(g.id) < 0 && !list.some(function (x) { return x.under === g.id && !x.sample; });
+            if (drop) cut = true;
+            return !drop;
+          });
+        });
+        if (cut) return NSStore.meta('groups', m);
+      }));
       var S = L[4];
       if (S && sBiz.some(function (b) { return b.id === S.defBiz; })) { S.defBiz = ''; jobs.push(NSStore.meta('settings', S)); }
       try { if (sBiz.some(function (b) { return b.id === localStorage.getItem('ns-app-biz'); })) localStorage.removeItem('ns-app-biz'); } catch (e) {}

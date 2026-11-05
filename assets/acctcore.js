@@ -183,6 +183,7 @@
           var nm = String(it.desc || '').trim(), k = key(nm), q = it.qty === '' || it.qty == null ? 1 : num(it.qty), rate = num(it.rate);
           if (!nm && !rate) return null;
           var value = r2(q * rate - q * rate * num(it.disc) / 100), m = M[k], c = costAt(k, d.date || '');
+          if (c != null && G.NSMfg) c *= G.NSMfg.factor(m, it.unit);   /* a line in the second unit (Box) costs per base unit × per */
           var svc = m && m.kind === 'service' || /^99/.test(String(it.hsn || m && m.hsn || '').replace(/\D/g, ''));
           if (c == null) c = masterCost(m) || (svc ? 0 : null);
           return { k: k, name: m ? m.desc : nm, qty: cut ? 0 : q, value: value, cost: cut || c == null ? 0 : r2(q * c), known: cut || c != null };

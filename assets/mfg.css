@@ -1,0 +1,11 @@
+/* manufacturing extras in the App (mfg.js): line rows with a variable number of columns, sub-part ticks, job work warnings */
+.mf-l{display:grid;grid-template-columns:minmax(0,1.8fr) repeat(var(--n,3),minmax(0,1fr)) 40px;gap:6px;align-items:end;margin-bottom:8px}
+.mf-l .rm{align-self:end;height:44px}
+.mf-l .mf-cap{align-self:center;min-height:44px;font-size:.85rem}
+.mf-ro{display:block;min-height:44px;padding:10px 0;font-weight:600;overflow-wrap:anywhere}
+.mf-sub{display:block;margin:4px 0;padding-inline-start:calc(var(--lv,0) * 18px)}
+.mf-warn{margin:8px 0;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--card,transparent)}
+.mf-warn.bad{color:var(--bad,#B42318);border-color:currentColor;font-weight:600}
+.mf-newv{justify-content:flex-start;background:none!important;border:0!important;padding-top:0!important;box-shadow:none!important}
+.mf-itc h4{margin:14px 0 6px;font-size:.92rem}
+@media (max-width:620px){.mf-l{grid-template-columns:repeat(2,minmax(0,1fr)) 40px}.mf-l>:first-child{grid-column:1/-1}}
