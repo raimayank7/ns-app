@@ -1,5 +1,5 @@
-const CACHE = 'ns-app-57812690ed';
-const SHELL = ["/", "/assets/base.css?v=f705ab2da4", "/assets/doc.css?v=1271e229c4", "/assets/i18n.js?v=2d453447a1", "/assets/store.js?v=eb98e624a1", "/assets/core.js?v=b989e14141", "/assets/books.js?v=bd520cbe51", "/assets/app.js?v=c2216c3e12", "/assets/money.js?v=89487992b1", "/assets/app.css?v=7f3db7acee"];
+const CACHE = 'ns-app-e696ab5dd8';
+const SHELL = ["/", "/assets/base.css?v=43209db185", "/assets/doc.css?v=1271e229c4", "/assets/i18n.js?v=20d2624350", "/assets/store.js?v=eb98e624a1", "/assets/core.js?v=b989e14141", "/assets/books.js?v=bd520cbe51", "/assets/app.js?v=bde1b7c449", "/assets/money.js?v=89487992b1", "/assets/app.css?v=55690da594"];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(n => n.startsWith('ns-') && n !== CACHE).map(n => caches.delete(n)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

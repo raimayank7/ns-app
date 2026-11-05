@@ -152,3 +152,14 @@ body *{visibility:hidden}
 @media print{.no-print,.stsheet .acts{display:none!important}}
 .hub-main .tiles{grid-template-columns:repeat(auto-fill,minmax(min(140px,100%),1fr))}
 .hub-main .tile b{font-size:clamp(1.02rem,4.4vw,1.35rem)}
+
+/* the shell: document makers and My data open in a frame inside the app */
+.bizbar .grow{flex:1 1 auto}
+.bizbar .newdoc{width:auto;max-width:100%;font-weight:600}
+.frame-bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:0 0 10px}
+.frame-bar b{flex:1 1 auto;font:700 1.1rem var(--font-head);min-width:0;overflow-wrap:anywhere}
+.app-frame{display:block;width:100%;height:calc(100dvh - 170px);min-height:520px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg)}
+html.app-in .hero,html.app-in .app-about{display:none}
+html.app-in .hub{margin-top:18px}
+@media (max-width:860px){.app-frame{height:calc(100dvh - 200px);min-height:440px}}
+@media print{html.app-frame-on .hd,html.app-frame-on .hub-nav,html.app-frame-on .frame-bar,html.app-frame-on .ft{display:none!important}}
