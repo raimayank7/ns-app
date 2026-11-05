@@ -12,6 +12,8 @@
   var FORMS = ['min', 'mout', 'pbill', 'exp', 'ob'];
   function formOf(d) { return d.type === 'contra' ? 'contra' : d.type === 'exp' ? 'exp' : d.type === 'ob' ? 'ob' : d.type === 'pbill' ? (d.kind === 'return' ? 'pret' : 'pbill') : d.type === 'receipt' ? 'min' : 'mout'; }
   function typing(e) { var t = e.target; return t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)); }
+  /* the software window (desk.js, every site) has its own command box, Ctrl K and Install button: then only the one-key shortcuts and last screen stay here */
+  var DESK = !!document.getElementById('ns-side');
   function busy() { return $$('dialog').some(function (d) { return d.open; }); }
 
   /* ---------- what the search box can find ---------- */
@@ -78,10 +80,10 @@
 
   /* ---------- keys ---------- */
   document.addEventListener('keydown', function (e) {
-    if ((e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); if (dlg && dlg.open) dlg.close(); else open(); return; }
+    if (!DESK && (e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); if (dlg && dlg.open) dlg.close(); else open(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey || typing(e) || busy()) return;
     var k = e.key;
-    if (k === '/') { e.preventDefault(); open(); return; }
+    if (k === '/' && !DESK) { e.preventDefault(); open(); return; }
     var act = { n: function () { A.openUrl(A.toolUrl('billing')); }, r: function () { A.openForm('min'); }, p: function () { A.openForm('mout'); }, e: function () { A.openForm('exp'); }, b: function () { A.openForm('pbill'); } }[k.toLowerCase()];
     if (act) { e.preventDefault(); act(); return; }
     if (/^[1-9]$/.test(k)) { var a = $$('[data-sec]')[+k - 1]; if (a) { e.preventDefault(); location.hash = a.getAttribute('href').replace(/^#?/, ''); } }
@@ -89,7 +91,7 @@
 
   /* ---------- search button in the header ---------- */
   var nav = $('.hd nav');
-  if (nav) {
+  if (nav && !DESK) {
     var sb = document.createElement('button');
     sb.type = 'button'; sb.className = 'btn sm qk-btn'; sb.setAttribute('aria-keyshortcuts', 'Control+K /');
     sb.innerHTML = '<span aria-hidden="true">⌕</span> <span data-qk-t></span> <kbd>Ctrl K</kbd>';
@@ -111,7 +113,7 @@
   var later;
   window.addEventListener('beforeinstallprompt', function (e) {
     e.preventDefault(); later = e;
-    if (!nav || $('.qk-install')) return;
+    if (DESK || !nav || $('.qk-install')) return;
     var ib = document.createElement('button');
     ib.type = 'button'; ib.className = 'btn sm primary qk-install'; ib.textContent = T('install');
     ib.addEventListener('click', function () { if (!later) return; later.prompt(); later.userChoice.then(function () { later = null; ib.remove(); }); });

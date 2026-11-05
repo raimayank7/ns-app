@@ -1,7 +1,9 @@
 /* Nivesh Sahayak App: sample data, so a new visitor sees the app working before typing anything.
    A made-up hardware shop in Ludhiana with customers, a supplier, items, bills of different ages, payments,
    a quotation, a purchase bill, expenses and opening balances. Every record carries sample: 1 and every name ends
-   in "(sample)", so NSSample.remove() takes away exactly these records and nothing the user typed. */
+   in "(sample)", so NSSample.remove() takes away exactly these records and nothing the user typed.
+   Batch 1 fields are filled too, so the new features have something to show: credit limit and credit days (Gill Builders is over its limit),
+   wholesale price type, item categories with MRP / wholesale / purchase price, freight on bill S01, and bill S01 repeats every month. */
 (function () {
   'use strict';
   var r2 = NS.r2;
@@ -22,16 +24,16 @@
   var BIZ = { name: 'Sharma Hardware' + TAG, addr: 'Shop 12, Gill Road', city: 'Ludhiana', pin: '141003', state: '03', gstin: gstin('03ABCPS1234K1Z'), reg: 'regular',
     phone: '98140 00000', email: '', bankName: 'Sample Bank', bankAcc: '000111222333', bankIfsc: 'SBIN0000001', bankBranch: 'Ludhiana', upi: 'sharmahardware@upi' };
   var PARTIES = [
-    { name: 'Gill Builders' + TAG, role: 'customer', addr: 'Model Town', city: 'Ludhiana', pin: '141002', state: '03', gstin: gstin('03AAFFG5678L1Z'), phone: '98150 00001' },
-    { name: 'Verma Paints' + TAG, role: 'customer', addr: 'Chaura Bazar', city: 'Ludhiana', pin: '141008', state: '03', gstin: gstin('03AAGPV2468M1Z'), phone: '98720 00002' },
+    { name: 'Gill Builders' + TAG, role: 'customer', addr: 'Model Town', city: 'Ludhiana', pin: '141002', state: '03', gstin: gstin('03AAFFG5678L1Z'), phone: '98150 00001', ptype: 'wholesale', climit: 5000, cdays: 30 },
+    { name: 'Verma Paints' + TAG, role: 'customer', addr: 'Chaura Bazar', city: 'Ludhiana', pin: '141008', state: '03', gstin: gstin('03AAGPV2468M1Z'), phone: '98720 00002', cdays: 15 },
     { name: 'Delhi Decor' + TAG, role: 'customer', addr: 'Kirti Nagar', city: 'New Delhi', pin: '110015', state: '07', gstin: gstin('07AAHCD1357N1Z'), phone: '99110 00003' },
     { name: 'Punjab Steel Mart' + TAG, role: 'supplier', addr: 'Focal Point', city: 'Ludhiana', pin: '141010', state: '03', gstin: gstin('03AAJFP9753P1Z'), phone: '98880 00004' }
   ];
   var ITEMS = [
-    { desc: 'Door hinge 4 inch' + TAG, hsn: '8302', unit: 'Nos', rate: 45, gst: 18, kind: 'goods' },
-    { desc: 'Wall putty 20 kg' + TAG, hsn: '3214', unit: 'Bag', rate: 650, gst: 18, kind: 'goods' },
-    { desc: 'PVC pipe 1 inch' + TAG, hsn: '3917', unit: 'Mtr', rate: 120, gst: 18, kind: 'goods' },
-    { desc: 'Paint brush 2 inch' + TAG, hsn: '9603', unit: 'Nos', rate: 60, gst: 18, kind: 'goods' }
+    { desc: 'Door hinge 4 inch' + TAG, hsn: '8302', unit: 'Nos', rate: 45, gst: 18, kind: 'goods', cat: 'Hardware', wrate: 40, mrp: 55, prate: 32 },
+    { desc: 'Wall putty 20 kg' + TAG, hsn: '3214', unit: 'Bag', rate: 650, gst: 18, kind: 'goods', cat: 'Paints', wrate: 610, mrp: 720, prate: 540 },
+    { desc: 'PVC pipe 1 inch' + TAG, hsn: '3917', unit: 'Mtr', rate: 120, gst: 18, kind: 'goods', cat: 'Plumbing', wrate: 110, mrp: 140, prate: 90 },
+    { desc: 'Paint brush 2 inch' + TAG, hsn: '9603', unit: 'Nos', rate: 60, gst: 18, kind: 'goods', cat: 'Paints', wrate: 52, mrp: 75, prate: 40 }
   ];
 
   function seller() { var s = JSON.parse(JSON.stringify(BIZ)); return s; }
@@ -61,6 +63,12 @@
         invoice(3, C[2], day(12), [line(2, 200)]),
         invoice(4, C[0], day(2), [line(1, 4)])
       ];
+      /* Batch 1: freight on the first bill (GST at the main item's rate) and a monthly repeat of it */
+      docs[0].charges = [{ name: 'Freight', amt: 300, gst: 'main' }];
+      docs[0].rec = { every: 'month', until: '' };
+      /* due date = bill date + the party's credit days (15 when none), so old bills show as overdue */
+      if (window.NSBooks) docs.forEach(function (d) { var p = C.filter(function (x) { return x.name === d.buyer.name; })[0] || {}; d.due = NSBooks.addDays(d.date, p.cdays || 15); });
+      if (window.NSBooks) docs[0].total = NSBooks.itemTotals(Object.assign({}, docs[0], { total: null })).total;
       /* a counter sale today, paid in cash, so "Sales today" is not empty */
       var cm = [line(3, 4)], walk = { sample: 1, type: 'cashmemo', kind: 'cashmemo', no: 'CM/' + fy(day(0)) + '/S01', date: day(0), due: '', deliv: '', pos: '', rc: false, recv: '', ref: '',
         seller: seller(), buyer: { name: '', addr: '', city: '', pin: '', state: '03', gstin: '', phone: '' }, ship: null, einv: null, irn: null, items: cm, round: true, comp: true,

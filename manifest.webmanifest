@@ -6,9 +6,30 @@
  "start_url": "/",
  "scope": "/",
  "display": "standalone",
+ "display_override": [
+  "window-controls-overlay",
+  "standalone"
+ ],
+ "launch_handler": {
+  "client_mode": "focus-existing"
+ },
  "background_color": "#F6F8FB",
  "theme_color": "#0B3B5B",
  "lang": "en-IN",
+ "shortcuts": [
+  {
+   "name": "Dues",
+   "url": "/#dues"
+  },
+  {
+   "name": "Money in and out",
+   "url": "/#money"
+  },
+  {
+   "name": "New invoice",
+   "url": "/#do/billing/"
+  }
+ ],
  "icons": [
   {
    "src": "/icons/icon-192.png",
