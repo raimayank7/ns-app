@@ -17,6 +17,8 @@
   var $ = NS.$, $$ = NS.$$, esc = NS.esc, num = NS.num, r2 = NS.r2, money = NS.money, B = NSBooks, P = NSPL, key = B.key;
   function T(k, v) { return NS.t('fr.' + k, v); }
   function L(k, v) { return NS.t('pl.' + k, v); }
+  /* name of a screen (tab); famore.js gives a trust / society its own words */
+  function tl(v) { return A.finHook ? A.finHook('tab', L('t_' + v), v) : L('t_' + v); }
   var view = 'tb', each = false;
 
   /* credit-nature heads: their amount is cr − dr */
@@ -83,6 +85,105 @@
     return rows.slice().sort(function (a, b) { return P.ORDER.indexOf(a.g) - P.ORDER.indexOf(b.g); });
   }
 
+  /* ---------- Trial balance styles: closing balance or detailed (opening, debits, credits, closing); group-wise, by account
+     (customers and suppliers as one total) or ledger-wise (each of them); with or without stock. Remembered in this browser. */
+  var TBK = 'ns-tb-style', tbp = (function () { var o = null; try { o = JSON.parse(localStorage.getItem(TBK) || 'null'); } catch (e) {} return Object.assign({ st: 'close', lv: 'acct', sk: true }, o || {}); })();
+  each = tbp.lv === 'ledger';
+  function S(k, v) { return NS.t('tbs.' + k, v); }
+  function tbName(x, C) {
+    var o = Object.assign({}, x), hit = C.rows.filter(function (y) { return y.k === x.k; })[0];
+    if (x.grp) { o.loc = S(x.grp); o.en = x.name; }
+    else if (x.k === 'res-earlier') { o.loc = L(x.cr || !x.dr && x.oc ? 'l_earlierp' : 'l_earlierl'); o.en = x.name; }
+    else if (x.loc) return o;
+    else if (hit) { o.loc = hit.loc; o.en = hit.en; }
+    else if (x.k.indexOf('p:') === 0) { var k = x.k.slice(2), P2 = B.parties(A.mine(), A.bizName()); o.loc = P2[k] ? P2[k].name : k === 'cash-customer' ? NS.t('b2.cashcust') : k; o.en = k === 'cash-customer' ? 'Cash customer' : P2[k] ? P2[k].name : k; }
+    else if (x.k === 'trec' || x.k === 'tpay') { o.loc = L('g_' + x.k); o.en = EN_H[x.g]; }
+    else o.loc = o.en = x.name;
+    return o;
+  }
+  function tbView(C) {
+    var det = tbp.st === 'detail', rows;
+    if (det) rows = P.tbDetail(A.data().doc, A.data().item, A.bizName(), C.r[0], C.r[1], { map: headMap(), each: each }).rows;
+    else rows = tbRows(C);
+    if (!tbp.sk) rows = P.stockOff(rows);
+    if (tbp.lv === 'group') rows = P.tbGroups(rows);
+    rows = rows.map(function (x) { return tbName(x, C); });
+    if (tbp.lv !== 'group') rows.sort(function (a, b) { return P.ORDER.indexOf(a.g) - P.ORDER.indexOf(b.g) || (a.k.indexOf('p:') === 0 && b.k.indexOf('p:') === 0 ? a.loc.localeCompare(b.loc) : 0); });
+    return { rows: rows, T: P.tbTotals(rows), det: det, grp: tbp.lv === 'group', sk: tbp.sk, cs: C.cs };
+  }
+  function tbControls() {
+    function sel(f, opts) { return '<label><span>' + esc(S('l_' + f)) + '</span> <select data-tbs="' + f + '">' + opts.map(function (v) { return '<option value="' + v + '"' + (tbp[f] === v ? ' selected' : '') + '>' + esc(S(f + '_' + v)) + '</option>'; }).join('') + '</select></label>'; }
+    return '<div class="tools-row fr-tbs">' + sel('st', ['close', 'detail']) + sel('lv', ['group', 'acct', 'ledger']) +
+      '<label class="chk"><input type="checkbox" data-tbs="sk"' + (tbp.sk ? ' checked' : '') + '> ' + esc(S('sk')) + '</label></div>';
+  }
+  function tbGrid(V, en) {
+    var c = function (v) { return v ? money(v, false) : ''; }, n = V.det ? 7 : 3, Tt = V.T, g0 = '';
+    var hd = V.det ? '<tr><th class="l" rowspan="2">' + esc(en ? 'Account' : L('acct')) + '</th><th class="c" colspan="2">' + esc(en ? 'Opening balance' : S('open')) + '</th><th class="c" colspan="2">' + esc(en ? 'Transactions' : S('trans')) + '</th><th class="c" colspan="2">' + esc(en ? 'Closing balance' : S('close')) + '</th></tr><tr>' +
+        [0, 1, 2].map(function () { return '<th class="n">' + esc(en ? 'Debit (Rs)' : L('dr')) + '</th><th class="n">' + esc(en ? 'Credit (Rs)' : L('cr')) + '</th>'; }).join('') + '</tr>'
+      : '<tr><th class="l">' + esc(en ? 'Account' : L('acct')) + '</th><th class="n">' + esc(en ? 'Debit (Rs)' : L('dr')) + '</th><th class="n">' + esc(en ? 'Credit (Rs)' : L('cr')) + '</th></tr>';
+    function cells(x) { return (V.det ? '<td class="n">' + c(x.od) + '</td><td class="n">' + c(x.oc) + '</td><td class="n">' + c(x.td) + '</td><td class="n">' + c(x.tc) + '</td>' : '') + '<td class="n">' + c(x.dr) + '</td><td class="n">' + c(x.cr) + '</td>'; }
+    var body = V.rows.map(function (x) {
+      var h = !V.grp && x.g !== g0 ? '<tr class="sec"><th colspan="' + n + '" class="l">' + esc(en ? EN_H[x.g] : L('g_' + x.g)) + '</th></tr>' : ''; g0 = x.g;
+      return h + '<tr><th scope="row" class="l' + (V.grp ? '' : ' sub') + '">' + esc(en ? x.en : x.loc) + '</th>' + cells(x) + '</tr>';
+    }).join('');
+    var tot = function (v) { return '<th class="n">' + money(v, false) + '</th>'; };
+    var bad = [['dopen', 'od'], ['dtr', 'td'], ['diff', 'dr']].filter(function (d) { return (V.det || d[0] === 'diff') && Math.abs(Tt[d[0]]) >= 0.005; });
+    var memo = V.sk ? '<tr class="memo"><th class="l">' + esc(en ? 'Closing stock (memo only, not added to the totals): ' + valEn() : S('csmemo')) + '</th>' + (V.det ? '<td colspan="4"></td>' : '') + '<td class="n">' + money(V.cs, false) + '</td><td></td></tr>' : '';
+    return '<table class="tbl fr-tb' + (V.det ? ' fr-tbd' : '') + '"><thead>' + hd + '</thead><tbody>' +
+      (body || '<tr><td colspan="' + n + '" class="soft">' + esc(en ? 'No entries in this period.' : T('none')) + '</td></tr>') + '</tbody><tfoot><tr><th class="l">' + esc(en ? 'Total' : L('total')) + '</th>' +
+      (V.det ? tot(Tt.od) + tot(Tt.oc) + tot(Tt.td) + tot(Tt.tc) : '') + tot(Tt.dr) + tot(Tt.cr) + '</tr>' +
+      bad.map(function (d) {
+        var at = V.det ? { od: 0, td: 2, dr: 4 }[d[1]] : 0, gap = function (k) { return k ? '<td colspan="' + k + '"></td>' : ''; };
+        return '<tr class="bad"><th class="l">' + esc(en ? 'Difference' : L('k_tb')) + '</th>' + gap(at) + '<th class="n" colspan="2">' + money(Tt[d[0]]) + '</th>' + gap(V.det ? 4 - at : 0) + '</tr>';
+      }).join('') +
+      memo + '</tfoot></table>';
+  }
+  /* English rows of the trial balance for Excel, in the chosen style */
+  function tbXl(V) {
+    var h = V.det ? ['Head', 'Account', 'Opening debit', 'Opening credit', 'Transactions debit', 'Transactions credit', 'Closing debit', 'Closing credit'] : ['Head', 'Account', 'Debit', 'Credit'];
+    var v = function (x) { return x || ''; }, out = [h].concat(V.rows.map(function (x) {
+      return [V.grp ? '' : EN_H[x.g], x.en].concat(V.det ? [v(x.od), v(x.oc), v(x.td), v(x.tc)] : [], [v(x.dr), v(x.cr)]);
+    }));
+    out.push(['Total', ''].concat(V.det ? [V.T.od, V.T.oc, V.T.td, V.T.tc] : [], [V.T.dr, V.T.cr]), []);
+    out.push(V.sk ? ['Closing stock (memo only, not added to the totals)', valEn()].concat(V.det ? ['', '', '', ''] : [], [V.cs, '']) : ['Ledger balances only: opening stock and stock brought in are left out (their value is in profit or loss of earlier periods).']);
+    return out;
+  }
+  /* ---------- previous year column: the same dates one year earlier ---------- */
+  /* the figures of another period: calc() reads the period from A.range(), so lend it the other dates for one call */
+  function calcAt(r) { var own = A.range; A.range = function () { return r; }; try { return calc(); } finally { A.range = own; } }
+  function prevC(C) {
+    var r = P.prevYear(C.r[0], C.r[1]), pl = view === 'pl', has = A.mine().some(function (d) { return d.date && d.date <= r[1] && (!pl || d.date >= r[0]) && (B.role(d) || d.type === 'stk'); });
+    return { r: r, has: has, C: has ? calcAt(r) : null };
+  }
+  function lkey(x) { return x.c + '|' + (/^(Profit|Loss) for the period$/.test(x.en) ? 'PL' : x.en); }
+  /* current lines with the previous year's figure (pv) beside each; lines only last year had are put in at their place */
+  function withPrev(cur, prev) {
+    var out = cur.map(function (x) { return Object.assign({}, x, { pv: x.c === 'sec' ? null : 0 }); }), last = null, used = [];
+    if (!prev) return out.map(function (x) { x.pv = null; x.nopy = 1; return x; });
+    prev.forEach(function (p) {
+      var k = lkey(p), at = -1;
+      for (var j = 0; j < out.length; j++) if (!used[j] && !out[j].py && lkey(out[j]) === k) { at = j; break; }
+      if (at < 0) {
+        var o = { loc: p.loc, en: p.en, v: null, nil: 1, c: p.c, pv: p.v, py: 1 }, i = last ? out.indexOf(last) + 1 : 0;
+        out.splice(i, 0, o); used.splice(i, 0, 1); last = o; return;
+      }
+      used[at] = 1; last = out[at];
+      out[at].pv = p.v == null ? null : /big/.test(p.c) && p.en !== out[at].en ? -p.v : p.v;
+    });
+    return out;
+  }
+  function stTablePY(lines, en, pr) {
+    var dash = '—', w = function (v, nil) { return nil ? dash : v == null ? '' : money(v, false); };
+    return '<table class="tbl fr-st fr-py"><thead><tr><th class="l">' + esc(en ? 'Particulars' : NS.t('sb.part')) + '</th><th class="n">' + esc(en ? 'Current year (Rs)' : S('cy')) + '</th><th class="n">' + esc(en ? 'Previous year (Rs)' : S('py')) + '</th></tr></thead><tbody>' +
+      lines.map(function (x) {
+        if (x.c === 'sec') return '<tr class="sec"><th colspan="3" class="l">' + esc(en ? x.en : x.loc) + '</th></tr>';
+        return '<tr class="' + x.c + '"><th scope="row" class="l' + (x.c === 'sub' ? ' sub' : '') + '">' + esc(en ? x.en : x.loc) + '</th><td class="n">' + w(x.v, x.nil) + '</td><td class="n">' + (x.nopy ? dash : w(x.pv, x.pv === 0 && x.c === 'sub' && !x.py)) + '</td></tr>';
+      }).join('') + '</tbody></table>' +
+      '<p class="soft">' + esc(en ? (pr.has ? 'Previous year: ' + A.ldate(pr.r[0]) + ' to ' + A.ldate(pr.r[1]) + ', the same dates one year earlier.' : 'Previous year (' + A.ldate(pr.r[0]) + ' to ' + A.ldate(pr.r[1]) + '): no records, shown as —.')
+        : S(pr.has ? 'pyh' : 'pynone', { a: iso(A.ldate(pr.r[0])), b: iso(A.ldate(pr.r[1])) })) + '</p>';
+  }
+  function stLinesPY(C, pr) { return withPrev(view === 'pl' ? plLines(C) : bsLines(C), pr.C ? (view === 'pl' ? plLines(pr.C) : bsLines(pr.C)) : null); }
+
   /* ---------- statements as lists of lines: { loc, en, v, c (class) } ---------- */
   function ln(loc, en, v, c) { return { loc: loc, en: en, v: v, c: c || '' }; }
   function head(g, v, C, always) {
@@ -101,7 +202,7 @@
     o.push(ln(L('totexp'), 'Total expenses', p.exp, 'tot'), ln(L('pbt'), 'Profit before tax', p.pbt, 'tot'));
     if (p.tax) o = o.concat(head('tax', p.tax, C));
     o.push(ln(L(p.profit < 0 ? 'loss' : 'profit'), p.profit < 0 ? 'Loss for the period' : 'Profit for the period', Math.abs(p.profit), 'tot big'));
-    return o;
+    return A.finHook ? A.finHook('pl', o, C) : o;   /* famore.js: words of a trust / society */
   }
   function subs(C, g, neg) { return C.rows.filter(function (x) { return x.g === g; }).map(function (x) { return ln(x.loc, x.en, neg ? -amt(x) : amt(x), 'sub'); }); }
   function bsLines(C) {
@@ -122,7 +223,7 @@
     o = o.concat(subs(C, 'cash'), subs(C, 'oca'));
     o.push(ln(L('total'), 'Total', S.assets, 'tot'));
     if (Math.abs(S.diff) >= 0.005) o.push(ln(L('bsdiff'), 'Difference', S.diff, 'bad'));
-    return o;
+    return A.finHook ? A.finHook('bs', o, C) : o;   /* famore.js: partners' capital accounts, capital fund */
   }
 
   /* ---------- screens ---------- */
@@ -137,7 +238,7 @@
       '<label>' + esc(A.T('from')) + ' <input type="date" data-stfrom value="' + r[0] + '"></label><label>' + esc(A.T('to')) + ' <input type="date" data-stto value="' + r[1] + '"></label></div>';
   }
   function tabs() {
-    return '<div class="seg" role="group">' + ['tb', 'pl', 'bs'].map(function (v) { return '<a class="btn sm" href="#fin/' + v + '" aria-pressed="' + (v === view) + '"' + (v === view ? ' aria-current="page"' : '') + '>' + esc(L('t_' + v)) + '</a>'; }).join('') + '</div>';
+    return '<div class="seg" role="group">' + ['tb', 'pl', 'bs'].map(function (v) { return '<a class="btn sm" href="#fin/' + v + '" aria-pressed="' + (v === view) + '"' + (v === view ? ' aria-current="page"' : '') + '>' + esc(tl(v)) + '</a>'; }).join('') + '</div>';
   }
   /* a date inside right-to-left text keeps its own order (Unicode isolate) */
   function iso(t) { return '⁦' + t + '⁩'; }
@@ -163,10 +264,14 @@
     return '<div class="st-hd"><div><b>' + esc(A.bizName()) + '</b>' + (Z.gstin ? '<br>GSTIN ' + esc(Z.gstin) : '') + '</div><div class="r"><b>' + esc(title) + '</b><br>' + esc(sub) + '</div></div>';
   }
   function sheet(C, rows) {
+    var TS = A.finT && A.finT(view, C, 'sheet'); if (TS) return TS;   /* T format (tformat.js) */
     var r = C.r, title = { tb: 'TRIAL BALANCE', pl: 'STATEMENT OF PROFIT AND LOSS', bs: 'BALANCE SHEET' }[view];
+    if (A.finHook) title = A.finHook('title', title, view);
     var sub = view === 'bs' ? 'As at ' + A.ldate(r[1]) : view === 'tb' ? 'As at ' + A.ldate(r[1]) + ' (period ' + A.ldate(r[0]) + ' to ' + A.ldate(r[1]) + ')' : 'For ' + A.ldate(r[0]) + ' to ' + A.ldate(r[1]);
-    var body = view === 'tb' ? tbTable(rows, P.totals(rows), true) + '<p>Closing stock Rs ' + money(C.cs, false) + ' (' + valEn() + ') is not part of the trial balance: it is shown under inventories.</p>'
-      : stTable(view === 'pl' ? plLines(C) : bsLines(C), true) + (view === 'pl' ? '<p>Gross profit (sales less the cost of goods sold): Rs ' + money(C.F.pl.gross, false) + '. Closing stock valued at ' + valEn() + '.</p>' : '');
+    var V = view === 'tb' && tbView(C), pr = view !== 'tb' && prevC(C);
+    if (V && V.det) title = 'TRIAL BALANCE (DETAILED)';
+    var body = view === 'tb' ? tbGrid(V, true) + '<p>' + (V.sk ? 'Closing stock Rs ' + money(C.cs, false) + ' (' + valEn() + ') is not part of the trial balance: it is shown under inventories.' : 'Ledger balances only: opening stock and stock brought in are left out; their value is in profit or loss of earlier periods.') + (V.grp ? ' One line per group of accounts.' : '') + '</p>'
+      : stTablePY(stLinesPY(C, pr), true, pr) + (view === 'pl' ? '<p>Gross profit (sales less the cost of goods sold): Rs ' + money(C.F.pl.gross, false) + '. Closing stock valued at ' + valEn() + '.</p>' : '');
     return '<div class="stsheet sh" dir="ltr" lang="en-IN" data-sheet>' + bizHead(title, sub) + body +
       '<p class="st-ft">Made with the Nivesh Sahayak App on ' + A.ldate(NS.today()) + ' from the saved records. Format based on Schedule III, Companies Act 2013.</p></div>';
   }
@@ -174,17 +279,19 @@
   A.addSection('fin', function (arg) {
     view = ['tb', 'pl', 'bs'].indexOf(arg) >= 0 ? arg : view;
     var C = calc(), F = C.F, rows = tbRows(C), Tt = P.totals(rows), ok = Math.abs(Tt.diff) < 0.005, bsOk = Math.abs(F.bs.diff) < 0.005;
-    var tiles = view === 'tb' ? [['k_dr', money(Tt.dr)], ['k_cr', money(Tt.cr)]] : view === 'pl' ? [['k_rev', money(F.pl.rev), 1], ['k_gross', money(F.pl.gross), 1], [F.pl.profit < 0 ? 'k_loss' : 'k_profit', money(Math.abs(F.pl.profit)), 1]]
+    var V = view === 'tb' && tbView(C), pr = view !== 'tb' && prevC(C), pyT = pr && stTablePY(stLinesPY(C, pr), false, pr).split('</table>');
+    var tiles = view === 'tb' ? [['k_dr', money(V.T.dr)], ['k_cr', money(V.T.cr)]] : view === 'pl' ? [['k_rev', money(F.pl.rev), 1], ['k_gross', money(F.pl.gross), 1], [F.pl.profit < 0 ? 'k_loss' : 'k_profit', money(Math.abs(F.pl.profit)), 1]]
       : [['k_assets', money(F.bs.assets)], ['k_own', money(F.bs.own)], ['k_borrow', money(r2(F.bs.ltb + F.bs.stb))]];
-    var body = view === 'tb' ? '<label class="chk"><input type="checkbox" data-freach' + (each ? ' checked' : '') + '> ' + esc(T('each')) + '</label><div class="tbl-wrap">' + tbTable(rows, Tt) + '</div><p class="soft">' + esc(T('tbh')) + '</p><p class="soft">' + esc(L('csnote', { x: money(C.cs) })) + '</p>'
-      : '<h3>' + esc(view === 'pl' ? L('plfor', { a: iso(A.ldate(C.r[0])), b: iso(A.ldate(C.r[1])) }) : L('bsat', { d: iso(A.ldate(C.r[1])) })) + '</h3><div class="tbl-wrap">' + stTable(view === 'pl' ? plLines(C) : bsLines(C)) + '</div>' +
+    var body = view === 'tb' ? tbControls() + '<div class="tbl-wrap">' + tbGrid(V) + '</div><p class="soft">' + esc(T('tbh') + (V.det ? ' ' + S('deth') : '')) + '</p><p class="soft">' + esc(V.sk ? L('csnote', { x: money(C.cs) }) : S('nostock')) + '</p>'
+      : '<h3>' + esc(view === 'pl' ? L('plfor', { a: iso(A.ldate(C.r[0])), b: iso(A.ldate(C.r[1])) }) : L('bsat', { d: iso(A.ldate(C.r[1])) })) + '</h3><div class="tbl-wrap">' + pyT[0] + '</table></div>' + pyT[1] +
         (view === 'pl' ? '<p class="soft">' + esc(L('grossh', { g: money(F.pl.gross) })) + '</p>' : '<p class="soft">' + esc(T('bsh')) + '</p>');
+    var TX = A.finT && A.finT(view, C); if (TX) { body = TX.body; if (TX.tiles) tiles = TX.tiles; }   /* T format (tformat.js) */
     var warn = '';
     if (!ok) warn += '<p class="note bad">' + esc(L('w_diff', { x: money(Math.abs(Tt.diff)), s: L(Tt.diff > 0 ? 'dr' : 'cr') })) + '</p>';
     else if (view === 'bs' && !bsOk) warn += '<p class="note bad">' + esc(T('bsdiff', { x: money(Math.abs(F.bs.diff)) })) + '</p>';
     C.rows.forEach(function (x) { if ((x.k === 'cash' || x.k === 'bank') && x.cr) warn += '<p class="note">' + esc(T('neg', { a: x.loc })) + '</p>'; });
-    return '<div class="pane-hd"><h2>' + esc(L('t_' + view)) + '</h2><div class="quick no-print"><button type="button" class="btn" data-print>' + esc(A.T('print')) + '</button><button type="button" class="btn" data-frpdf>' + esc(A.T('pdf')) + '</button><button type="button" class="btn" data-frxl>' + esc(A.T('lg_xl')) + '</button></div></div>' +
-      '<p class="soft">' + esc(T('finh')) + '</p>' + tabs() + period() +
+    return '<div class="pane-hd"><h2>' + esc(tl(view)) + '</h2><div class="quick no-print"><button type="button" class="btn" data-print>' + esc(A.T('print')) + '</button><button type="button" class="btn" data-frpdf>' + esc(A.T('pdf')) + '</button><button type="button" class="btn" data-frxl>' + esc(A.T('lg_xl')) + '</button></div></div>' +
+      '<p class="soft">' + esc(T('finh')) + '</p>' + tabs() + period() + (A.finHook ? A.finHook('links', view, C) : '') +
       '<div class="tiles">' + tiles.map(function (x) { return '<div class="tile' + (x[0] === 'k_loss' ? ' neg' : '') + '"><span>' + esc(x[2] ? L(x[0]) : T(x[0])) + '</span><b>' + x[1] + '</b></div>'; }).join('') +
         '<div class="tile' + (ok && (view !== 'bs' || bsOk) ? ' ok' : ' warn') + '"><span>' + esc(view === 'bs' ? T('k_bsok') : L('k_tb')) + '</span><b>' + esc(ok && (view !== 'bs' || bsOk) ? L('agrees') : money(view === 'bs' && ok ? F.bs.diff : Tt.diff)) + '</b></div></div>' +
       warn + body +
@@ -194,21 +301,28 @@
   }, function (pane) {
     var s = $('[data-frpre]', pane);
     if (s) s.addEventListener('change', function () { var p = presets(NS.today())[s.value]; if (p) { A.range(p[0], p[1]); A.show(); } });
-    var e = $('[data-freach]', pane); if (e) e.addEventListener('change', function () { each = e.checked; A.show(); });
+    $$('[data-tbs]', pane).forEach(function (e) { e.addEventListener('change', function () {
+      var f = e.getAttribute('data-tbs'); tbp[f] = f === 'sk' ? e.checked : e.value; each = tbp.lv === 'ledger';
+      try { localStorage.setItem(TBK, JSON.stringify(tbp)); } catch (x) {}
+      A.show();
+    }); });
     var pb = $('[data-frpdf]', pane); if (pb) pb.addEventListener('click', function () {
       var n = $('.fr-print > .stsheet', pane).cloneNode(true); n.classList.add('lg-paper');
-      NS.sharePdf([n], fileName(A.bizName()) + '-' + { tb: 'trial-balance', pl: 'profit-and-loss', bs: 'balance-sheet' }[view] + '-' + A.range()[1], 'a4', L('t_' + view), '');
+      NS.sharePdf([n], fileName(A.bizName()) + '-' + { tb: 'trial-balance', pl: 'profit-and-loss', bs: 'balance-sheet' }[view] + '-' + A.range()[1], 'a4', tl(view), '');
     });
     var xb = $('[data-frxl]', pane); if (xb) xb.addEventListener('click', excel);
+    if (A.finWire) A.finWire(pane, view);   /* format switch (tformat.js) */
   });
   function fileName(s) { return String(s).replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '-').toLowerCase() || 'business'; }
   /* one Excel file: trial balance, profit and loss, balance sheet (English) */
   function excel() {
     var C = calc(), rows = tbRows(C), Tt = P.totals(rows), r = C.r;
-    var tb = [['Head', 'Account', 'Debit', 'Credit']].concat(rows.map(function (x) { return [EN_H[x.g], x.en, x.dr || '', x.cr || '']; }));
-    tb.push(['Total', '', Tt.dr, Tt.cr], [], ['Closing stock (' + valEn() + ')', '', C.cs, '']);
-    function st(lines) { return [['Particulars', 'Amount']].concat(lines.map(function (x) { return [(x.c === 'sub' ? '    ' : '') + x.en, x.v == null ? '' : x.v]; })); }
-    NS.xlsx(fileName(A.bizName()) + '-final-accounts-' + r[0] + '-to-' + r[1] + '.xlsx', [{ name: 'Trial balance', rows: tb }, { name: 'Profit and loss', rows: st(plLines(C)) }, { name: 'Balance sheet', rows: st(bsLines(C)) }]);
+    var tb = tbXl(tbView(C)), v0 = view, pr = {};
+    if (A.finXl && A.finXl(C, tb, fileName(A.bizName()) + '-final-accounts-' + r[0] + '-to-' + r[1] + '.xlsx')) return;   /* T format (tformat.js) */
+    function st(lines) { return [['Particulars', 'Current year', 'Previous year']].concat(lines.map(function (x) { return [(x.c === 'sub' ? '    ' : '') + x.en, x.nil ? '' : x.v == null ? '' : x.v, x.nopy || x.pv == null ? '' : x.pv]; })); }
+    ['pl', 'bs'].forEach(function (w) { view = w; pr[w] = prevC(C); pr[w].lines = stLinesPY(C, pr[w]); }); view = v0;
+    function py(w) { return [[], [pr[w].has ? 'Previous year: ' + pr[w].r[0] + ' to ' + pr[w].r[1] + ' (the same dates one year earlier)' : 'Previous year ' + pr[w].r[0] + ' to ' + pr[w].r[1] + ': no records']]; }
+    NS.xlsx(fileName(A.bizName()) + '-final-accounts-' + r[0] + '-to-' + r[1] + '.xlsx', [{ name: 'Trial balance', rows: tb }, { name: 'Profit and loss', rows: st(pr.pl.lines).concat(py('pl')) }, { name: 'Balance sheet', rows: st(pr.bs.lines).concat(py('bs')) }]);
   }
 
   /* ---------- capital and loans ---------- */
@@ -306,6 +420,9 @@
   /* edit buttons (journal list, recent lists, the screen above) open this form for its own entries */
   var prevEdit = A.editX;
   A.editX = function (d) { if (d && d.type === 'jv' && d.cl && KINDS.indexOf(d.cl) >= 0) { clForm(d.cl, d); return true; } return prevEdit ? prevEdit(d) : false; };
+
+  /* for famore.js (manufacturing account, partnership firm, trust / society): the same figures and drawing helpers */
+  A.fin = { calc: calc, plLines: plLines, bsLines: bsLines, stTable: stTable, bizHead: bizHead, period: period, presets: presets, iso: iso, fileName: fileName, valEn: valEn, mv: mv };
 
   /* ---------- menu: two links of the full App (door sites keep their own short menu) ---------- */
   function menu() {
