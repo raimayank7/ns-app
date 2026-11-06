@@ -27,9 +27,10 @@
     e.preventDefault(); e.stopImmediatePropagation();
     try { P.focus(); P.document.dispatchEvent(new P.KeyboardEvent('keydown', { key: e.key, code: e.code, ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey, shiftKey: e.shiftKey, bubbles: true, cancelable: true })); } catch (er) {}
   }, true);
-  /* the App's language or colour theme changes while a document is open: follow at once (same address, so the choice is shared) */
+  /* the App's language changes while a document is open: follow THIS tab's App only (its ns-lang event). The storage event
+     also fires for a choice made in another tab or window, which must not switch this one (it takes it on the next load). */
+  try { if (app()) window.parent.document.addEventListener('ns-lang', function (e) { if (e.detail && NS.setLang && e.detail !== document.documentElement.getAttribute('lang')) NS.setLang(e.detail, true); }); } catch (e) {}
   window.addEventListener('storage', function (e) {
-    if (e.key === 'ns-lang' && e.newValue && NS.setLang) NS.setLang(e.newValue, true);
     if (e.key === 'ns-theme') { if (e.newValue === 'light' || e.newValue === 'dark') document.documentElement.setAttribute('data-theme', e.newValue); else document.documentElement.removeAttribute('data-theme'); }
   });
   /* once the document is saved, the App's address names it (?open=<id>), so a reload shows that document, not a new one

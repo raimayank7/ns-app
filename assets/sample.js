@@ -70,7 +70,7 @@
       });
       return NSStore.meta('groups', m);
     }).then(function () { return put('biz', seller()); }).then(function (b) {
-      try { localStorage.setItem('ns-app-biz', b.id); } catch (e) {}
+      NS.setCurBiz(b.id);
       return Promise.all(C.map(function (p) { return put('party', JSON.parse(JSON.stringify(p))); }).concat(ITEMS.map(function (it) { return put('item', JSON.parse(JSON.stringify(it))); })));
     }).then(function () {
       var docs = [
@@ -145,7 +145,7 @@
       }));
       var S = L[4];
       if (S && sBiz.some(function (b) { return b.id === S.defBiz; })) { S.defBiz = ''; jobs.push(NSStore.meta('settings', S)); }
-      try { if (sBiz.some(function (b) { return b.id === localStorage.getItem('ns-app-biz'); })) localStorage.removeItem('ns-app-biz'); } catch (e) {}
+      if (sBiz.some(function (b) { return b.id === NS.curBiz(); })) NS.setCurBiz('');
       return Promise.all(jobs);
     });
   }

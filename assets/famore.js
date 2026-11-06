@@ -27,6 +27,11 @@
   P.fromBooks = function (docs, items, biz, from, to, opt) {
     opt = opt || {};
     if (to && key(biz) === key(A.bizName()) && opt.wipOpen == null && opt.wipClose == null && faSet().wip) opt = Object.assign({}, opt, { wipOpen: from ? wipAt(P.prevDay(from)) : 0, wipClose: wipAt(to) });
+    /* finished goods at full cost (AS 2): factory overheads spread over the goods made, on the made goods still in stock */
+    if (to && key(biz) === key(A.bizName()) && opt.as2Close == null) {
+      var fc = F.fullCost(docs, items, biz, to, faSet().direct || null), fo = from ? F.fullCost(docs, items, biz, P.prevDay(from), faSet().direct || null) : null;
+      if (fc.uplift || fo && fo.uplift) opt = Object.assign({}, opt, { as2Close: fc.uplift, as2Open: fo ? fo.uplift : 0 });
+    }
     return fromBooks.call(P, docs, items, biz, from, to, opt);
   };
 
@@ -34,24 +39,33 @@
   function amt(x) { return r2(x.dr - x.cr); }
   function mfgCalc(C) {
     var r = C.r, exps = C.rows.filter(function (x) { return x.k.indexOf('exp:') === 0; }).map(function (x) { return { k: x.k, name: x.en, loc: x.loc, v: amt(x) }; });
-    var x = F.mfg(A.data().doc, A.data().item, A.bizName(), r[0], r[1], { exps: exps, direct: faSet().direct || null, wipOpen: wipAt(P.prevDay(r[0])), wipClose: wipAt(r[1]), purTotal: C.F.pl.pur, rev: C.F.pl.rev });
+    var dir = faSet().direct || null, fc = F.fullCost(A.data().doc, A.data().item, A.bizName(), r[1], dir), fo = F.fullCost(A.data().doc, A.data().item, A.bizName(), P.prevDay(r[0]), dir);
+    var x = F.mfg(A.data().doc, A.data().item, A.bizName(), r[0], r[1], { exps: exps, direct: dir, wipOpen: wipAt(P.prevDay(r[0])), wipClose: wipAt(r[1]), purTotal: C.F.pl.pur, rev: C.F.pl.rev, as2Open: fo.uplift, as2Close: fc.uplift });
+    x.as2 = fc;
     var L = {}; exps.forEach(function (e) { L[e.k] = e.loc; });
     x.direct.forEach(function (e) { e.loc = L[e.k] || e.name; });
     x.exps = exps;
     return x;
   }
-  function firmCalc(C) { return F.firm(A.data().doc, A.bizName(), C.r[0], C.r[1], bz().partners, { profit: C.F.pl.profit, pbt: C.F.pl.pbt }); }
+  function firmCalc(C) { return F.firm(A.data().doc, A.bizName(), C.r[0], C.r[1], bz().partners, { profit: C.F.pl.profit, pbt: C.F.pl.pbt, mode: bz().apprMode }); }
+  /* tformat.js: the same appropriation for the T format balance sheet (null when the business is not a firm with partners) */
+  A.famFirm = function (C) { return F.hasPartners(A.biz()) && (bz().partners || []).length && C && C.F ? firmCalc(C) : null; };
   A.famMfg = function () { var C = X.calc(); return mfgCalc(C); };
 
+  var WAGES = /wage|labou?r|salar|majdoor|mazdoor|karigar/i;
   /* ---------- lines: { loc, en, v, c } like finrep.js ---------- */
   function mfgLines(x) {
     var o = [ln(M('rawopen'), 'Opening stock of raw material', x.rawOpen, 'sub'), ln(M('rawpur'), 'Add: purchases of raw material', x.rawPur, 'sub'),
-      ln(M('rawclose'), 'Less: closing stock of raw material', -x.rawClose, 'sub'), ln(M('consumed'), 'Raw material consumed', x.consumed, 'b')];
-    if (x.direct.length) { o.push(ln(M('direct'), 'Add: direct (factory) expenses', x.dirTotal, 'b')); x.direct.forEach(function (e) { o.push(ln(e.loc, e.name, e.v, 'sub')); }); }
-    o.push(ln(M('prime'), 'Prime cost', x.prime, 'tot'));
+      ln(M('rawclose'), 'Less: closing stock of raw material', x.rawClose, 'sub'), ln(M('consumed'), 'Raw material consumed', x.consumed, 'b')];
+    /* prime cost = material + direct wages; power, fuel, repairs and other factory costs are factory overheads after it (user test 2026-11-06) */
+    var wages = x.direct.filter(function (e) { return WAGES.test(e.name || '') || WAGES.test(e.loc || ''); }), ovh = x.direct.filter(function (e) { return wages.indexOf(e) < 0; });
+    var wt = r2(wages.reduce(function (s, e) { return s + e.v; }, 0)), ot = r2(ovh.reduce(function (s, e) { return s + e.v; }, 0));
+    if (wages.length) { o.push(ln(NS.t('fx.fm_dwages'), 'Add: direct wages', wt, 'b')); wages.forEach(function (e) { o.push(ln(e.loc, e.name, e.v, 'sub')); }); }
+    o.push(ln(M('prime'), 'Prime cost', r2(x.consumed + wt), 'tot'));
+    if (ovh.length) { o.push(ln(NS.t('fx.fm_ovh'), 'Add: factory overheads', ot, 'b')); ovh.forEach(function (e) { o.push(ln(e.loc, e.name, e.v, 'sub')); }); }
     if (x.wipOpen) o.push(ln(M('wipo'), 'Add: opening work in progress', x.wipOpen, 'sub'));
-    if (x.wipClose) o.push(ln(M('wipc'), 'Less: closing work in progress', -x.wipClose, 'sub'));
-    if (x.byp) o.push(ln(M('byp'), 'Less: by-products and scrap made', -x.byp, 'sub'));
+    if (x.wipClose) o.push(ln(M('wipc'), 'Less: closing work in progress', x.wipClose, 'sub'));
+    if (x.byp) o.push(ln(M('byp'), 'Less: by-products and scrap made', x.byp, 'sub'));
     o.push(ln(M('cogm'), 'Cost of goods manufactured', x.cogm, 'tot big'));
     return o;
   }
@@ -60,7 +74,7 @@
       ln(M('fgopen'), 'Opening stock of finished goods', x.fgOpen, 'sub'), ln(M('addcogm'), 'Add: cost of goods manufactured', x.cogm, 'sub')];
     if (x.byp) o.push(ln(M('addbyp'), 'Add: by-products and scrap made (into stock)', x.byp, 'sub'));
     if (x.purOther) o.push(ln(M('purother'), 'Add: other purchases (goods for resale, services)', x.purOther, 'sub'));
-    o.push(ln(M('fgclose'), 'Less: closing stock of finished goods', -x.fgClose, 'sub'), ln(M('cogs'), 'Cost of goods sold', x.cogs, 'tot'),
+    o.push(ln(M('fgclose'), 'Less: closing stock of finished goods', x.fgClose, 'sub'), ln(M('cogs'), 'Cost of goods sold', x.cogs, 'tot'),
       ln(M(x.gross < 0 ? 'grossl' : 'gross'), x.gross < 0 ? 'Gross loss' : 'Gross profit', Math.abs(x.gross), 'tot big'));
     return o;
   }
@@ -87,7 +101,7 @@
       return { loc: h.name, en: h.name };
     }
     var nm = row ? row.en : h.name.split(': ').slice(1).join(': ');
-    return { loc: M('h_' + h.px) + ': ' + nm, en: h.name.split(': ')[0] + ': ' + nm };
+    return { loc: M(h.px === 'cap' && /^Capital introduced/.test(h.name) ? 'h_capi' : 'h_' + h.px) + ': ' + nm, en: h.name.split(': ')[0] + ': ' + nm };
   }
   function rpLines(R, C) {
     var o = [ln(M('ob'), 'Opening balance', r2(R.open.cash + R.open.bank), 'b'), ln(M('cash'), 'Cash in hand', R.open.cash, 'sub'), ln(M('bank'), 'Bank', R.open.bank, 'sub')];
@@ -126,13 +140,14 @@
     var t = bt();
     if (kind === 'tab') return t === 'npo' && C === 'pl' ? M('t_ie') : x;
     if (kind === 'title') return t === 'npo' && C === 'pl' ? 'INCOME AND EXPENDITURE ACCOUNT' : x;
-    if (kind === 'links') return links(x, C);
+    if (kind === 'links') return links(x, C) + as2Note(C);
     if (kind === 'pl' && t === 'npo') {
       var o = relabel(x, NPO_PL), fee = feeTotal(C), i = -1;
       o.forEach(function (y, j) { if (i < 0 && y.en === NPO_PL['Revenue from operations'][1]) i = j; });
       if (fee && i >= 0) o.splice(i + 1, 0, ln(M('fees'), 'Fees received', fee, 'sub'), ln(M('othact'), 'Other income from activities', r2(C.F.pl.rev - fee), 'sub'));
       return o;
     }
+    if (kind === 'pl' && F.hasProduction(A.data().doc, A.data().item, A.bizName(), C.r[0], C.r[1])) return mfgPl(x, C);
     if (kind === 'bs') {
       if (t === 'npo') return relabel(x, { 'Owner\'s funds': ['fund', 'Capital fund (general fund)'], 'Profit for the period': [C.F.pl.profit < 0 ? 'lessexe' : 'addexi', C.F.pl.profit < 0 ? 'Less: excess of expenditure over income' : 'Add: excess of income over expenditure'],
         'Loss for the period': ['lessexe', 'Less: excess of expenditure over income'] });
@@ -141,6 +156,24 @@
     }
     return x;
   };
+  /* a manufacturer's statement of profit and loss (Schedule III): raw material is "Cost of materials consumed" (opening + purchases
+     − closing raw material), "Purchases of stock-in-trade" only for goods bought to resell, and the change in inventories only for
+     finished goods, work in progress and stock-in-trade. Same total expenses and profit (user test 2026-11-06). */
+  function mfgPl(o, C) {
+    var i = -1, j = -1;
+    o.forEach(function (y, k) { if (i < 0 && y.c === 'b' && y.en === 'Purchases of stock-in-trade') i = k; if (j < 0 && /^Changes in inventories/.test(y.en)) j = k; });
+    if (i < 0 || j < i || o.some(function (y) { return y.c === 'b' && y.en === 'Cost of materials consumed'; })) return o;
+    var m = mfgCalc(C), iE = i + 1, jE = j + 1;
+    while (iE < o.length && o[iE].c === 'sub') iE++;
+    while (jE < o.length && o[jE].c === 'sub') jE++;
+    var fo = r2(C.os - m.rawOpen), fc = r2(C.cs - m.rawClose);
+    var mat = [ln(NS.t('fx.cmc'), 'Cost of materials consumed', m.consumed, 'b'), ln(M('rawopen'), 'Opening stock of raw material', m.rawOpen, 'sub'),
+      ln(M('rawpur'), 'Add: purchases of raw material', m.rawPur, 'sub'), ln(M('rawclose'), 'Less: closing stock of raw material', m.rawClose, 'sub')];
+    if (m.purOther) mat.push(ln(o[i].loc, 'Purchases of stock-in-trade', m.purOther, 'b'));
+    var chg = [ln(NS.t('fx.chgfg'), 'Changes in inventories of finished goods, work in progress and stock-in-trade', r2(fo - fc), 'b'),
+      ln(NS.t('fx.osfg'), 'Opening stock (finished goods, work in progress, stock-in-trade)', fo, 'sub'), ln(NS.t('fx.csfg'), 'Less: closing stock (finished goods, work in progress, stock-in-trade)', fc, 'sub')];
+    return o.slice(0, i).concat(mat, o.slice(iE, j), chg, o.slice(jE));
+  }
   /* a firm's balance sheet: each partner's closing capital in place of capital, drawings and profit */
   function partnersBs(o, C) {
     var s = -1, e = -1;
@@ -158,6 +191,12 @@
     if (F.hasPartners(A.biz())) out.push('firm');
     if (t === 'npo') out.push('rp');
     return out;
+  }
+  /* the method of valuing finished goods, under the statements when some were made */
+  function as2Note(C) {
+    var a = F.fullCost(A.data().doc, A.data().item, A.bizName(), C.r[1], faSet().direct || null);
+    if (!a.made) return '';
+    return '<p class="soft fm-as2">' + esc(NS.t('fx.as2', { oh: money(a.overheads), m: money(a.made), p: r2(a.factor * 100), u: money(a.uplift) })) + '</p>';
   }
   function links(v, C) {
     var L = avail(C); if (!L.length) return '';
@@ -206,6 +245,8 @@
     else if (Math.abs(f.shares - 100) >= 0.005) w += '<p class="note">' + esc(M('sh100', { x: r2(f.shares) })) + '</p>';
     if (f.overSal) w += '<p class="note bad">' + esc(M('overs', { s: money(f.appr.sal), x: money(f.limit) })) + '</p>';
     if (f.overInt) w += '<p class="note bad">' + esc(M('overi')) + '</p>';
+    if (f.appr.mode === 'profit' && f.appr.cut < 1) w += '<p class="note">' + esc(f.appr.profit > 0 ? NS.t('fx.fm_cut', { x: money(f.appr.full), y: money(r2(f.appr.int + f.appr.sal)) }) : NS.t('fx.fm_loss', { x: money(f.appr.full) })) + '</p>';
+    if (f.appr.mode === 'deed' && f.appr.profit < 0) w += '<p class="note">' + esc(NS.t('fx.fm_deed')) + '</p>';
     var en = X.stTable(apprLines(f), true) + '<h3 class="lg-h">PARTNERS\' CAPITAL ACCOUNTS</h3>' + capTable(f.caps, true);
     return {
       tiles: [[f.appr.profit < 0 ? 'nl' : 'np', money(Math.abs(f.appr.profit))], ['intcap', money(f.appr.int)], ['salary', money(f.appr.sal)]],
@@ -213,12 +254,13 @@
         '<h3>' + esc(M(t === 'llp' ? 'pfund' : 'capt')) + '</h3><div class="tbl-wrap">' + capTable(f.caps) + '</div>' +
         '<p class="soft">' + esc(M('caph')) + '</p><p class="soft">' + esc(M('h40')) + ' ' + esc(M('lim', { x: money(f.limit) })) + '</p>' +
         '<p class="soft"><a href="' + esc(A.myUrl('#biz')) + '">' + esc(M('addp')) + ' ›</a> · <a href="#capl">' + esc(NS.t('app.capl')) + ' ›</a></p>',
-      sheet: sheet(C, TITLES.firm, forEn(C.r), en, 'Interest on capital and salary as set for each partner in the business details; the rest shared in the profit-sharing ratio.'),
+      sheet: sheet(C, TITLES.firm, forEn(C.r), en, 'Interest on capital and salary as set for each partner in the business details; the rest shared in the profit-sharing ratio. ' +
+        (f.appr.mode === 'deed' ? 'As per the partnership deed, interest and salary are allowed even when there is a loss.' : 'Interest and salary are allowed only out of profit' + (f.appr.cut < 1 ? ' (cut in proportion to the profit available).' : '.'))),
       xl: [{ name: 'Appropriation', rows: xrows(apprLines(f)) }, { name: 'Partners capital', rows: [['Partner', 'Opening', 'Capital brought in', 'Interest on capital', 'Salary', 'Share of profit', 'Drawings', 'Closing']].concat(f.caps.map(function (c) { return [c.name, c.open, c.intro, c.int, c.sal, c.share, c.drw, c.close]; })) }]
     };
   }
   function rpHtml(C) {
-    var R = F.recPay(A.data().doc, A.bizName(), C.r[0], C.r[1]), L = rpLines(R, C);
+    var R = F.recPay(A.data().doc, A.bizName(), C.r[0], C.r[1], bt() === 'firm' || bt() === 'llp'), L = rpLines(R, C);
     return {
       tiles: [['rec', money(R.recTotal)], ['pay', money(R.payTotal)], ['cb', money(r2(R.close.cash + R.close.bank))]],
       body: '<p class="soft">' + esc(M('rph')) + '</p><div class="tbl-wrap">' + X.stTable(L) + '</div>',

@@ -45,8 +45,9 @@
   }
   /* WDV rate that brings cost down to the residual value at the end of the useful life */
   function wdvRate(life, resid) { var rv = Math.max(resid, 0.01) / 100; return life > 0 ? 1 - Math.pow(rv, 1 / life) : 0; }
-  /* book depreciation (Companies Act Schedule II) of one asset, year by year up to fy: [{ fy, open, add, dep, sold, close }] */
-  function bookSchedule(a, uptoFy) {
+  /* book depreciation (Companies Act Schedule II) of one asset, year by year up to fy: [{ fy, open, add, dep, sold, close }];
+     cut (YYYY-MM-DD inside uptoFy): the last year only up to that day (pro rata by days, user test 2026-11-06) */
+  function bookSchedule(a, uptoFy, cut) {
     var out = []; if (!a.date || !a.cost) return out;
     var fy = fyOf(a.date), resid = r2(a.cost * a.resid / 100), slm = a.life > 0 ? (a.cost - resid) / a.life : 0, rate = wdvRate(a.life, a.resid), wdv = 0;
     for (var n = 0; n < 120 && fy <= uptoFy; n++, fy = nextFy(fy)) {
@@ -54,6 +55,7 @@
       if (a.date >= st && a.date <= en) { add = a.cost; from = a.date; }
       if (a.sale && a.sale.date < st) break;
       if (a.sale && a.sale.date <= en) { to = a.sale.date; sold = true; }
+      if (cut && fy === uptoFy && cut < to) { if (cut < from) break; to = cut; sold = false; }
       var part = Math.max(0, days(from, to) + 1) / yearDays(fy), base = open + add, dep;
       dep = a.method === 'slm' ? slm * part : base * rate * part;
       dep = r2(Math.max(0, Math.min(dep, base - resid)));
@@ -77,11 +79,14 @@
     });
     return o;
   }
-  /* the register for one financial year: rows per asset and totals; post = lines of the depreciation entry still to post */
-  function register(docs, biz, fy) {
+  /* the register for one financial year: rows per asset and totals; post = lines of the depreciation entry still to post.
+     upto (a day inside fy): depreciation only up to that day, so a mid-year statement carries the right days; what was posted
+     before (for the whole year or an earlier day) is taken off, so posting again later adds only the rest */
+  function register(docs, biz, fy, upto) {
     var P = posted(docs, biz), rows = [], tot = { open: 0, add: 0, dep: 0, sold: 0, close: 0, todo: 0 };
+    if (upto && (upto < fyStart(fy) || upto >= fyEnd(fy))) upto = '';
     assets(docs, biz).forEach(function (a) {
-      var sc = bookSchedule(a, fy), y = sc.filter(function (x) { return x.fy === fy; })[0];
+      var sc = bookSchedule(a, fy, upto), y = sc.filter(function (x) { return x.fy === fy; })[0];
       if (!y) return;
       var done = P[a.key + '|' + fy] || 0, todo = r2(y.dep - done);
       rows.push({ a: a, open: y.open, add: y.add, dep: y.dep, sold: y.sold ? y.bv : 0, close: y.close, done: done, todo: todo });

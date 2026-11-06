@@ -20,7 +20,8 @@
       var acc = NSBooks.accounts(A.data().doc, A.bizName(), NSPL.prevDay(r[0]));
       Object.keys(acc).forEach(function (k) { if (k.indexOf('cap:') === 0) open[k] = -acc[k]; });
     }
-    return { R: R, B: TF.balanceSheet(C.rows, C.cs, R.net, { capOpen: open, dep: TF.depOf(A.mine(), r[0], r[1]) }) };
+    var firm = A.famFirm ? A.famFirm(C) : null;   /* famore.js: a firm's partners get the same interest, salary and share as Schedule III */
+    return { R: R, firm: !!firm, B: TF.balanceSheet(NSPL.gstNet(C.rows), C.cs, R.net, { capOpen: open, dep: TF.depOf(A.mine(), r[0], r[1]), firm: firm }) };
   }
   function bizHead(title, sub) {
     var Z = A.biz() || {};
@@ -29,7 +30,7 @@
   function valEn() { return NSStock.valuation && NSStock.valuation() === 'fifo' ? 'FIFO cost (first in, first out)' : 'weighted average cost'; }
   function sheet(view, C, F) {
     var r = C.r, E = V.EN;
-    var top = view === 'pl' ? bizHead(E.t_tpl.toUpperCase(), 'For ' + A.ldate(r[0]) + ' to ' + A.ldate(r[1])) + V.html(F.R, 'tpl', { en: true }) +
+    var top = view === 'pl' ? bizHead(E.t_tpl.toUpperCase(), 'For ' + A.ldate(r[0]) + ' to ' + A.ldate(r[1])) + V.html(F.R, 'tpl', { en: true, firm: F.firm }) +
         '<p>Gross profit = sales less (opening stock + purchases + direct expenses − closing stock). Closing stock valued at ' + valEn() + '.</p>'
       : bizHead(E.t_bs.toUpperCase(), 'As at ' + A.ldate(r[1])) + V.html(F.B, 'bs', { en: true });
     return '<div class="stsheet sh tf-sheet" dir="ltr" lang="en-IN" data-sheet>' + top +
@@ -43,8 +44,8 @@
     var R = F.R, r = C.r;
     if (view === 'pl') return {
       tiles: [['k_rev', money(R.sales), 1], ['k_gross', money(R.gross), 1], [R.net < 0 ? 'k_loss' : 'k_profit', money(Math.abs(R.net)), 1]],
-      body: '<h3>' + esc(T('plfor', { a: iso(A.ldate(r[0])), b: iso(A.ldate(r[1])) })) + '</h3><div class="tbl-wrap">' + V.html(R, 'tpl') + '</div>' +
-        '<p class="soft">' + esc(T('gpnote', { g: money(R.gross), d: money(R.direct) })) + ' <a href="' + esc(A.myUrl('#settings')) + '">' + esc(T('dxchg')) + ' ›</a></p>'
+      body: '<h3>' + esc(T('plfor', { a: iso(A.ldate(r[0])), b: iso(A.ldate(r[1])) })) + '</h3><div class="tbl-wrap">' + V.html(R, 'tpl', { firm: F.firm }) + '</div>' +
+        '<p class="soft">' + esc(R.gross < 0 ? NS.t('fx.gpnotel', { g: money(-R.gross), d: money(R.direct) }) : T('gpnote', { g: money(R.gross), d: money(R.direct) })) + ' <a href="' + esc(A.myUrl('#settings')) + '">' + esc(T('dxchg')) + ' ›</a></p>'
     };
     return { body: '<h3>' + esc(T('bsat', { d: iso(A.ldate(r[1])) })) + '</h3><div class="tbl-wrap">' + V.html(F.B, 'bs') + '</div><p class="soft">' + esc(T('bsnote')) + '</p>' };
   };
@@ -59,10 +60,9 @@
     box.addEventListener('click', function (e) {
       var b = e.target.closest('[data-f]'); if (!b || b.getAttribute('aria-pressed') === 'true') return;
       var f = b.getAttribute('data-f');
-      NSStore.meta('settings').then(function (s) {
-        s = s || {}; s.tf = Object.assign({}, s.tf, { fmt: f });
+      NS.cfgEdit(A.biz() && A.biz().id || '', function (s) {   /* the format of this business */
+        s.tf = Object.assign({}, s.tf, { fmt: f });
         var c = A.cfg(); c.tf = s.tf;   /* the loaded copy, so this screen redraws at once */
-        return NSStore.meta('settings', s);
       }).then(function () { NS.toast(T('fmtsaved')); A.show(); });
     });
   };
@@ -73,7 +73,7 @@
     var F = figs(C), r = C.r, b = A.bizName();
     function top(t, s) { return [[b], [t], [s], []]; }
     NS.xlsx(file, [{ name: 'Trial balance', rows: tb },
-      { name: 'Trading and P&L', rows: top('Trading and Profit and Loss Account', 'For ' + A.ldate(r[0]) + ' to ' + A.ldate(r[1])).concat(V.rows(F.R, 'tpl')) },
+      { name: 'Trading and P&L', rows: top('Trading and Profit and Loss Account', 'For ' + A.ldate(r[0]) + ' to ' + A.ldate(r[1])).concat(V.rows(F.R, 'tpl', { firm: F.firm })) },
       { name: 'Balance sheet', rows: top('Balance Sheet', 'As at ' + A.ldate(r[1])).concat(V.rows(F.B, 'bs')) }]);
     return true;
   };

@@ -52,7 +52,7 @@
     ],
     party: [
       ['role', 'hub.role', 'sel', { opts: [['customer', 'hub.r.customer'], ['supplier', 'hub.r.supplier'], ['both', 'hub.r.both']] }],
-      ['group', 'grp.group', 'pgroup', { hint: 'grp.h_pgroup' }],
+      ['group', 'grp.group', 'pgroup', { hint: 'grp.h_pgroup' }], ['biz', 'pb.usedby', 'usedby', { hint: 'pb.usedbyh' }],
       ['name', 'my.f.name', 'text', { req: 1 }], ['phone', 'l.phone', 'ltr', { mode: 'tel' }], ['email', 'l.email', 'ltr', { type: 'email' }],
       ['gstin', 'l.cgstin', 'gstin'], ['state', 'l.state', 'state'], ['addr', 'l.addr', 'area', { wide: 1 }], ['city', 'l.city', 'text'], ['pin', 'l.pin', 'ltr', { mode: 'numeric', max: 6 }],
       ['ship.addr', 'l.shaddr', 'area', { wide: 1, hint: 'hub.h.ship' }], ['ship.state', 'l.shstate', 'state'],
@@ -62,7 +62,7 @@
     ],
     item: [
       ['desc', 'hub.f.iname', 'text', { req: 1, wide: 1 }], ['kind', 'l.type', 'sel', { opts: [['goods', 'hub.k.goods'], ['service', 'hub.k.service']] }],
-      ['group', 'grp.group', 'igroup', { hint: 'grp.h_igroup' }],
+      ['group', 'grp.group', 'igroup', { hint: 'grp.h_igroup' }], ['biz', 'pb.usedby', 'usedby', { hint: 'pb.usedbyh' }],
       ['code', 'hub.f.code', 'ltr'], ['hsn', 'l.hsn', 'ltr', { mode: 'numeric', max: 8 }], ['unit', 'l.unit', 'unit'],
       ['rate', 'b1.retail', 'num', { hint: 'b1.h_retail' }], ['wrate', 'b1.whole', 'num'], ['mrp', 'b1.mrp', 'num'], ['prate', 'b1.prate', 'num'], ['gst', 'l.gst', 'gst']
     ]
@@ -78,14 +78,19 @@
   var SECS = ['home', 'biz', 'party', 'pgroups', 'item', 'igroups', 'doc', 'settings', 'backup', 'bin', 'log'];
   var GSEC = { pgroups: 'party', igroups: 'item' };   /* the Groups screen of each master */
   var NUMS = { rate: 1, wrate: 1, mrp: 1, prate: 1, climit: 1, cdays: 1 };
-  var cur = 'home', q = '', gf = '', S = {}, cache = {}, G = { party: [], item: [] };
+  var cur = 'home', q = '', gf = '', S = {}, RAW = {}, SB = '', cache = {}, G = { party: [], item: [] };
 
   function key(s) { return String(s || '').trim().toLowerCase(); }
   function get(o, k) { return k.split('.').reduce(function (a, p) { return a == null ? a : a[p]; }, o); }
   function set(o, k, v) { var p = k.split('.'), last = p.pop(); p.forEach(function (x) { o = o[x] = o[x] && typeof o[x] === 'object' ? o[x] : {}; }); o[last] = v; }
   function load() {
     return Promise.all(['biz', 'party', 'item', 'doc', 'bin', 'log'].map(function (s) { return NSStore.list(s); }).concat([NSStore.meta('settings'), NSStore.meta('lastBackup'), NSStore.meta('who'), NSStore.meta('pin'), NSStore.meta('groups')])).then(function (r) {
-      cache = { biz: r[0], party: r[1], item: r[2], doc: r[3], bin: r[4], log: r[5] }; S = r[6] || {}; S._last = r[7] || 0; S._who = r[8] || ''; S._pin = r[9] || null;
+      cache = { biz: r[0], party: r[1], item: r[2], doc: r[3], bin: r[4], log: r[5] };
+      /* settings per business: the stored record (RAW) and the copy for the business chosen on the Settings screen (S) */
+      RAW = r[6] || {}; NS.bizCache = cache.biz;
+      if (NS.cfgSplit(RAW, cache.biz)) NSStore.meta('settings', RAW).catch(function () {});
+      if (!cache.biz.some(function (b) { return b.id === SB; })) SB = cache.biz.some(function (b) { return b.id === RAW.defBiz; }) ? RAW.defBiz : (cache.biz[0] || {}).id || '';
+      S = NS.cfgFor(RAW, SB); S._last = r[7] || 0; S._who = r[8] || ''; S._pin = r[9] || null;
       G = gNorm(r[10]);
       return catGroups();
     }).then(function () { return cache; });
@@ -212,6 +217,10 @@
     var cls = 'f' + (x.wide || kind === 'area' ? ' wide' : ''), req = x.req ? ' required' : '', h;
     if (kind === 'area') h = '<textarea id="' + id + '" name="' + k + '" rows="2" dir="auto">' + esc(v) + '</textarea>';
     else if (kind === 'state') h = '<select id="' + id + '" name="' + k + '"><option value="">—</option>' + NS.STATES.map(function (s) { return '<option value="' + s[0] + '"' + (s[0] === v ? ' selected' : '') + '>' + s[0] + ' · ' + esc(s[1]) + '</option>'; }).join('') + '</select>';
+    else if (kind === 'usedby') {   /* with two or more businesses: this customer / item for every business, or only one */
+      if (cache.biz.length < 2 && !v) return '';
+      h = '<select id="' + id + '" name="' + k + '"><option value="">' + esc(t('pb.allbiz')) + '</option>' + cache.biz.map(function (b) { return '<option value="' + esc(b.id) + '"' + (b.id === v ? ' selected' : '') + '>' + esc(t('pb.only', { b: b.name })) + '</option>'; }).join('') + '</select>';
+    }
     else if (kind === 'sel') h = '<select id="' + id + '" name="' + k + '">' + x.opts.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === v ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>'; }).join('') + '</select>';
     else if (kind === 'pgroup' || kind === 'igroup') {
       var gk = kind === 'pgroup' ? 'party' : 'item';
@@ -293,12 +302,14 @@
       e.preventDefault();
       FORM[s].forEach(function (x) {
         if (x[2] === 'img') { r[x[0]] = imgs[x[0]]; return; }
-        var el = f.elements[x[0]], v = el.value.trim();
+        var el = f.elements[x[0]]; if (!el) return;
+        var v = el.value.trim();
         if (x[2] === 'gstin' || (x[3] && x[3].upper)) v = v.toUpperCase().replace(/\s/g, '');
         set(r, x[0], v);
       });
       if (s === 'item') { if (r.gst !== '') r.gst = +r.gst; }
       if (r.group === '+') r.group = '';
+      if (!r.biz) delete r.biz;
       if (s === 'item') { if (r.group) r.cat = gName('item', r.group); else { delete r.group; r.cat = ''; } }
       if (s === 'party' && (!r.group || r.group === (r.role === 'supplier' ? 'creditors' : 'debtors'))) delete r.group;   /* the built-in for its type: follows the type */
       Object.keys(NUMS).forEach(function (k) { if (r[k] != null && r[k] !== '') r[k] = NS.num(r[k]); });
@@ -570,14 +581,23 @@
 
   /* ---------- settings ---------- */
   function saveSettings() {
-    var o = JSON.parse(JSON.stringify(S)); delete o._last;
+    var o = JSON.parse(JSON.stringify(S));
+    Object.keys(o).forEach(function (k) { if (k.charAt(0) === '_') delete o[k]; });
     /* years closed in the App (Batch 2) and its feature switches are changed there only: keep the newest */
-    return NSStore.meta('settings').then(function (fresh) { if (fresh && fresh.closed) o.closed = S.closed = fresh.closed; if (fresh && fresh.features) o.features = S.features = fresh.features;   /* the installed App's feature switches (firstrun.js) */ return NSStore.meta('settings', o); });
+    delete o.closed; delete o.features;
+    return NSStore.meta('settings').then(function (fresh) {
+      fresh = fresh || {}; NS.cfgSplit(fresh, cache.biz);
+      NS.cfgSave(fresh, SB, o);   /* business keys under this business, the rest shared */
+      RAW = fresh; S.closed = fresh.closed; S.features = fresh.features;
+      return NSStore.meta('settings', fresh);
+    });
   }
   function settingsHtml() {
     var c = S.invoice || {}, sel = function (v, w) { return String(v) === String(w) ? ' selected' : ''; };
     var gst = c.gst != null && c.gst !== '' ? c.gst : 18, acc = c.accent || ACCENTS[0];
-    return '<h2>' + esc(t('my.t.settings')) + '</h2><p class="soft">' + esc(t('hub.p.settings')) + '</p><form class="set" data-set>' +
+    var pick = cache.biz.length > 1 ? '<div class="card set-biz"><div class="f"><label for="st-for">' + esc(t('pb.setfor')) + '</label><select id="st-for" data-setbiz>' +
+      cache.biz.map(function (b) { return '<option value="' + esc(b.id) + '"' + sel(b.id, SB) + '>' + esc(b.name) + '</option>'; }).join('') + '</select><small class="hint">' + esc(t('pb.setforh')) + '</small></div></div>' : '';
+    return '<h2>' + esc(t('my.t.settings')) + '</h2><p class="soft">' + esc(t('hub.p.settings')) + '</p>' + pick + '<form class="set" data-set>' +
       '<fieldset class="card"><legend>' + esc(t('hub.g.gen')) + '</legend><div class="fg">' +
         '<div class="f wide"><label for="st-def">' + esc(t('hub.defbiz')) + '</label><select id="st-def" name="defBiz"><option value="">' + esc(t('hub.nodef')) + '</option>' +
           cache.biz.map(function (b) { return '<option value="' + esc(b.id) + '"' + sel(b.id, S.defBiz) + '>' + esc(b.name) + '</option>'; }).join('') + '</select><small class="hint">' + esc(t('hub.h.defbiz')) + '</small></div>' +
@@ -656,6 +676,8 @@
 
 
   function wireSettings(pane) {
+    var sb = $('[data-setbiz]', pane);
+    if (sb) sb.addEventListener('change', function () { SB = sb.value; show('settings'); });   /* settings of another business */
     hubExt('wireSettings', pane, S, saveSettings);
     var f = $('[data-set]', pane), acc = (S.invoice && S.invoice.accent) || ACCENTS[0];
     function pv() {
@@ -702,7 +724,7 @@
       '<div class="card"><p>' + esc(t('md.last')) + ' <b>' + (S._last ? new Date(S._last).toLocaleString('en-IN') : esc(t('md.never'))) + '</b></p>' +
       '<div class="btns"><button type="button" class="btn primary" data-act="backup">' + esc(t('md.save')) + '</button>' +
       '<label class="btn"><span>' + esc(t('md.restore')) + '</span><input type="file" accept=".json,application/json" data-act="restore" hidden></label>' +
-      '<button type="button" class="btn" data-act="my-data">' + esc(t('my.auto')) + '</button></div>' +
+      '<button type="button" class="btn" data-act="my-data" data-tab="af">' + esc(t('my.auto')) + '</button></div>' +
       '<p class="soft" data-store-info></p><p class="soft">' + t('hub.move', { link: '<a href="' + BILLING + 'move-data/" target="_blank" rel="noopener">' + esc(t('nav.move')) + '</a>' }) + '</p></div>' +
       '<div data-backup-ext></div>' +
       '<div class="card danger-zone"><h3>' + esc(t('my.wipe.t')) + '</h3><p class="soft">' + esc(t('my.wipe.p')) + '</p>' +

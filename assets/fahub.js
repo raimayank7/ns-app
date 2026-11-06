@@ -2,7 +2,8 @@
    (facore.js / famore.js):
      business form   btype 'prop' (proprietor, the default) | 'firm' (partnership firm) | 'llp' | 'co' (company) | 'npo' (trust or
                      society, non-profit, school); partners [{ name, share (profit share %), ic (interest on capital % a year),
-                     sal (salary / remuneration a year) }] for a firm or LLP. */
+                     sal (salary / remuneration a year) }] for a firm or LLP; apprMode 'deed' = interest and salary as per the deed even
+                     in a loss (none = only out of profit, the default). */
 (function () {
   'use strict';
   var esc = NS.esc, t = NS.t, $ = NS.$, $$ = NS.$$;
@@ -21,7 +22,10 @@
         return '<option value="' + k + '"' + (k === bt ? ' selected' : '') + '>' + esc(t('fm.b_' + k)) + '</option>'; }).join('') + '</select></div>' +
       '<div class="f wide"><small class="hint">' + esc(t('fm.btypeh')) + '</small></div></div>' +
       '<div data-fmparts' + (bt === 'firm' || bt === 'llp' ? '' : ' hidden') + '><h4>' + esc(t('fm.partners')) + '</h4><div data-fmlist>' + P.map(row).join('') + '</div>' +
-      '<button type="button" class="btn sm" data-fmadd>' + esc(t('fm.p_add')) + '</button><small class="hint">' + esc(t('fm.p_h')) + '</small></div></fieldset>';
+      '<button type="button" class="btn sm" data-fmadd>' + esc(t('fm.p_add')) + '</button><small class="hint">' + esc(t('fm.p_h')) + '</small>' +
+      '<div class="f wide"><label for="fm-appr">' + esc(t('fx.fm_mode')) + '</label><select id="fm-appr" name="fmappr">' +
+        '<option value="profit"' + (r.apprMode !== 'deed' ? ' selected' : '') + '>' + esc(t('fx.fm_mprofit')) + '</option><option value="deed"' + (r.apprMode === 'deed' ? ' selected' : '') + '>' + esc(t('fx.fm_mdeed')) + '</option></select>' +
+        '<small class="hint">' + esc(t('fx.fm_modeh')) + '</small></div></div></fieldset>';
   }
   function read(s, r, f) {
     if (s !== 'biz' || !f.elements.fmbtype) return;
@@ -31,7 +35,7 @@
       function v(n) { return $('[data-fmp="' + n + '"]', el).value.trim(); }
       return { name: v('name'), share: NS.num(v('share')), ic: NS.num(v('ic')), sal: NS.num(v('sal')) };
     }).filter(function (p) { return p.name; });
-    if (bt === 'firm' || bt === 'llp') { if (P.length) r.partners = P; else delete r.partners; }   /* another type keeps the list, in case it is switched back */
+    if (bt === 'firm' || bt === 'llp') { if (P.length) r.partners = P; else delete r.partners; if (f.elements.fmappr && f.elements.fmappr.value === 'deed') r.apprMode = 'deed'; else delete r.apprMode; }   /* another type keeps the list, in case it is switched back */
   }
   /* add / remove partner rows and show them only for a firm or LLP (the form is drawn again on every open) */
   document.addEventListener('click', function (e) {

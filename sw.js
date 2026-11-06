@@ -1,7 +1,11 @@
-const CACHE = 'ns-app-21d8eb2957';
-const SHELL = ["/", "/assets/base.css?v=b5fb54a4c3", "/assets/doc.css?v=385ab57a21", "/assets/i18n.js?v=bec1343f51", "/assets/store.js?v=822e5db118", "/assets/core.js?v=d916a908a9", "/assets/safe.js?v=69ce2e3766", "/assets/help.js?v=ddaed68b26", "/assets/gstfetch.js?v=77942f1a8e", "/assets/books.js?v=b80078c8e4", "/assets/extras.js?v=6479f34b4b", "/assets/mfgcore.js?v=a119f38a2a", "/assets/stockcore.js?v=7972a281d3", "/assets/app.js?v=b14041d468", "/assets/ledger.js?v=9c298cce7a", "/assets/money.js?v=88b091d33c", "/assets/sample.js?v=58a090e4bc", "/assets/quick.js?v=1912bc8f3a", "/assets/appx.js?v=7412eab119", "/assets/plcore.js?v=73b5274ac4", "/assets/facore.js?v=a446bcaa0f", "/assets/acctcore.js?v=cebec7487d", "/assets/more.js?v=7131685fc6", "/assets/mfg.js?v=71a4316d88", "/assets/finrep.js?v=31391187f8", "/assets/tfcore.js?v=ec83f4f4c6", "/assets/tfview.js?v=bb4f16db10", "/assets/tformat.js?v=6fe1836ac8", "/assets/tf.css?v=e341f62cb7", "/assets/famore.js?v=fce4d61989", "/assets/firstrun.js?v=094619e248", "/assets/app.css?v=6bdfda674f", "/assets/mfg.css?v=6bd8c14511", "/assets/firstrun.css?v=0982ea2db8", "/assets/safe.css?v=f3b3edd6eb", "/assets/desk.js?v=71ecdfa62c", "/assets/desk.css?v=2253af2872", "/assets/contact.js?v=b289faf522", "/assets/xlsx.js?v=9c9abd01b6", "/assets/tally.js?v=bb798e5007", "/assets/acct.js?v=5ab3ff2906", "/assets/inapp.js?v=77af278b54", "/assets/docs.js?v=a0c332265d", "/assets/docmore.js?v=9de01ddeb6", "/assets/einv.js?v=e7e8f96589", "/assets/stockwarn.js?v=b4a88f0bc8", "/assets/kit.js?v=e5cf8845b5", "/assets/bilty.js?v=e66d84544c", "/assets/kit.css?v=22e2f97260", "/assets/rabill.js?v=3720af1bbe", "/assets/bulk.js?v=b31a72bb21", "/assets/export.js?v=93f6432d81", "/assets/fee.js?v=ead418c323", "/assets/jobcard.js?v=135a2fd7d5", "/assets/my.js?v=04eb8d7431", "/assets/hubmore.js?v=70cda597b3", "/assets/hubtf.js?v=45887cdaf2", "/assets/mfghub.js?v=0bf4fbda59", "/assets/fahub.js?v=6ed32d242a", "/assets/xlimport.js?v=360a3fef4a", "/assets/slip.js?v=32606e25d7", "/assets/pharmacy.js?v=6ecd4bf019", "/assets/pos.js?v=fc32ddd41d", "/assets/resto.js?v=c2cedc720a"];
-self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+const CACHE = 'ns-app-b0743a365e';
+const SHELL = ["/", "/assets/b-tf.cc196379d3.css", "/assets/b-core.2dc894c3b2.js", "/assets/b-app.9e1cf735c0.js", "/assets/books.js?v=b80078c8e4", "/assets/xlsx.js?v=9c9abd01b6", "/assets/tally.js?v=533e88364b", "/assets/acct.js?v=d16cff575f"];
+const WARM = ["/do/billing/", "/assets/b-base-t.5a3b33abfc.css", "/assets/b-docs-do.97822af3a4.js", "/do/quotation/", "/assets/b-docs-do.7640bc1916.js", "/do/proforma/", "/do/sales-order/", "/do/challan/", "/do/purchase-order/", "/do/self-invoice/", "/do/credit-note/", "/do/debit-note/", "/do/receipt/", "/assets/b-slip-do.3dc5e138e8.js", "/do/voucher/", "/do/cash-memo/", "/assets/b-docs-do.9e0f67da2d.js", "/do/rent-receipt/", "/do/salary-slip/", "/do/petty-cash/", "/do/my/", "/assets/b-app.1e8ccb85e6.css", "/assets/b-my-do.8f3d50fd94.js"], LGROUPS = ["docs-do.1d482f3509", "docs-do.6b7d2ccba9", "docs-do.be5274113b", "my-do.affc6d6109", "slip-do.ea695567ed"];
+const slow = () => { const c = self.navigator && navigator.connection; return !!c && (c.saveData || /2g/.test(c.effectiveType || '')); };
+const keep = (c, list) => Promise.allSettled(list.map(u => c.match(u).then(m => m || c.add(u))));
+self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL).then(() => slow() ? 0 : keep(c, WARM))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(k => Promise.all(k.filter(n => n.startsWith('ns-') && n !== CACHE).map(n => caches.delete(n)))).then(() => self.clients.claim())); });
+const langDone = {};
 self.addEventListener('fetch', e => {
   const r = e.request, u = new URL(r.url);
   if (r.method !== 'GET') return;
@@ -11,9 +15,15 @@ self.addEventListener('fetch', e => {
     return;
   }
   if (r.mode === 'navigate' || u.pathname.endsWith('.html') || u.pathname.endsWith('/')) {
-    e.respondWith(fetch(r).then(res => { const c = res.clone(); caches.open(CACHE).then(x => x.put(r, c)); return res; })
-      .catch(() => caches.match(r).then(m => m || caches.match('/'))));
+    const key = u.origin + u.pathname, net = fetch(r).then(res => { if (res.ok) { const c = res.clone(); caches.open(CACHE).then(x => x.put(key, c)); } return res; });
+    e.respondWith(caches.match(key).then(saved => {
+      if (!saved) return net.catch(() => u.pathname.startsWith('/do/') ? Response.error() : caches.match('/'));
+      return Promise.race([net.catch(() => saved), new Promise(ok => setTimeout(() => ok(saved), 2500))]);
+    }));
+    e.waitUntil(net.then(() => 0, () => 0));
     return;
   }
+  const lm = LGROUPS.length && /^\/assets\/lang\/([a-z]+)\.[^/]+\.js$/.exec(u.pathname);
+  if (lm && !langDone[lm[1]] && !slow()) { langDone[lm[1]] = 1; e.waitUntil(caches.open(CACHE).then(c => keep(c, LGROUPS.map(g => '/assets/lang/' + lm[1] + '.' + g + '.js')))); }
   e.respondWith(caches.match(r, { ignoreSearch: false }).then(m => m || fetch(r).then(res => { if (res.ok) { const c = res.clone(); caches.open(CACHE).then(x => x.put(r, c)); } return res; })));
 });

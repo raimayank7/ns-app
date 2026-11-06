@@ -79,7 +79,7 @@
   /* ---------- the data: current business, its switches ---------- */
   var SET = {}, BIZL = [], CUR = null, ENTRY = null, HIDESEL = '', FORMOFF = {};
   function pickBiz() {
-    var want; try { want = localStorage.getItem('ns-app-biz'); } catch (e) {}
+    var want = NS.curBiz();
     return BIZL.filter(function (b) { return b.id === want; })[0] || BIZL.filter(function (b) { return b.id === SET.defBiz; })[0] || BIZL[0] || null;
   }
   function load() {
@@ -198,16 +198,27 @@
     if (!dlg) {
       dlg = NS.el('dialog', { class: 'hub-dlg nsf-dlg', 'aria-labelledby': 'nsf-t' });
       document.body.appendChild(dlg);
-      dlg.addEventListener('cancel', function (e) { if (firstRun) e.preventDefault(); });
+      /* Esc / phone Back = Later: the App keeps every feature on and asks again on the next start */
+      dlg.addEventListener('cancel', function () { if (firstRun) later(); });
       dlg.addEventListener('input', read); dlg.addEventListener('change', read);
       dlg.addEventListener('click', click);
     }
+    var cl = NS.lang ? NS.lang() : document.documentElement.getAttribute('lang');
     dlg.innerHTML = '<div class="dlg-hd"><h2 id="nsf-t">' + esc(T('title')) + ' <small class="soft">' + esc(T('step', { n: step })) + '</small></h2>' +
-      (firstRun ? '' : '<button type="button" class="icon-btn" data-nsf-x aria-label="' + lbl('close') + '">✕</button>') + '</div>' +
-      '<form novalidate class="nsf-form"><div class="nsf-bar" aria-hidden="true"><i style="inline-size:' + Math.round(step / 3 * 100) + '%"></i></div>' + body() +
+      '<button type="button" class="icon-btn" data-nsf-x aria-label="' + lbl(firstRun ? 'later' : 'close') + '" title="' + lbl(firstRun ? 'later' : 'close') + '">✕</button></div>' +
+      '<form novalidate class="nsf-form">' +
+      /* the header's language picker sits behind this box: the setup has its own */
+      (step === 1 && NS.LANGS ? '<div class="nsf-lang"><label for="nsf-lang">' + lbl('lang') + '</label> <select id="nsf-lang" data-nsf-lang>' + NS.LANGS.map(function (l) {
+        return '<option value="' + l[0] + '" lang="' + l[0] + '"' + (String(cl || 'en').indexOf(l[0]) === 0 ? ' selected' : '') + '>' + l[1] + '</option>'; }).join('') + '</select></div>' : '') +
+      '<div class="nsf-bar" aria-hidden="true"><i style="inline-size:' + Math.round(step / 3 * 100) + '%"></i></div>' + body() +
+      '<p class="nsf-err" role="alert" hidden></p>' +
       '<div class="dlg-foot">' + (step > 1 ? '<button type="button" class="btn" data-nsf-back>' + esc(T('back')) + '</button>' : '') +
       '<button type="submit" class="btn primary">' + esc(T(step < 3 ? 'next' : 'start')) + '</button>' +
-      (firstRun && step === 1 && !S.found && window.NSSample ? '<button type="button" class="btn" data-nsf-sample>' + esc(T('sample')) + '</button>' : '') + '</div></form>';
+      (firstRun && step === 1 && !S.found && window.NSSample ? '<button type="button" class="btn" data-nsf-sample>' + esc(T('sample')) + '</button>' : '') +
+      (firstRun ? '<button type="button" class="btn" data-nsf-later>' + lbl('later') + '</button>' : '') + '</div>' +
+      (firstRun ? '<p class="soft nsf-laterp">' + lbl('ux.frlater') + '</p>' : '') + '</form>';
+    var ls = $('[data-nsf-lang]', dlg);
+    if (ls) ls.addEventListener('change', function () { if (NS.setLang) NS.setLang(ls.value); });
     $('form', dlg).addEventListener('submit', next);
     var g = $('[data-k="gstin"]', dlg);
     if (g && NS.gstFetchButton) NS.gstFetchButton(g, function (d) {
@@ -218,7 +229,7 @@
     });
     if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); }
     var h = $('h3', dlg) || $('h2', dlg); if (h) { h.tabIndex = -1; h.focus({ preventScroll: true }); }
-    $('form', dlg).scrollTop = 0;
+    $('form', dlg).scrollTop = 0; dlg.scrollTop = 0;   /* each step starts at its top (step 3 kept step 2's scroll) */
   }
   function read(e) {
     var el = e.target;
@@ -233,7 +244,7 @@
       S[k] = v;
       if (k === 'gstin') { var c = NS.gstinCheck(v); if (c.ok && c.state && !S.state) { S.state = c.state; var s = $('[data-k="state"]', dlg); if (s) s.value = c.state; } }
     }
-    if (el.getAttribute && el.getAttribute('aria-invalid')) el.removeAttribute('aria-invalid');
+    if (el.getAttribute && el.getAttribute('aria-invalid')) { el.removeAttribute('aria-invalid'); var er = $('.nsf-err', dlg); if (er) er.hidden = true; }
   }
   function shrink(file, max) {
     return new Promise(function (res, rej) {
@@ -251,7 +262,8 @@
       r.readAsDataURL(file);
     });
   }
-  function bad(el, msg) { if (el) { el.setAttribute('aria-invalid', 'true'); var f = el.matches('fieldset') ? $('input', el) : el; if (f) f.focus(); } NS.toast(msg, 'bad'); return false; }
+  function bad(el, msg) { var er = dlg && $('.nsf-err', dlg); if (er) { er.textContent = msg; er.hidden = false; }   /* a toast would sit behind the box */
+    if (el) { el.setAttribute('aria-invalid', 'true'); var f = el.matches('fieldset') ? $('input', el) : el; if (f) f.focus(); } NS.toast(msg, 'bad'); return false; }
   function check() {
     if (step === 1 && !S.kind) return bad($('[data-need="kind"]', dlg), T('need', { what: T('s1') }));
     if (step === 2) {
@@ -275,10 +287,10 @@
   }
   function click(e) {
     if (e.target.closest('[data-nsf-back]')) { step--; draw(); }
-    else if (e.target.closest('[data-nsf-x]')) dlg.close();
+    else if (e.target.closest('[data-nsf-x]') || e.target.closest('[data-nsf-later]')) { if (firstRun) later(); dlg.close(); }
     else if (e.target.closest('[data-nsf-sample]')) {
       var b = e.target.closest('button'); b.disabled = true;
-      NSSample.add().then(function () { dlg.close(); try { localStorage.removeItem('ns-app-biz'); } catch (x) {} location.hash = ''; return refresh(true); }, function (x) { b.disabled = false; NS.toast(NS.t('nosave', { e: x.message }), 'bad'); });
+      NSSample.add().then(function () { dlg.close(); NS.setCurBiz(''); location.hash = ''; return refresh(true); }, function (x) { b.disabled = false; NS.toast(NS.t('nosave', { e: x.message }), 'bad'); });
     }
   }
   function finish() {
@@ -293,9 +305,10 @@
     var btn = $('button[type=submit]', dlg); btn.disabled = true;
     NSStore.put('biz', r).then(function (saved) {
       var id = (saved && saved.id) || r.id;
-      try { localStorage.setItem('ns-app-biz', id); } catch (x) {}
+      NS.setCurBiz(id);
       return saveEntry(id, { kind: S.kind, sw: sw, at: Date.now() }).then(function () {
-        if (!SET.defBiz) { SET.defBiz = id; return NSStore.meta('settings', SET); }
+        /* read again: saveEntry has just stored the feature switches, and other businesses keep their own settings (byBiz) */
+        if (!SET.defBiz) return NSStore.meta('settings').then(function (s) { s = s || {}; if (!s.defBiz) { s.defBiz = id; SET.defBiz = id; return NSStore.meta('settings', s); } });
       });
     }).then(function () {
       firstRun = false; dlg.close(); NS.toast(T('done', { name: S.name }));
@@ -303,6 +316,11 @@
       return refresh(true);
     }, function (x) { btn.disabled = false; NS.toast(NS.t('nosave', { e: x.message }), 'bad'); });
   }
+  /* "Later": not again in this session (the next start of the App asks again); until then every feature stays on */
+  function later() { try { sessionStorage.setItem('ns-fr-later', '1'); } catch (e) {} firstRun = false; }
+  function laterSet() { try { return sessionStorage.getItem('ns-fr-later') === '1'; } catch (e) { return false; } }
+  /* never over work in progress: a document open in the App's frame, or another box (an entry form) open */
+  function busy() { return document.documentElement.classList.contains('app-frame-on') || !!document.querySelector('dialog[open]:not(.nsf-dlg)'); }
   function openSetup(first) {
     firstRun = !!first; step = 1;
     S = fill(CUR || pseudo());
@@ -347,7 +365,7 @@
   function refresh(redraw) {
     queue = queue.then(load).then(function () {
       menuLink(); apply();
-      if (!(CUR && CUR.sample) && (!CUR || !ENTRY) && !(dlg && dlg.open)) openSetup(true);
+      if (!(CUR && CUR.sample) && (!CUR || !ENTRY) && !(dlg && dlg.open) && !laterSet() && !busy()) openSetup(true);
       if (redraw) return A.show();
     }).catch(function () {});
     return queue;
@@ -361,6 +379,7 @@
     });
     document.addEventListener('ns-data', function () { refresh(false); });
     window.addEventListener('focus', function () { if (!(dlg && dlg.open)) refresh(false); });
+    window.addEventListener('hashchange', function () { if (!(dlg && dlg.open)) setTimeout(function () { refresh(false); }, 120); });   /* left the document: the setup may ask now */
     document.addEventListener('change', function (e) { if (e.target.matches && e.target.matches('[data-biz]')) setTimeout(function () { refresh(false); }, 60); });
     document.addEventListener('ns-lang', function () { menuLink(); if (dlg && dlg.open) draw(); });
   }

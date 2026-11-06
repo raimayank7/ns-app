@@ -29,7 +29,7 @@
     fin: 'Finance costs', dep: 'Depreciation', oth: 'Other expenses', tax: 'Tax expense' };
   var LBL = { sales: 'sales', 'sales-return': 'sret', purchases: 'pur', 'purchase-return': 'pret', 'round-off': 'round', cash: 'cash', bank: 'bank', 'chq-in': 'chqin', 'chq-out': 'chqout',
     'tds-receivable': 'tdsr', 'tds-payable': 'tdsp', opening: 'opening', osk: 'osk', 'cap-stock': 'capstock' };
-  var PFX = /^(cap|drw|loan|od|given|fa):/;
+  var PFX = /^(cap|drw|loan|od|given|fa|ocl|oca):/;
   /* expense heads the App's expense form saves as codes (app.js EXP) */
   var EXEN = { rent: 'Rent', power: 'Electricity', salary: 'Salary and wages', transport: 'Transport and freight', phone: 'Phone and internet', repair: 'Repairs and maintenance',
     office: 'Office expenses', fuel: 'Fuel', bank: 'Bank charges', prof: 'Professional fees', ads: 'Advertising', misc: 'Miscellaneous' };
@@ -55,7 +55,8 @@
     var r = A.range(), base = P.fromBooks(A.data().doc, A.data().item, A.bizName(), r[0], r[1], { map: headMap() }), N = typedNames();
     var rows = base.rows.map(function (x) {
       var o = Object.assign({}, x), nm = N[x.k] || x.name;
-      if (x.k === 'trec' || x.k === 'tpay') { o.loc = L('l_' + x.k, { n: x.n }); o.en = (x.k === 'trec' ? 'Trade receivables (' : 'Trade payables (') + x.n + (x.k === 'trec' ? ' customers)' : ' suppliers)'); }
+      if (x.k === 'trec' || x.k === 'tpay') { o.loc = L('l_' + x.k, { n: x.n }); o.en = (x.k === 'trec' ? 'Trade receivables (' : 'Trade payables (') + x.n + (x.k === 'trec' ? ' customer' : ' supplier') + (x.n === 1 ? ')' : 's)'); }
+      else if (x.k === 'opening') { o.loc = NS.t('fx.l_opening'); o.en = x.name; }
       else if (x.k === 'gst') { o.loc = L(x.dr ? 'l_gstin' : 'l_gstout'); o.en = x.name; }
       else if (x.k === 'res-earlier') { o.loc = L(x.cr ? 'l_earlierp' : 'l_earlierl'); o.en = x.name; }
       else if (LBL[x.k]) { o.loc = L('l_' + LBL[x.k]); o.en = x.name; }
@@ -152,8 +153,8 @@
   /* the figures of another period: calc() reads the period from A.range(), so lend it the other dates for one call */
   function calcAt(r) { var own = A.range; A.range = function () { return r; }; try { return calc(); } finally { A.range = own; } }
   function prevC(C) {
-    var r = P.prevYear(C.r[0], C.r[1]), pl = view === 'pl', has = A.mine().some(function (d) { return d.date && d.date <= r[1] && (!pl || d.date >= r[0]) && (B.role(d) || d.type === 'stk'); });
-    return { r: r, has: has, C: has ? calcAt(r) : null };
+    var r = P.prevYear(C.r[0], C.r[1], view === 'bs'), pl = view === 'pl', has = A.mine().some(function (d) { return d.date && d.date <= r[1] && (!pl || d.date >= r[0]) && (B.role(d) || d.type === 'stk'); });
+    return { r: r, has: has, bs: view === 'bs', C: has ? calcAt(r) : null };
   }
   function lkey(x) { return x.c + '|' + (/^(Profit|Loss) for the period$/.test(x.en) ? 'PL' : x.en); }
   /* current lines with the previous year's figure (pv) beside each; lines only last year had are put in at their place */
@@ -179,7 +180,9 @@
         if (x.c === 'sec') return '<tr class="sec"><th colspan="3" class="l">' + esc(en ? x.en : x.loc) + '</th></tr>';
         return '<tr class="' + x.c + '"><th scope="row" class="l' + (x.c === 'sub' ? ' sub' : '') + '">' + esc(en ? x.en : x.loc) + '</th><td class="n">' + w(x.v, x.nil) + '</td><td class="n">' + (x.nopy ? dash : w(x.pv, x.pv === 0 && x.c === 'sub' && !x.py)) + '</td></tr>';
       }).join('') + '</tbody></table>' +
-      '<p class="soft">' + esc(en ? (pr.has ? 'Previous year: ' + A.ldate(pr.r[0]) + ' to ' + A.ldate(pr.r[1]) + ', the same dates one year earlier.' : 'Previous year (' + A.ldate(pr.r[0]) + ' to ' + A.ldate(pr.r[1]) + '): no records, shown as —.')
+      '<p class="soft">' + esc(pr.bs ? (en ? (pr.has ? 'Previous year: as at ' + A.ldate(pr.r[1]) + ', the last year end.' : 'Previous year (as at ' + A.ldate(pr.r[1]) + '): no records, shown as —.')
+          : NS.t(pr.has ? 'fx.pybs' : 'fx.pybsnone', { b: iso(A.ldate(pr.r[1])) }))
+        : en ? (pr.has ? 'Previous year: ' + A.ldate(pr.r[0]) + ' to ' + A.ldate(pr.r[1]) + ', the same dates one year earlier.' : 'Previous year (' + A.ldate(pr.r[0]) + ' to ' + A.ldate(pr.r[1]) + '): no records, shown as —.')
         : S(pr.has ? 'pyh' : 'pynone', { a: iso(A.ldate(pr.r[0])), b: iso(A.ldate(pr.r[1])) })) + '</p>';
   }
   function stLinesPY(C, pr) { return withPrev(view === 'pl' ? plLines(C) : bsLines(C), pr.C ? (view === 'pl' ? plLines(pr.C) : bsLines(pr.C)) : null); }
@@ -197,14 +200,16 @@
     o.push(ln(L('income'), 'Total income', p.income, 'tot'), ln(L('expenses'), 'Expenses', null, 'sec'));
     if (p.mat) o = o.concat(head('mat', p.mat, C));
     o = o.concat(head('pur', p.pur, C));
-    o.push(ln(L('chg'), 'Changes in inventories (opening stock less closing stock)', p.chg, 'b'), ln(L('l_osk'), 'Opening stock', C.os, 'sub'), ln(L('lesscs'), 'Less: closing stock', -C.cs, 'sub'));
+    o.push(ln(L('chg'), 'Changes in inventories (opening stock less closing stock)', p.chg, 'b'), ln(L('l_osk'), 'Opening stock', C.os, 'sub'), ln(L('lesscs'), 'Less: closing stock', C.cs, 'sub'));
     ['emp', 'fin', 'dep', 'oth'].forEach(function (g) { if (p[g] || g === 'oth') o = o.concat(head(g, p[g], C, g === 'oth' || g === 'emp')); });
     o.push(ln(L('totexp'), 'Total expenses', p.exp, 'tot'), ln(L('pbt'), 'Profit before tax', p.pbt, 'tot'));
     if (p.tax) o = o.concat(head('tax', p.tax, C));
     o.push(ln(L(p.profit < 0 ? 'loss' : 'profit'), p.profit < 0 ? 'Loss for the period' : 'Profit for the period', Math.abs(p.profit), 'tot big'));
     return A.finHook ? A.finHook('pl', o, C) : o;   /* famore.js: words of a trust / society */
   }
-  function subs(C, g, neg) { return C.rows.filter(function (x) { return x.g === g; }).map(function (x) { return ln(x.loc, x.en, neg ? -amt(x) : amt(x), 'sub'); }); }
+  function subs(C, g, neg) {
+    return P.gstNet(C.rows).filter(function (x) { return x.g === g; }).map(function (x) { return x.k === 'gst' ? ln(L(x.dr ? 'l_gstin' : 'l_gstout'), x.name, neg ? -amt(x) : amt(x), 'sub') : ln(x.loc, x.en, neg ? -amt(x) : amt(x), 'sub'); });
+  }
   function bsLines(C) {
     var S = C.F.bs, p = C.F.pl, o = [ln(L('el'), 'Equity and liabilities', null, 'sec')];
     o.push(ln(L('own'), 'Owner\'s funds', S.own, 'b'));
@@ -321,11 +326,13 @@
     if (A.finXl && A.finXl(C, tb, fileName(A.bizName()) + '-final-accounts-' + r[0] + '-to-' + r[1] + '.xlsx')) return;   /* T format (tformat.js) */
     function st(lines) { return [['Particulars', 'Current year', 'Previous year']].concat(lines.map(function (x) { return [(x.c === 'sub' ? '    ' : '') + x.en, x.nil ? '' : x.v == null ? '' : x.v, x.nopy || x.pv == null ? '' : x.pv]; })); }
     ['pl', 'bs'].forEach(function (w) { view = w; pr[w] = prevC(C); pr[w].lines = stLinesPY(C, pr[w]); }); view = v0;
-    function py(w) { return [[], [pr[w].has ? 'Previous year: ' + pr[w].r[0] + ' to ' + pr[w].r[1] + ' (the same dates one year earlier)' : 'Previous year ' + pr[w].r[0] + ' to ' + pr[w].r[1] + ': no records']]; }
+    function py(w) { var p = pr[w], d = w === 'bs' ? 'as at ' + p.r[1] : p.r[0] + ' to ' + p.r[1]; return [[], [p.has ? 'Previous year: ' + d + (w === 'bs' ? ' (the last year end)' : ' (the same dates one year earlier)') : 'Previous year ' + d + ': no records']]; }
     NS.xlsx(fileName(A.bizName()) + '-final-accounts-' + r[0] + '-to-' + r[1] + '.xlsx', [{ name: 'Trial balance', rows: tb }, { name: 'Profit and loss', rows: st(pr.pl.lines).concat(py('pl')) }, { name: 'Balance sheet', rows: st(pr.bs.lines).concat(py('bs')) }]);
   }
 
   /* ---------- capital and loans ---------- */
+  /* partners saved on the business (My data › business › partners), for capital brought in and drawings */
+  function partnerNames(kind) { return kind === 'capin' || kind === 'drw' ? ((A.biz() || {}).partners || []).map(function (p) { return String(p && p.name || '').trim(); }).filter(Boolean) : []; }
   var KINDS = ['capin', 'drw', 'loanin', 'loanout', 'givenout', 'givenin'];
   var TYPES = { cap: 1, drw: 1, loan: 1, od: 1, given: 1 };
   /* capital, drawings and loan accounts with their names and balances on a date */
@@ -351,6 +358,7 @@
       rows.map(function (x) {
         var s = cr(x.t) ? -1 : 1, o = r2(s * (open[x.a] || 0)), c = r2(s * x.bal), Bk = B.book(A.data().doc, A.bizName(), x.a, r[0], r[1]);
         var up = r2(Bk.rows.reduce(function (v, y) { return v + (s < 0 ? y.cr : y.dr); }, 0)), down = r2(Bk.rows.reduce(function (v, y) { return v + (s < 0 ? y.dr : y.cr); }, 0));
+        if (x.t === 'drw') { var sw = up; up = down; down = sw; }   /* drawings reduce the owner's funds (user test 2026-11-06) */
         return '<tr><th scope="row">' + esc(x.name) + '</th><td>' + esc(T('ty_' + x.t)) + '</td><td class="n">' + money(o, false) + '</td><td class="n">' + (up ? money(up, false) : '') + '</td><td class="n">' + (down ? money(down, false) : '') + '</td><td class="n"><b>' + money(c, false) + '</b></td></tr>';
       }).join('') + '</tbody></table></div>' : '<p class="soft">' + esc(T('noacc')) + '</p>';
     return '<div class="pane-hd"><h2>' + esc(NS.t('app.capl')) + '</h2></div><p class="soft">' + esc(T('clh')) + '</p>' +
@@ -382,7 +390,7 @@
     function inp(id, v, o) { o = o || {}; return '<input id="' + id + '" value="' + esc(v == null ? '' : v) + '"' + (o.type ? ' type="' + o.type + '"' : '') + (o.mode ? ' inputmode="decimal" dir="ltr"' : ' dir="auto"') + (o.list ? ' list="' + o.list + '"' : '') + ' autocomplete="off">'; }
     var nameF = pick ? (acc.length ? f('fr-acc', T(kind === 'loanout' ? 'f_loan' : 'f_borrower'), '<select id="fr-acc">' + acc.map(function (x) { return '<option value="' + esc(x.a) + '"' + (x.a === r.lk ? ' selected' : '') + '>' + esc(x.name) + ' (' + money(Math.abs(x.bal)) + ')</option>'; }).join('') + '</select>') : '<p class="note bad">' + esc(T('noloan')) + '</p>')
       : f('fr-nm', T(kind === 'capin' || kind === 'drw' ? 'f_owner' : kind === 'loanin' ? 'f_lender' : 'f_borrower'), inp('fr-nm', nm, { list: 'fr-names' }), kind === 'capin' || kind === 'drw' ? T('f_ownerh') : '') +
-        '<datalist id="fr-names">' + acc.map(function (x) { return '<option value="' + esc(x.name) + '">'; }).join('') + '</datalist>';
+        '<datalist id="fr-names">' + partnerNames(kind).concat(acc.map(function (x) { return x.name; })).filter(function (n, i, a) { return a.map(key).indexOf(key(n)) === i; }).map(function (n) { return '<option value="' + esc(n) + '">'; }).join('') + '</datalist>';
     var html = '<div class="fg">' + f('fr-date', A.T('date'), inp('fr-date', r.date, { type: 'date' })) + nameF +
       (kind === 'loanin' ? f('fr-term', T('f_term'), '<select id="fr-term"><option value="loan"' + (r.lt !== 'od' ? ' selected' : '') + '>' + esc(T('term_l')) + '</option><option value="od"' + (r.lt === 'od' ? ' selected' : '') + '>' + esc(T('term_s')) + '</option></select>') : '') +
       f('fr-amt', T(kind === 'loanout' ? 'f_prin' : kind === 'givenin' ? 'f_prinr' : 'f_amt'), inp('fr-amt', r.amt || '', { mode: 1 })) +
@@ -408,6 +416,15 @@
       var lk = pick ? val('fr-acc') : '';
       if (pick && !lk) { NS.toast(T('noloan'), 'bad'); return; }
       if (pick) { var x = acc.filter(function (y) { return y.a === lk; })[0]; name = x ? x.name : ''; }
+      /* capital and drawings of a firm: the partner as saved on the business (a typo would make a partner the accounts miss) */
+      var pn = partnerNames(kind), hitP = pn.filter(function (n) { return key(n) === key(name); })[0];
+      if (hitP) name = hitP;
+      else if (pn.length && name && !rec && form.dataset.ok !== '1') {
+        var q = NS.t('fx.cl_notp', { n: name, p: pn.join(', ') });
+        (NS.ask ? NS.ask(q) : Promise.resolve(window.confirm(q))).then(function (yes) { if (yes) { form.dataset.ok = '1'; form.onsubmit({ preventDefault: function () {} }); } });
+        return;
+      }
+      delete form.dataset.ok;
       var lines = P.capLoanLines(kind, { name: name, amt: amt, int: int, mode: money2, lk: lk, lt: val('fr-term') });
       var seller = JSON.parse(JSON.stringify(A.biz() || {})); delete seller.id; delete seller.created; delete seller.updated;
       var d = Object.assign(rec ? JSON.parse(JSON.stringify(rec)) : { type: 'jv', app: 1, cl: kind }, { date: date, no: rec && rec.no || nextNo(date), narr: val('fr-narr'), nm: name, amt: amt, int: int, mode: mode, lk: lk, lt: kind === 'loanin' ? val('fr-term') : '', seller: seller, lines: lines });

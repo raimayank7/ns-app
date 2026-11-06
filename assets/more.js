@@ -45,8 +45,10 @@
     return '<div class="tools-row"><label>' + esc(T('fy')) + ' <select data-b2fy>' + list.reverse().map(function (f) { return '<option' + (f === fySel ? ' selected' : '') + '>' + f + '</option>'; }).join('') + '</select></label></div>';
   }
   function wireFy(pane) { var s = $('[data-b2fy]', pane); if (s) s.addEventListener('change', function () { fySel = s.value; A.show(); }); }
+  /* settings of the App's business (per business, core.js NS.cfgEdit); closed years stay shared, kept by business name */
   function saveCfg(fn) {
-    return NSStore.meta('settings').then(function (c) { c = c || {}; fn(c); return NSStore.meta('settings', c); });
+    var id = A.biz() && A.biz().id || '';
+    return NS.cfgEdit(id, fn).then(function (S) { var v = cfg(), nv = NS.cfgFor(S, id); Object.keys(nv).forEach(function (k) { v[k] = nv[k]; }); });
   }
   function nextNo(type, pre, date, kind) {
     var fy = NS.fy(date), max = 0;
@@ -87,14 +89,14 @@
   var MODES = ['cash', 'upi', 'cheque', 'bank', 'card', 'other'];
   function modeOpts(credit) { return (credit ? [['credit', A.T('m_credit')]] : []).concat(MODES.map(function (x) { return [x, A.T('m_' + x)]; })); }
   function dl(id, list) { return '<datalist id="' + id + '">' + list.filter(Boolean).map(function (n) { return '<option value="' + esc(n) + '">'; }).join('') + '</datalist>'; }
-  function partyNames() { var o = {}; A.data().party.forEach(function (p) { o[key(p.name)] = p.name; }); A.mine().forEach(function (d) { var n = B.partyName(d); if (n) o[key(n)] = o[key(n)] || n; }); return Object.keys(o).map(function (k) { return o[k]; }).sort(); }
+  function partyNames() { var o = {}; NS.forBiz(A.data().party, A.biz()).forEach(function (p) { o[key(p.name)] = p.name; }); A.mine().forEach(function (d) { var n = B.partyName(d); if (n) o[key(n)] = o[key(n)] || n; }); return Object.keys(o).map(function (k) { return o[k]; }).sort(); }
   function itemNames(goods) { return items().filter(function (x) { return !goods || x.kind !== 'service'; }).map(function (x) { return x.desc; }).sort(); }
   function need(ok, f) { if (ok) return true; NS.toast(A.T('need', { f: f }), 'bad'); return false; }
   function lockOk(date, rec) { var msg = closedMsg(date) || rec && closedMsg(rec.date); if (msg) NS.toast(msg, 'bad'); return !msg; }
 
   /* ---------- journal entries ---------- */
-  var ACC = ['party', 'cash', 'bank', 'exp', 'inc', 'cap', 'drw', 'loan', 'given', 'fa', 'sales', 'purchases', 'tdsr', 'tdsp', 'gin-c', 'gin-s', 'gin-i', 'gout-c', 'gout-s', 'gout-i', 'round'];
-  var NAMED = { party: 1, exp: 1, inc: 1, cap: 1, drw: 1, loan: 1, given: 1, fa: 1 };
+  var ACC = ['party', 'cash', 'bank', 'exp', 'inc', 'cap', 'drw', 'loan', 'given', 'fa', 'ocl', 'oca', 'sales', 'purchases', 'tdsr', 'tdsp', 'gin-c', 'gin-s', 'gin-i', 'gout-c', 'gout-s', 'gout-i', 'round'];
+  var NAMED = { party: 1, exp: 1, inc: 1, cap: 1, drw: 1, loan: 1, given: 1, fa: 1, ocl: 1, oca: 1 };   /* ocl: outstanding expenses and provisions, oca: prepaid and accrued (user test 2026-11-06) */
   var FIXED = { cash: 'cash', bank: 'bank', sales: 'sales', purchases: 'purchases', tdsr: 'tds-receivable', tdsp: 'tds-payable', 'gin-c': 'gst-in-cgst', 'gin-s': 'gst-in-sgst', 'gin-i': 'gst-in-igst',
     'gout-c': 'gst-out-cgst', 'gout-s': 'gst-out-sgst', 'gout-i': 'gst-out-igst', round: 'round-off' };
   function acctKey(t, nm) {
@@ -186,7 +188,8 @@
     return '<div class="pane-hd"><h2>' + esc(T('fa')) + '</h2><div class="quick"><button type="button" class="btn primary" data-b2="fa">+ ' + esc(T('newfa')) + '</button>' +
         (R.rows.length ? '<button type="button" class="btn" data-b2print>' + esc(A.T('print')) + '</button><button type="button" class="btn" data-b2csv="fa">' + esc(A.T('csv')) + '</button>' : '') + '</div></div>' +
       '<p class="soft">' + esc(T('fah')) + '</p>' + picker +
-      (R.post.length ? '<div class="card warn-card"><p>' + esc(T('todo', { a: money(R.tot.todo), fy: fy })) + '</p><button type="button" class="btn primary" data-b2post>' + esc(T('post', { fy: fy })) + '</button></div>' : '') +
+      (R.post.length ? '<div class="card warn-card"><p>' + esc(T('todo', { a: money(R.tot.todo), fy: fy })) + '</p><p class="row"><label>' + esc(NS.t('fx.dep_upto')) + ' <input type="date" id="b2-depto" min="' + X.fyStart(fy) + '" max="' + X.fyEnd(fy) + '" value="' + depDefault(fy) + '"></label>' +
+        '<button type="button" class="btn primary" data-b2post>' + esc(T('post', { fy: fy })) + '</button></p><p class="soft">' + esc(NS.t('fx.dep_h')) + '</p></div>' : '') +
       (R.rows.length ? '<div class="tbl-wrap" dir="ltr"><div lang="en-IN" class="stsheet wide" data-sheet>' + head('Fixed Assets Register', 'FY ' + fy + ' · Companies Act 2013, Schedule II') +
         '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Asset</th><th>Put to use</th><th>Method</th><th class="n">Opening</th><th class="n">Added</th><th class="n">Depreciation</th><th class="n">Sold (book value)</th><th class="n">Closing</th><th class="acts"></th></tr></thead><tbody>' +
         R.rows.map(function (r) {
@@ -254,13 +257,26 @@
       $('#fs-date', form).addEventListener('change', bv); bv();
     });
   }
+  /* the day depreciation is worked out to: the end of the chosen period when it falls in the year, else today, never past 31 March */
+  function depDefault(fy) {
+    var s = X.fyStart(fy), e = X.fyEnd(fy), r = A.range ? A.range() : [], d = r[1] && r[1] >= s && r[1] <= e ? r[1] : today();
+    return d < s ? s : d > e ? e : d;
+  }
+  /* post book depreciation up to the chosen day, dated that day (pro rata by days; whatever was posted before is taken off) */
   function postDep(fy) {
-    var R = X.register(A.data().doc, A.bizName(), fy), date = X.fyEnd(fy) > today() ? today() : X.fyEnd(fy);
-    if (!R.post.length || !lockOk(date)) return;
-    if (!confirm(T('postq', { a: money(R.tot.todo), fy: fy }))) return;
-    var d = { type: 'jv', app: 1, dep: fy, date: date, no: nextNo('jv', 'JV', date), narr: 'Depreciation for FY ' + fy + ' (Companies Act 2013, Schedule II)', seller: sellerCopy(), lines: R.post.map(function (l) { return { a: l.a, dr: l.dr, cr: l.cr }; }) };
-    d.total = jvTotal(d);
-    NSStore.put('doc', d).then(function () { NS.toast(A.T('saved')); A.show(); });
+    var inp = $('#b2-depto'), date = inp && inp.value || depDefault(fy);
+    if (date < X.fyStart(fy) || date > X.fyEnd(fy)) { NS.toast(NS.t('fx.dep_out', { fy: fy }), 'bad'); return; }
+    var R = X.register(A.data().doc, A.bizName(), fy, date);
+    if (!R.post.length) { NS.toast(NS.t('fx.dep_none', { d: A.ldate(date) })); return; }
+    if (!lockOk(date)) return;
+    var msg = NS.t('fx.dep_q', { a: money(R.tot.todo), d: A.ldate(date), fy: fy });
+    (NS.ask ? NS.ask(msg) : Promise.resolve(window.confirm(msg))).then(function (yes) {
+      if (!yes) return;
+      var full = date === X.fyEnd(fy), d = { type: 'jv', app: 1, dep: fy, date: date, no: nextNo('jv', 'JV', date),
+        narr: 'Depreciation for FY ' + fy + (full ? '' : ' up to ' + A.ldate(date)) + ' (Companies Act 2013, Schedule II)', seller: sellerCopy(), lines: R.post.map(function (l) { return { a: l.a, dr: l.dr, cr: l.cr }; }) };
+      d.total = jvTotal(d);
+      NSStore.put('doc', d).then(function () { NS.toast(A.T('saved')); A.show(); });
+    });
   }
 
   /* ---------- year end ---------- */
