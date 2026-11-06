@@ -25,6 +25,7 @@
       e.altKey && !e.ctrlKey && !e.metaKey && /^(Digit[1-9]|Key[NRPBX])$/.test(e.code || '');
     if (!mine || !app()) return;
     e.preventDefault(); e.stopImmediatePropagation();
+    if (k === 'k' && !e.altKey) try { if (P.NS && P.NS.deskPalette) { var f = document.activeElement; P.focus(); P.NS.deskPalette(f && f !== document.body ? f : null); return; } } catch (er) {}
     try { P.focus(); P.document.dispatchEvent(new P.KeyboardEvent('keydown', { key: e.key, code: e.code, ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey, shiftKey: e.shiftKey, bubbles: true, cancelable: true })); } catch (er) {}
   }, true);
   /* the App's language changes while a document is open: follow THIS tab's App only (its ns-lang event). The storage event

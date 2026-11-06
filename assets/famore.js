@@ -196,7 +196,8 @@
   function as2Note(C) {
     var a = F.fullCost(A.data().doc, A.data().item, A.bizName(), C.r[1], faSet().direct || null);
     if (!a.made) return '';
-    return '<p class="soft fm-as2">' + esc(NS.t('fx.as2', { oh: money(a.overheads), m: money(a.made), p: r2(a.factor * 100), u: money(a.uplift) })) + '</p>';
+    return '<p class="soft fm-as2">' + esc(NS.t('fx.as2', { oh: money(a.overheads), m: money(a.made), p: r2(a.factor * 100), u: money(a.uplift) })) +
+      (a.capped ? ' ' + esc(NS.t('fx.as2cap', { c: money(a.capped) })) : '') + '</p>' + (a.high ? '<p class="note">' + esc(NS.t('fx.as2high')) + '</p>' : '');
   }
   function links(v, C) {
     var L = avail(C); if (!L.length) return '';

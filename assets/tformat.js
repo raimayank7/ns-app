@@ -13,9 +13,11 @@
   function on() { return TF.fmt(A.cfg(), A.biz()) === 't'; }
   function iso(t) { return '⁦' + t + '⁩'; }
 
+  function maker() { var b = A.biz() || {}; return b.kind === 'mfg' || A.mine().some(function (d) { return d.type === 'stk' && d.kind === 'make'; }); }
+  NSApp.tfMaker = maker;
   /* trading and P&L + balance sheet figures from finrep's calc() */
   function figs(C) {
-    var R = TF.tradingPL(C.rows, C.cs, V.dx(A.cfg())), r = C.r, open = {};
+    var R = TF.tradingPL(C.rows, C.cs, V.dx(A.cfg(), maker())), r = C.r, open = {};
     if (r[0] && window.NSPL) {
       var acc = NSBooks.accounts(A.data().doc, A.bizName(), NSPL.prevDay(r[0]));
       Object.keys(acc).forEach(function (k) { if (k.indexOf('cap:') === 0) open[k] = -acc[k]; });

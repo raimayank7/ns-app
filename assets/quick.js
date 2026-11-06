@@ -105,7 +105,8 @@
   var KEY = 'ns-app-last';
   try {
     var last = localStorage.getItem(KEY);
-    if (!location.hash && last && !/^do\//.test(last)) location.replace('#' + last);
+    /* a plain visit reopens the last screen; a link to "#" (the Dashboard) means the Dashboard (round C) */
+    if (!location.hash && !/#$/.test(location.href) && last && !/^do\//.test(last)) location.replace('#' + last);
   } catch (e) {}
   window.addEventListener('hashchange', function () { try { localStorage.setItem(KEY, location.hash.slice(1)); } catch (e) {} });
 

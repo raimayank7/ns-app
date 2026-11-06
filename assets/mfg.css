@@ -9,3 +9,5 @@
 .mf-newv{justify-content:flex-start;background:none!important;border:0!important;padding-top:0!important;box-shadow:none!important}
 .mf-itc h4{margin:14px 0 6px;font-size:.92rem}
 @media (max-width:620px){.mf-l{grid-template-columns:repeat(2,minmax(0,1fr)) 40px}.mf-l>:first-child{grid-column:1/-1}}
+/* round C: line boxes in a narrow dialog get two columns, so "Value per unit" is never squeezed to 40 px */
+@media (max-width:760px){.mf-l{grid-template-columns:repeat(2,minmax(0,1fr)) 40px}.mf-l>:first-child{grid-column:1/-1}}

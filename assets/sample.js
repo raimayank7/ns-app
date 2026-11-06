@@ -44,6 +44,7 @@
     { desc: 'Paint brush 2 inch' + TAG, hsn: '9603', unit: 'Nos', rate: 60, gst: 18, kind: 'goods', cat: 'Paints' + TAG, group: 'gsmp-paint', wrate: 52, mrp: 75, prate: 40 }
   ];
 
+  function fyStart(iso) { var y = +iso.slice(0, 4); if (+iso.slice(5, 7) < 4) y--; return y + '-04-01'; }
   function seller() { var s = JSON.parse(JSON.stringify(BIZ)); return s; }
   function buyer(p) { return { name: p.name, addr: p.addr, city: p.city, pin: p.pin, state: p.state, gstin: p.gstin, phone: p.phone }; }
   function line(i, qty, rate) { var it = ITEMS[i]; return { desc: it.desc, hsn: it.hsn, qty: qty, unit: it.unit, rate: rate == null ? it.rate : rate, disc: '', gst: it.gst }; }
@@ -104,8 +105,12 @@
           items: pb, noGst: false, notes: '', total: total(pb) },
         { type: 'exp', app: 1, date: day(5), seller: seller(), cat: 'rent', amount: 8000, mode: 'cash', buyer: { name: '' }, no: '', gst: '', itc: false, inter: false, notes: 'Shop rent', total: 8000 },
         { type: 'exp', app: 1, date: day(8), seller: seller(), cat: 'power', amount: 1850, mode: 'upi', buyer: { name: '' }, no: '', gst: '', itc: false, inter: false, notes: 'Electricity bill', total: 1850 },
-        { type: 'ob', app: 1, date: day(80), seller: seller(), buyer: { name: '' }, side: 'cash', amount: 15000, no: '', total: 15000 },
-        { type: 'ob', app: 1, date: day(80), seller: seller(), buyer: { name: '' }, side: 'bank', amount: 50000, no: '', total: 50000 }
+        /* opening cash, bank and stock on the first day of the year, before any bill: the books start balanced and the shop
+           never sells goods it never had (round C: negative stock, 92% margin, opening cash shown as a receipt in August) */
+        { type: 'ob', app: 1, date: fyStart(day(85)), seller: seller(), buyer: { name: '' }, side: 'cash', amount: 15000, no: '', total: 15000 },
+        { type: 'ob', app: 1, date: fyStart(day(85)), seller: seller(), buyer: { name: '' }, side: 'bank', amount: 50000, no: '', total: 50000 },
+        { type: 'stk', kind: 'open', app: 1, no: 'OPEN/S01', date: fyStart(day(85)), seller: seller(), gd: '', note: 'Opening stock',
+          lines: [[1, 40], [2, 300], [3, 60], [0, 50]].map(function (x) { var it = ITEMS[x[0]]; return { desc: it.desc, unit: it.unit, qty: x[1], rate: it.prate }; }) }
       ];
       return Promise.all(jobs.map(function (d) { return put('doc', d); }));
     }).then(function () {

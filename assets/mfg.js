@@ -112,7 +112,9 @@
 
   function bomForm(it, verName, isNew) {
     var r = it || {}, V = F.bomList(r), cur = isNew ? null : F.pickBom(r, today(), verName) || null;
-    var b = cur ? JSON.parse(JSON.stringify(cur)) : { name: '', from: isNew ? today() : '', per: 1, lines: [], by: [] };
+    /* a new version starts as a copy of the one in use (usually one quantity changes) */
+    var base0 = isNew ? F.pickBom(r, today()) : null;
+    var b = cur ? JSON.parse(JSON.stringify(cur)) : base0 ? Object.assign(JSON.parse(JSON.stringify(base0)), { name: '', from: today() }) : { name: '', from: isNew ? today() : '', per: 1, lines: [], by: [] };
     var L = b.lines.length ? b.lines : [blank(RAWC())], Y = (b.by || []).length ? b.by : [blank(BYC())];
     var sets = { 'bl-': [L, RAWC()], 'by-': [Y, BYC()] };
     function draw(p) { (p ? [p] : Object.keys(sets)).forEach(function (k) { $('[data-ls="' + k + '"]', form).innerHTML = lines(sets[k][0], k, sets[k][1]); }); }
@@ -138,6 +140,14 @@
       Promise.all(jobs).then(function () { dlg.close(); NS.toast(A.T('saved')); A.show(); });
     }, function () {
       draw(); multi(sets, draw);
+      /* a picked raw material or by-product brings its unit (and a by-product its value) from the item list (round C) */
+      form.addEventListener('change', function (e) {
+        var m = /^(bl|by)-desc-(\d+)$/.exec(e.target.id || ''), x = m && item(e.target.value); if (!x) return;
+        var u = $('#' + m[1] + '-unit-' + m[2], form); if (u && !u.value) u.value = x.unit || '';
+        var rt = m[1] === 'by' && $('#by-rate-' + m[2], form); if (rt && !num(rt.value)) rt.value = num(x.rate) || num(x.prate) || '';
+      });
+      /* typing in "One batch makes" replaces the 1 shown there (round C: typing 10 gave 110) */
+      var pe = $('#bm-per', form); if (pe) { pe.addEventListener('focus', function () { setTimeout(function () { pe.select(); }, 0); }); pe.addEventListener('mouseup', function (e) { e.preventDefault(); }, { once: true }); }
       var vd = $('[data-vdel]', form);
       if (vd) vd.addEventListener('click', function () { if (!confirm(T('vdelq', { n: cur.name || T('v1') }))) return; NSStore.put('item', F.dropVersion(r, cur.name, today())).then(function () { dlg.close(); A.show(); }); });
     });

@@ -132,7 +132,11 @@
         (L.length > 2 ? '<button type="button" class="icon-btn rm" data-jrm="' + i + '" aria-label="' + esc(A.T('rmline')) + '">✕</button>' : '<span></span>') + '</div>';
     }
     var heads = {}; A.mine().forEach(function (d) { if (d.cat) heads[d.cat] = 1; (d.lines || []).forEach(function (l) { if (l.head) heads[l.head] = 1; if (l.t && l.nm && l.t !== 'party') (heads[l.t + '|' + l.nm] = 1); }); });
-    function named(t) { return Object.keys(heads).filter(function (h) { return h.indexOf(t + '|') === 0; }).map(function (h) { return h.split('|')[1]; }); }
+    function named(t) {
+      var o = Object.keys(heads).filter(function (h) { return h.indexOf(t + '|') === 0; }).map(function (h) { return h.split('|')[1]; });
+      if (window.NSHeads && (t === 'exp' || t === 'inc')) NSHeads.list(t === 'exp' ? ['dexp', 'iexp'] : ['oinc', 'dinc']).forEach(function (h) { var n = NSHeads.label(h); if (o.indexOf(n) < 0) o.push(n); });   /* heads list (heads.js) */
+      return o;
+    }
     var assets = X.assets(A.data().doc, A.bizName()).map(function (a) { return a.name; });
     function draw() {
       $('[data-jls]', form).innerHTML = L.map(lineHtml).join('');
@@ -194,8 +198,8 @@
         '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Asset</th><th>Put to use</th><th>Method</th><th class="n">Opening</th><th class="n">Added</th><th class="n">Depreciation</th><th class="n">Sold (book value)</th><th class="n">Closing</th><th class="acts"></th></tr></thead><tbody>' +
         R.rows.map(function (r) {
           var a = r.a;
-          return '<tr><th scope="row">' + esc(a.name) + '<br><small class="soft">' + esc(T('k_' + a.cat)) + '</small></th><td>' + A.ldate(a.date) + '</td><td>' + (a.method === 'slm' ? 'SLM' : 'WDV') + ' · ' + a.life + ' yr</td>' +
-            '<td class="n">' + m(r.open) + '</td><td class="n">' + m(r.add) + '</td><td class="n">' + m(r.dep) + (r.todo > 0.004 ? ' <small class="np">(' + esc(T('notposted')) + ')</small>' : '') + '</td><td class="n">' + m(r.sold) + '</td><td class="n">' + m(r.close) + '</td>' +
+          return '<tr><th scope="row">' + esc(a.name) + '<br><small class="soft">' + esc(NS.tEn ? NS.tEn('b2.k_' + a.cat) : T('k_' + a.cat)) + '</small></th><td>' + A.ldate(a.date) + '</td><td>' + (a.method === 'slm' ? 'SLM' : 'WDV') + ' · ' + a.life + ' yr</td>' +
+            '<td class="n">' + m(r.open) + '</td><td class="n">' + m(r.add) + '</td><td class="n">' + m(r.dep) + (r.todo > 0.004 ? ' <small class="np">(not posted)</small>' : '') + '</td><td class="n">' + m(r.sold) + '</td><td class="n">' + m(r.close) + '</td>' +
             '<td class="acts">' + (a.sale ? '<span class="pill">' + esc(T('soldon', { d: A.ldate(a.sale.date) })) + '</span>' : '<button type="button" class="btn sm" data-b2sell="' + a.id + '">' + esc(T('sell')) + '</button>') +
             '<button type="button" class="btn sm" data-b2fa="' + a.id + '">' + esc(A.T('edit')) + '</button></td></tr>';
         }).join('') + '</tbody><tfoot><tr><th>Total</th><th></th><th></th><th class="n">' + m(R.tot.open) + '</th><th class="n">' + m(R.tot.add) + '</th><th class="n">' + m(R.tot.dep) + '</th><th class="n">' + m(R.tot.sold) + '</th><th class="n">' + m(R.tot.close) + '</th><th></th></tr></tfoot></table></div>' + foot() + '</div></div>'
@@ -206,14 +210,15 @@
       '<details class="card"><summary><b>' + esc(T('farules')) + '</b></summary><p>' + esc(T('farule1')) + '</p><p>' + esc(T('farule2')) + '</p><p>' + esc(T('farule3')) + '</p></details>';
   }, wireAll);
   function faForm(rec) {
-    var r = rec || { date: today(), cat: 'comp', method: 'wdv', mode: 'bank', itc: true, resid: 5 }, k = X.KINDS[r.cat] || X.KINDS.other;
+    /* no payment is assumed (round C: a bank payment was posted for an asset typed from an old register): the user picks */
+    var r = rec || { date: today(), cat: 'comp', method: 'wdv', mode: '', itc: true, resid: 5 }, k = X.KINDS[r.cat] || X.KINDS.other;
     open(T(rec ? 'editfa' : 'newfa'), '<div class="fg">' + fld('fa-name', T('faname'), inp('fa-name', r.name || '', { req: 1 }), { wide: 1 }) +
       fld('fa-cat', T('fakind'), sel('fa-cat', r.cat, KIND_ORDER.map(function (c) { return [c, T('k_' + c)]; }))) +
       fld('fa-date', T('putuse'), inp('fa-date', r.date, { type: 'date', req: 1 })) +
       fld('fa-amt', T('cost'), inp('fa-amt', r.amount || '', { mode: 'decimal', req: 1 }), { hint: T('costh') }) +
       fld('fa-gst', T('gstamt'), inp('fa-gst', r.gstAmt || '', { mode: 'decimal' })) +
       '<div class="f"><label class="chk"><input type="checkbox" id="fa-itc"' + (r.itc ? ' checked' : '') + '> ' + esc(T('itc')) + '</label><label class="chk"><input type="checkbox" id="fa-inter"' + (r.inter ? ' checked' : '') + '> ' + esc(T('inter')) + '</label></div>' +
-      fld('fa-mode', T('paidby'), sel('fa-mode', r.mode, modeOpts(true))) +
+      fld('fa-mode', T('paidby'), sel('fa-mode', r.mode, [['', '— ' + T('m_pick') + ' —'], ['own', T('m_own')]].concat(modeOpts(true))), { hint: T('m_ownh') }) +
       fld('fa-party', T('supplier'), inp('fa-party', r.buyer && r.buyer.name || '', { list: 'b2-parties' })) + fld('fa-no', T('billno'), inp('fa-no', r.no || '', { mode: 'text' })) +
       fld('fa-method', T('method'), sel('fa-method', r.method, [['wdv', T('wdv')], ['slm', T('slm')]])) +
       fld('fa-life', T('life'), inp('fa-life', r.life || k[0], { mode: 'decimal' }), { hint: T('lifeh') }) +
@@ -223,6 +228,7 @@
     function () {
       var date = val('fa-date'), name = val('fa-name'), amt = r2(num(val('fa-amt'))), mode = val('fa-mode'), party = val('fa-party');
       if (!need(name, T('faname')) || !need(date, T('putuse')) || !need(amt > 0, T('cost')) || !lockOk(date, rec)) return;
+      if (!need(mode, T('paidby'))) return;
       if (mode === 'credit' && !need(party, T('supplier'))) return;
       var dup = X.assets(A.data().doc, A.bizName()).filter(function (a) { return key(a.name) === key(name) && (!rec || a.id !== rec.id); })[0];
       if (dup) { NS.toast(T('fadup', { n: name }), 'bad'); return; }
@@ -321,7 +327,7 @@
     var D = A.data().doc, I = items(), G = S.godowns(D, I, A.bizName(), today(), gdNames()), exp = S.expiring(D, I, A.bizName(), today(), 60);
     var cur = G.filter(function (g) { return key(g.g || S.MAIN) === key(gdView || S.MAIN); })[0] || G[0];
     var moves = A.mine().filter(function (d) { return d.type === 'stk' && d.kind === 'move'; }).sort(A.byDate).slice(0, 30);
-    return '<div class="pane-hd"><h2>' + esc(T('gd')) + '</h2><div class="quick"><button type="button" class="btn primary" data-b2="move">+ ' + esc(T('newmove')) + '</button><a class="btn" href="' + A.myUrl('#settings') + '">' + esc(T('managegd')) + '</a></div></div>' +
+    return '<div class="pane-hd"><h2>' + esc(T('gd')) + '</h2><div class="quick"><button type="button" class="btn primary" data-b2="move">+ ' + esc(T('newmove')) + '</button><a class="btn" href="' + A.myUrl('#settings/gd') + '">' + esc(T('managegd')) + '</a></div></div>' +
       '<p class="soft">' + esc(T('gdh')) + '</p>' +
       '<div class="tiles">' + G.map(function (g) { return '<button type="button" class="tile" data-b2gdv="' + esc(g.g) + '" aria-pressed="' + (g === cur) + '"><span>' + esc(gdLabel(g.g)) + '</span><b>' + money(g.value) + '</b><small class="soft">' + esc(T('nitems', { n: g.n })) + '</small></button>'; }).join('') + '</div>' +
       (cur ? '<div class="tbl-wrap" dir="ltr"><div lang="en-IN" class="stsheet" data-sheet>' + head('Stock in ' + gdLabel(cur.g), 'As on ' + A.ldate(today())) + '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Item</th><th class="n">In hand</th><th class="n">Value</th></tr></thead><tbody>' +
@@ -489,15 +495,15 @@
 
   /* ---------- salesmen ---------- */
   A.addSection('b2sman', function () {
-    var r = A.range(), L = X.salesmen(A.data().doc, A.bizName(), r[0], r[1], cfg().salesmen || []), tot = { n: 0, net: 0, paid: 0, comm: 0 };
-    L.forEach(function (x) { tot.n += x.n; tot.net += x.net; tot.paid += x.paid; tot.comm += x.comm; });
-    return '<div class="pane-hd"><h2>' + esc(T('sman')) + '</h2><div class="quick"><a class="btn" href="' + A.myUrl('#settings') + '">' + esc(T('managesm')) + '</a><button type="button" class="btn" data-b2print>' + esc(A.T('print')) + '</button><button type="button" class="btn" data-b2csv="sman">' + esc(A.T('csv')) + '</button></div></div>' +
+    var r = A.range(), L = X.salesmen(A.data().doc, A.bizName(), r[0], r[1], cfg().salesmen || []), tot = { n: 0, sales: 0, ret: 0, net: 0, paid: 0, comm: 0 };
+    L.forEach(function (x) { tot.n += x.n; tot.sales += x.sales; tot.ret += x.ret; tot.net += x.net; tot.paid += x.paid; tot.comm += x.comm; });
+    return '<div class="pane-hd"><h2>' + esc(T('sman')) + '</h2><div class="quick"><a class="btn" href="' + A.myUrl('#settings/sm') + '">' + esc(T('managesm')) + '</a><button type="button" class="btn" data-b2print>' + esc(A.T('print')) + '</button><button type="button" class="btn" data-b2csv="sman">' + esc(A.T('csv')) + '</button></div></div>' +
       '<p class="soft">' + esc(T('smanh')) + '</p>' + dates() +
       '<div class="tbl-wrap" dir="ltr"><div lang="en-IN" class="stsheet wide" data-sheet>' + head('Salesman-wise sales and commission', A.ldate(r[0]) + ' to ' + A.ldate(r[1])) +
-      '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Salesman</th><th class="n">Bills</th><th class="n">Sales</th><th class="n">Returns</th><th class="n">Net sales</th><th class="n">Collected</th><th class="n">Commission</th></tr></thead><tbody>' +
+      '<div class="tbl-wrap"><table class="tbl"><thead><tr><th>Salesman</th><th class="n">Bills</th><th class="n">Sales (before GST)</th><th class="n">Returns</th><th class="n">Net sales</th><th class="n">Collected</th><th class="n">Commission</th></tr></thead><tbody>' +
       (L.length ? L.map(function (x) { return '<tr><th scope="row">' + esc(x.k === '-' ? T('nosm1') : x.name) + '</th><td class="n">' + x.n + '</td><td class="n">' + m(x.sales) + '</td><td class="n">' + m(x.ret) + '</td><td class="n">' + m(x.net) + '</td><td class="n">' + m(x.paid) + '</td><td class="n">' + (x.rate ? money(x.comm, false) + '<br><small class="soft">' + x.rate + '% of ' + (x.basis === 'paid' ? 'collected' : 'net sales') + '</small>' : '—') + '</td></tr>'; }).join('')
         : '<tr><td colspan="7" class="soft">' + esc(T('nosmrows')) + '</td></tr>') +
-      '</tbody><tfoot><tr><th>Total</th><th class="n">' + tot.n + '</th><th></th><th></th><th class="n">' + money(tot.net, false) + '</th><th class="n">' + money(tot.paid, false) + '</th><th class="n">' + money(tot.comm, false) + '</th></tr></tfoot></table></div>' + foot() + '</div></div>';
+      '</tbody><tfoot><tr><th>Total</th><th class="n">' + tot.n + '</th><th class="n">' + money(tot.sales, false) + '</th><th class="n">' + money(tot.ret, false) + '</th><th class="n">' + money(tot.net, false) + '</th><th class="n">' + money(tot.paid, false) + '</th><th class="n">' + money(tot.comm, false) + '</th></tr></tfoot></table></div>' + foot() + '</div></div>';
   }, wireAll);
 
   /* ---------- one wire for every section ---------- */

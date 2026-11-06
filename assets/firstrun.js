@@ -40,7 +40,7 @@
   var REC = {
     shop: ['stock', 'barcode', 'khata', 'chq', 'pos'],
     whole: ['orders', 'stock', 'godown', 'chq', 'bankreco', 'grp', 'sman', 'einv'],
-    mfg: ['orders', 'stock', 'godown', 'make', 'job', 'mfgac', 'fin', 'chq', 'bankreco', 'einv'],
+    mfg: ['orders', 'stock', 'godown', 'make', 'job', 'mfgac', 'fin', 'chq', 'bankreco', 'einv', 'salary', 'jv', 'tally'],
     svc: ['repeat', 'tds', 'bankreco'],
     resto: ['resto', 'stock'],
     pharma: ['pharmacy', 'stock', 'barcode', 'khata'],
@@ -54,7 +54,7 @@
     var o = {};
     BASE.concat(REC[kind] || []).forEach(function (f) { o[f] = 1; });
     if (reg === 'regular' || reg === 'sez') { o.gstr = 1; o.gsttools = 1; } else { delete o.einv; if (reg === 'comp') o.cmp08 = 1; }
-    if (btype && btype !== 'prop') o.fin = 1;   /* a firm, LLP, company or trust needs its final accounts (capital, appropriation, I&E) */
+    if (btype && btype !== 'prop') { o.fin = 1; o.jv = 1; o.tally = 1; }   /* a firm, LLP, company or trust: final accounts (capital, appropriation, I&E), journal entries, its accountant's Tally */
     if (btype === 'co') { o.fa = 1; o.jv = 1; o.year = 1; }
     return o;
   }
@@ -160,7 +160,7 @@
   function lbl(k) { return esc(NS.t(k)); }
   function always() { return T('always', { list: ['home', 'sales', 'money', 'dues', 'parties'].map(function (k) { return NS.t('app.' + k); }).join(', ') }); }
   function stateOpts(v) {
-    return '<option value="">' + esc(T('choose')) + '</option>' + NS.STATES.map(function (s) { return '<option value="' + s[0] + '"' + (s[0] === v ? ' selected' : '') + '>' + esc(s[1]) + '</option>'; }).join('');
+    return '<option value="">' + esc(T('choose')) + '</option>' + NS.STATES.map(function (s) { return '<option value="' + s[0] + '"' + (s[0] === v ? ' selected' : '') + '>' + esc(NS.stateLoc(s[0])) + '</option>'; }).join('');
   }
   function inp(k, label, o) {
     o = o || {};
@@ -242,7 +242,13 @@
       if (k === 'gstin' || k === 'bankIfsc') { v = v.toUpperCase().replace(/\s/g, ''); if (el.value !== v) el.value = v; }
       if (k === 'btype' && S.btype !== v) S.sw = null;
       S[k] = v;
-      if (k === 'gstin') { var c = NS.gstinCheck(v); if (c.ok && c.state && !S.state) { S.state = c.state; var s = $('[data-k="state"]', dlg); if (s) s.value = c.state; } }
+      if (k === 'gstin') { var c = NS.gstinCheck(v); if (c.ok && c.state && !S.state) { S.state = c.state; var s = $('[data-k="state"]', dlg); if (s) s.value = c.state; }
+        /* what the GSTIN tells: registered (regular unless chosen), and the owner type from the PAN's 4th letter (round C) */
+        if (c.ok) {
+          if (!S.reg) { S.reg = 'regular'; var rr = $('input[name="nsf-reg"][value="regular"]', dlg); if (rr) rr.checked = true; S.sw = null; }
+          var bt = { C: 'co', F: 'firm', P: 'prop', T: 'npo' }[String(v).toUpperCase().charAt(5)];
+          if (bt && !S.btype) { S.btype = bt; var bs = $('[data-k="btype"]', dlg); if (bs) bs.value = bt; S.sw = null; }
+        } }
     }
     if (el.getAttribute && el.getAttribute('aria-invalid')) { el.removeAttribute('aria-invalid'); var er = $('.nsf-err', dlg); if (er) er.hidden = true; }
   }

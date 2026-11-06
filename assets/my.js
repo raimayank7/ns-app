@@ -89,27 +89,29 @@
       /* settings per business: the stored record (RAW) and the copy for the business chosen on the Settings screen (S) */
       RAW = r[6] || {}; NS.bizCache = cache.biz;
       if (NS.cfgSplit(RAW, cache.biz)) NSStore.meta('settings', RAW).catch(function () {});
-      if (!cache.biz.some(function (b) { return b.id === SB; })) SB = cache.biz.some(function (b) { return b.id === RAW.defBiz; }) ? RAW.defBiz : (cache.biz[0] || {}).id || '';
+      /* inside the App: the App tab's own business first (round C: Settings opened on another business) */
+      var inApp = document.documentElement.classList.contains('embed') && NS.curBiz ? NS.curBiz() : '';
+      if (!cache.biz.some(function (b) { return b.id === SB; })) SB = inApp && cache.biz.some(function (b) { return b.id === inApp; }) ? inApp : cache.biz.some(function (b) { return b.id === RAW.defBiz; }) ? RAW.defBiz : (cache.biz[0] || {}).id || '';
       S = NS.cfgFor(RAW, SB); S._last = r[7] || 0; S._who = r[8] || ''; S._pin = r[9] || null;
       G = gNorm(r[10]);
       return catGroups();
     }).then(function () { return cache; });
   }
   function title(s, r) {
-    if (s === 'doc' && APPDOC[r.type]) return (r.type === 'pbill' && r.kind === 'return' ? 'Purchase return' : APPDOC[r.type][0]) + ' ' + (r.no || '');
+    if (s === 'doc' && APPDOC[r.type]) { var ak = 'app.d_' + (r.type === 'pbill' && r.kind === 'return' ? 'pret' : r.type), av = t(ak); return (av !== ak ? av : r.type === 'pbill' && r.kind === 'return' ? 'Purchase return' : APPDOC[r.type][0]) + ' ' + (r.no || ''); }   /* in the screen language (round C) */
     if (s === 'doc') return t(r.kind === 'estimate' ? 'doc.estimate' : r.type === 'note' ? 'k.' + r.kind : 'doc.' + (r.type || 'invoice')).replace(/^./, function (c) { return c.toUpperCase(); }) + ' ' + (r.no || '');
     return r[NAMEKEY[s]] || t('my.noname');
   }
   /* POS bills are saved as invoices (counter: 1) but open in the POS site */
   function kitType(r) { return r.counter && (!r.type || r.type === 'invoice') ? 'pos' : r.type; }
   function sub(s, r) {
-    if (s === 'doc') return NS.fmtDate(r.date) + ' · ' + esc(r.buyer && r.buyer.name || (r.type === 'exp' ? r.cat || r.head || '' : t('h.nocust'))) + ' · <b>' + NS.money(r.total || 0) + '</b> · ' + esc(r.seller && r.seller.name || '') +
+    if (s === 'doc') return NS.fmtDate(r.date) + ' · ' + esc(r.buyer && r.buyer.name || (r.type === 'exp' ? (function (c) { var k = 'app.ex_' + c, v = t(k); return v !== k ? v : c; })(r.cat || r.head || '') : t('h.nocust'))) + ' · <b>' + NS.money(r.total || 0) + '</b> · ' + esc(r.seller && r.seller.name || '') +
       (!r.type || r.type === 'invoice' || r.type === 'cashmemo' ? ' <span class="pill' + (r.status === 'paid' ? ' ok' : '') + '">' + esc(t(r.status === 'paid' ? 'h.paidp' : 'h.unpaidp')) + '</span>'
         : r.status ? ' <span class="pill' + (/^(acc|inv|sdone|prec|nadj|nref|nrecv|npaid)$/.test(r.status) ? ' ok' : '') + '">' + esc(t('qs.' + r.status)) + '</span>' : '') +
       (APPDOC[r.type] ? ' <a href="' + APP + APPDOC[r.type][1] + '" target="_blank" rel="noopener">Nivesh Sahayak App ›</a>' :
       KITOF[kitType(r)] ? ' <a href="' + siteUrl(KITOF[kitType(r)][0]) + '?open=' + encodeURIComponent(r.id) + '" target="_blank" rel="noopener">' + esc(t(KITOF[kitType(r)][1])) + ' ›</a>' :
       ' <a href="' + toolUrl(r.type === 'note' && r.kind === 'debit' ? 'debit-note' : SITEOF[r.type || 'invoice']) + '" target="_blank" rel="noopener">' + esc(t(TOOLS.filter(function (x) { return x[0] === (r.type === 'note' && r.kind === 'debit' ? 'debit-note' : SITEOF[r.type || 'invoice']); }).map(function (x) { return x[2]; })[0] || 'nav.billing')) + ' ›</a>');
-    if (s === 'item') return [NS.itemGroup(r, G).id && '<span class="pill">' + esc(gPath('item', NS.itemGroup(r, G).id)) + '</span>', r.code && esc(r.code), r.hsn && 'HSN ' + esc(r.hsn), r.rate !== '' && r.rate != null && NS.money(NS.num(r.rate)) + (r.unit ? ' / ' + esc(r.unit) : ''),
+    if (s === 'item') return [NS.itemGroup(r, G).id && '<span class="pill">' + esc(gPath('item', NS.itemGroup(r, G).id)) + '</span>', r.code && esc(r.code), r.hsn && 'HSN ' + esc(r.hsn), !(NS.num(r.rate) > 0) && NS.num(r.prate) > 0 && esc(t('prl.c.prate')) + ' ' + NS.money(NS.num(r.prate)), NS.num(r.rate) > 0 && NS.money(NS.num(r.rate)) + (r.unit ? ' / ' + esc(r.unit) : ''),
       NS.num(r.wrate) && esc(t('b1.whole')) + ' ' + NS.money(NS.num(r.wrate)), NS.num(r.mrp) && 'MRP ' + NS.money(NS.num(r.mrp)), r.gst !== '' && r.gst != null && 'GST ' + esc(r.gst) + '%', r.kind === 'service' && esc(t('hub.k.service')), r.sample && '<span class="b1-pill">' + esc(t('b1.sample')) + '</span>'].filter(Boolean).join(' · ');
     var bits = [r.gstin && '<span class="mono">' + esc(r.gstin) + '</span>', r.state && esc(NS.stateName(r.state)), r.phone && esc(r.phone)];
     if (s === 'party' && r.role && r.role !== 'customer') bits.unshift(esc(t('hub.r.' + r.role)));
@@ -216,7 +218,7 @@
     v = v == null ? '' : v;
     var cls = 'f' + (x.wide || kind === 'area' ? ' wide' : ''), req = x.req ? ' required' : '', h;
     if (kind === 'area') h = '<textarea id="' + id + '" name="' + k + '" rows="2" dir="auto">' + esc(v) + '</textarea>';
-    else if (kind === 'state') h = '<select id="' + id + '" name="' + k + '"><option value="">—</option>' + NS.STATES.map(function (s) { return '<option value="' + s[0] + '"' + (s[0] === v ? ' selected' : '') + '>' + s[0] + ' · ' + esc(s[1]) + '</option>'; }).join('') + '</select>';
+    else if (kind === 'state') h = '<select id="' + id + '" name="' + k + '"><option value="">—</option>' + NS.STATES.map(function (s) { return '<option value="' + s[0] + '"' + (s[0] === v ? ' selected' : '') + '>' + s[0] + ' · ' + esc(NS.stateLoc(s[0])) + '</option>'; }).join('') + '</select>';
     else if (kind === 'usedby') {   /* with two or more businesses: this customer / item for every business, or only one */
       if (cache.biz.length < 2 && !v) return '';
       h = '<select id="' + id + '" name="' + k + '"><option value="">' + esc(t('pb.allbiz')) + '</option>' + cache.biz.map(function (b) { return '<option value="' + esc(b.id) + '"' + (b.id === v ? ' selected' : '') + '>' + esc(t('pb.only', { b: b.name })) + '</option>'; }).join('') + '</select>';
@@ -266,15 +268,17 @@
       $('[name=name]', f).parentNode.appendChild(lh);
     }
     var g = $('[name=gstin]', f);
-    function gstHint() {
+    function gstHint(ev) {
       if (!g) return;
       g.value = g.value.toUpperCase().replace(/\s/g, '');
       var c = NS.gstinCheck(g.value), h = $('[data-gst-hint]', f), st = $('[name=state]', f);
       if (c.empty) { h.textContent = ''; h.className = 'hint'; return; }
       if (g.value.length < 15) { h.textContent = t('hub.gst.typing', { n: 15 - g.value.length }); h.className = 'hint'; return; }
-      h.textContent = c.ok ? t('hub.gst.ok', { state: NS.stateName(c.state) || '—', pan: c.pan }) : c.msg;
+      h.textContent = c.ok ? t('hub.gst.ok', { state: NS.stateLoc(c.state) || '—', pan: c.pan }) : c.msg;
       h.className = 'hint ' + (c.ok ? 'good' : 'bad');
       if (c.ok && c.state && st && !st.value) st.value = c.state;
+      /* a valid GSTIN on a business marked "not registered": it is registered (round C) */
+      var rg = $('[name=reg]', f); if (ev && c.ok && rg && rg.value === 'unreg') { rg.value = 'regular'; NS.toast(t('hub.rg.toreg')); }
     }
     if (g) { g.addEventListener('input', gstHint); gstHint(); }
     wireGroupField(s, f);
@@ -531,7 +535,7 @@
   function wizardHtml() {
     return '<div class="card b1-wiz"><h3>' + esc(t('b1.wiz')) + '</h3><p class="soft">' + esc(t('b1.wizp')) + '</p><form data-wiz novalidate><div class="fg">' +
       '<div class="f wide"><label for="wz-name">' + esc(t('l.bname')) + ' *</label><input id="wz-name" name="name" dir="auto" required></div>' +
-      '<div class="f"><label for="wz-state">' + esc(t('l.state')) + '</label><select id="wz-state" name="state"><option value="">—</option>' + NS.STATES.map(function (x) { return '<option value="' + x[0] + '">' + x[0] + ' · ' + esc(x[1]) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="f"><label for="wz-state">' + esc(t('l.state')) + '</label><select id="wz-state" name="state"><option value="">—</option>' + NS.STATES.map(function (x) { return '<option value="' + x[0] + '">' + x[0] + ' · ' + esc(NS.stateLoc(x[0])) + '</option>'; }).join('') + '</select></div>' +
       '<div class="f"><label for="wz-gstin">' + esc(t('l.gstin')) + '</label><input id="wz-gstin" name="gstin" dir="ltr" maxlength="15" autocapitalize="characters" spellcheck="false"><small class="hint">' + esc(t('b1.wiz_gst')) + '</small></div>' +
       '<div class="f"><label for="wz-phone">' + esc(t('l.phone')) + '</label><input id="wz-phone" name="phone" dir="ltr" inputmode="tel"></div>' +
       '<div class="f"><label for="wz-gst">' + esc(t('hub.defgst')) + '</label><select id="wz-gst" name="gst">' + RATES.map(function (g) { return '<option value="' + g + '"' + (g === 18 ? ' selected' : '') + '>' + g + '%</option>'; }).join('') + '</select></div>' +
@@ -558,11 +562,13 @@
     });
   }
   function binHtml() {
-    var rows = cache.bin.slice().sort(function (a, b) { return b.at - a.at; });
+    /* a record that is back (restored here or from a backup file) no longer shows in the bin (round C) */
+    var rows = cache.bin.filter(function (b) { var id = (b.rec || {}).id; return !id || !(cache[b.store] || []).some(function (x) { return x.id === id; }); }).sort(function (a, b) { return b.at - a.at; });
     return '<div class="pane-hd"><h2>' + esc(t('b1.bin')) + '</h2>' + (rows.length ? '<button type="button" class="btn sm danger" data-binempty>' + esc(t('b1.binempty')) + '</button>' : '') + '</div>' +
       '<p class="soft">' + esc(t('b1.binp', { n: NSStore.binDays })) + '</p><ul class="my-list">' + (rows.length ? rows.map(function (b) {
         var left = Math.max(0, NSStore.binDays - Math.floor((Date.now() - b.at) / 864e5));
-        return '<li data-id="' + esc(b.id) + '"><div class="hd2"><div class="who"><div><b class="ttl">' + esc(title(b.store, b.rec || {})) + '</b><div class="sub">' + esc(t('my.t.' + b.store)) + ' · ' +
+        /* a deleted document says what it was: date, party or head, amount (round C: only "Expense") */
+        return '<li data-id="' + esc(b.id) + '"><div class="hd2"><div class="who"><div><b class="ttl">' + esc(title(b.store, b.rec || {})) + '</b>' + (b.store === 'doc' && b.rec ? '<div class="sub">' + sub('doc', b.rec) + '</div>' : '') + '<div class="sub">' + esc(t('my.t.' + b.store)) + ' · ' +
           esc(t('b1.delon', { d: NS.when(b.at) })) + (b.who ? ' · ' + esc(b.who) : '') + ' · ' + esc(t('b1.daysleft', { n: left })) + '</div></div></div><div class="row">' +
           '<button type="button" class="btn sm primary" data-restore>' + esc(t('b1.restore')) + '</button></div></div></li>';
       }).join('') : '<li class="empty">' + esc(t('b1.binnone')) + '</li>') + '</ul>';
@@ -721,7 +727,7 @@
   /* ---------- backup and devices ---------- */
   function backupHtml() {
     return '<h2>' + esc(t('hub.backup')) + '</h2><p class="soft">' + esc(t('hub.p.backup')) + '</p>' +
-      '<div class="card"><p>' + esc(t('md.last')) + ' <b>' + (S._last ? new Date(S._last).toLocaleString('en-IN') : esc(t('md.never'))) + '</b></p>' +
+      '<div class="card"><p>' + esc(t('md.last')) + ' <b>' + (S._last ? esc(NS.fmtDate(new Date(S._last - new Date(S._last).getTimezoneOffset() * 6e4).toISOString().slice(0, 10)) + ', ' + new Date(S._last).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })) : esc(t('md.never'))) + '</b></p>' +
       '<div class="btns"><button type="button" class="btn primary" data-act="backup">' + esc(t('md.save')) + '</button>' +
       '<label class="btn"><span>' + esc(t('md.restore')) + '</span><input type="file" accept=".json,application/json" data-act="restore" hidden></label>' +
       '<button type="button" class="btn" data-act="my-data" data-tab="af">' + esc(t('my.auto')) + '</button></div>' +
@@ -824,10 +830,15 @@
         if (have) { Object.keys(r).forEach(function (k) { if (k === 'ship') have.ship = Object.assign(have.ship || {}, r.ship); else have[k] = r[k]; }); puts.push(have); upd++; }
         else { if (s === 'party' && !r.role) r.role = 'customer'; if (s === 'item' && !r.kind) r.kind = 'goods'; byName[nm] = r; puts.push(r); add++; }
       });
-      var gp = made.length ? editGroups(function (m) { made.forEach(function (g) { m[s].push(g); }); }) : Promise.resolve();
-      return puts.reduce(function (p, r) { return p.then(function () { return NSStore.put(s, r); }); }, gp).then(function () {
-        NS.toast(t('hub.imp.done', { a: add, u: upd }) + (bad.length ? ' ' + t('hub.imp.bad', { rows: bad.slice(0, 8).join(', ') + (bad.length > 8 ? '…' : '') }) : ''), bad.length ? 'bad' : '');
-        return show(s);
+      /* say what will happen before anything is saved, like the Excel import does (round C) */
+      var q = t('hub.imp.ask', { a: add, u: upd });
+      return (NS.ask ? NS.ask(q) : Promise.resolve(confirm(q))).then(function (ok) {
+        if (!ok) { load(); return show(s); }
+        var gp = made.length ? editGroups(function (m) { made.forEach(function (g) { m[s].push(g); }); }) : Promise.resolve();
+        return puts.reduce(function (p, r) { return p.then(function () { return NSStore.put(s, r); }); }, gp).then(function () {
+          NS.toast(t('hub.imp.done', { a: add, u: upd }) + (bad.length ? ' ' + t('hub.imp.bad', { rows: bad.slice(0, 8).join(', ') + (bad.length > 8 ? '…' : '') }) : ''), bad.length ? 'bad' : '');
+          return show(s);
+        });
       });
     }).catch(function (e) { NS.toast(e.message || t('bk.unread'), 'bad'); });
   }
@@ -838,11 +849,20 @@
   /* ---------- start ---------- */
   function init() {
     if (!$('#my-app')) return;
-    NSStore.ready().then(function () { return show(location.hash.slice(1) || 'home'); });
+    /* #biz/new (App "Add my business") opens the section with its add form */
+    function go(h) {
+      var m = /^(\w+)\/new$/.exec(h || '');
+      if (m && SECS.indexOf(m[1]) >= 0) return show(m[1]).then(function () { history.replaceState(null, '', '#' + m[1]); openForm(m[1]); });
+      /* #settings/gd: the section, scrolled to that part (godown names, salesmen) with the cursor in it */
+      var a = /^(\w+)\/([\w-]+)$/.exec(h || '');
+      if (a && SECS.indexOf(a[1]) >= 0) return show(a[1]).then(function () { history.replaceState(null, '', '#' + a[1]); setTimeout(function () { var el = document.getElementById('set-' + a[2]); if (!el) return; el.scrollIntoView({ block: 'start' }); var i = el.querySelector('textarea,input,select'); if (i) i.focus({ preventScroll: true }); }, 60); });
+      return show(h || 'home');
+    }
+    NSStore.ready().then(function () { return go(location.hash.slice(1)); });
     $$('[data-sec]').forEach(function (b) {
       b.addEventListener('click', function (e) { e.preventDefault(); show(b.getAttribute('data-sec'), true); });
     });
-    window.addEventListener('hashchange', function () { var h = location.hash.slice(1) || 'home'; if (h !== cur) show(h); });
+    window.addEventListener('hashchange', function () { var h = location.hash.slice(1) || 'home'; if (h !== cur) go(h); });
     var pane = $('[data-pane]');
     pane.addEventListener('click', function (e) {
       var a = e.target.closest('a[href^="#"]');
@@ -869,10 +889,16 @@
       else if (e.target.closest('[data-def]')) { S.defBiz = id; saveSettings().then(function () { NS.toast(t('hub.setsaved')); show('biz'); }); }
       else if (e.target.closest('[data-log]')) NS.showLog(id, t('b1.changesof', { no: $('.ttl', li).textContent }));
       else if (e.target.closest('[data-restore]')) NSStore.restore(id).then(function () { NS.toast(t('b1.restored')); show('bin'); }, function (err) { NS.toast(err.message, 'bad'); });
-      else if (e.target.closest('[data-del]') && confirm(t('b1.cdel', { x: $('.ttl', li).textContent }))) {
-        NSStore.del(cur, id).then(function () {
-          if (cur === 'biz' && S.defBiz === id) { S.defBiz = ''; return saveSettings(); }
-        }).then(function () { NS.toast(t('b1.binned')); show(cur); }, function (err) { NS.toast(err.message, 'bad'); });
+      else if (e.target.closest('[data-del]')) {
+        /* a party with saved documents says so before it goes (round C); the site's own box, not the browser's confirm() */
+        var nm = $('.ttl', li).textContent, kk = String(nm || '').trim().toLowerCase(), nd = cur === 'party' ? (cache.doc || []).filter(function (d) { return String((d.buyer || {}).name || '').trim().toLowerCase() === kk; }).length : 0;
+        var msg = nd ? t('b1.cdelp', { x: nm, n: nd }) : t('b1.cdel', { x: nm });
+        (NS.ask ? NS.ask(msg, { danger: true }) : Promise.resolve(confirm(msg))).then(function (ok) {
+          if (!ok) return;
+          NSStore.del(cur, id).then(function () {
+            if (cur === 'biz' && S.defBiz === id) { S.defBiz = ''; return saveSettings(); }
+          }).then(function () { NS.toast(t('b1.binned')); show(cur); }, function (err) { NS.toast(err.message, 'bad'); });
+        });
       }
     });
     pane.addEventListener('input', function (e) { if (e.target.id === 'my-q') { q = e.target.value.trim().toLowerCase(); renderList(); } });

@@ -41,9 +41,9 @@
     SM = JSON.parse(JSON.stringify(S.salesmen || [])); CF = JSON.parse(JSON.stringify(S.cfields || []));
     var closed = []; Object.keys(S.closed || {}).forEach(function (b) { (S.closed[b] || []).forEach(function (fy) { closed.push(fy); }); });
     return '<form class="set b2-set" data-b2set>' +
-      '<fieldset class="card"><legend>' + esc(t('b2.gds')) + '</legend><p class="hint">' + esc(t('b2.gdsh')) + '</p><div class="fg"><div class="f wide"><label for="b2-gds">' + esc(t('b2.gdlist')) + '</label>' +
+      '<fieldset class="card" id="set-gd"><legend>' + esc(t('b2.gds')) + '</legend><p class="hint">' + esc(t('b2.gdsh')) + '</p><div class="fg"><div class="f wide"><label for="b2-gds">' + esc(t('b2.gdlist')) + '</label>' +
         '<textarea id="b2-gds" rows="3" dir="auto" placeholder="' + esc(t('b2.gdph')) + '">' + esc((S.godowns || []).join('\n')) + '</textarea></div></div></fieldset>' +
-      '<fieldset class="card"><legend>' + esc(t('b2.sms')) + '</legend><p class="hint">' + esc(t('b2.smsh')) + '</p><div data-sms></div><button type="button" class="btn sm" data-smadd>+ ' + esc(t('b2.smadd')) + '</button></fieldset>' +
+      '<fieldset class="card" id="set-sm"><legend>' + esc(t('b2.sms')) + '</legend><p class="hint">' + esc(t('b2.smsh')) + '</p><div data-sms></div><button type="button" class="btn sm" data-smadd>+ ' + esc(t('b2.smadd')) + '</button></fieldset>' +
       '<fieldset class="card"><legend>' + esc(t('b2.cfs')) + '</legend><p class="hint">' + esc(t('b2.cfsh')) + '</p><div data-cfs></div><button type="button" class="btn sm" data-cfadd>+ ' + esc(t('b2.cfadd')) + '</button></fieldset>' +
       '<fieldset class="card"><legend>' + esc(t('fr.val')) + '</legend><div class="fg"><div class="f wide"><label for="b2-val">' + esc(t('fr.valq')) + '</label><select id="b2-val">' +
         [['avg', 'fr.val_avg'], ['fifo', 'fr.val_fifo']].map(function (o) { return '<option value="' + o[0] + '"' + ((S.stockValue === 'fifo' ? 'fifo' : 'avg') === o[0] ? ' selected' : '') + '>' + esc(t(o[1])) + '</option>'; }).join('') +
@@ -71,6 +71,8 @@
     draw();
     $('[data-smadd]', f).addEventListener('click', function () { readSm(); SM.push({ name: '', rate: '', basis: 'sales' }); draw(); var i = $$('[data-sm=name]', f); i[i.length - 1].focus(); });
     $('[data-cfadd]', f).addEventListener('click', function () { readCf(); CF.push({ id: 'f' + Date.now().toString(36), label: '', types: [], print: true }); draw(); var i = $$('[data-cf=label]', f); i[i.length - 1].focus(); });
+    /* godown names and the stock value method save as soon as they change: a far-away Save button was missed (round C) */
+    ['#b2-gds', '#b2-val'].forEach(function (s) { var i = $(s, f); if (i) i.addEventListener('change', function () { if (f.requestSubmit) f.requestSubmit(); }); });
     f.addEventListener('submit', function (e) {
       e.preventDefault(); readSm(); readCf();
       var seen = {};

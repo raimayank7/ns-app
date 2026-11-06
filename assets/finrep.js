@@ -60,15 +60,29 @@
       else if (x.k === 'gst') { o.loc = L(x.dr ? 'l_gstin' : 'l_gstout'); o.en = x.name; }
       else if (x.k === 'res-earlier') { o.loc = L(x.cr ? 'l_earlierp' : 'l_earlierl'); o.en = x.name; }
       else if (LBL[x.k]) { o.loc = L('l_' + LBL[x.k]); o.en = x.name; }
+      else if (x.k === 'pdd') { o.loc = NS.t('wo.l_pdd'); o.en = x.name; }   /* provision for doubtful debts (WP-3) */
       else if (x.k.indexOf('given:') === 0) { o.loc = T('ty_given') + ': ' + nm; o.en = 'Loan given: ' + nm; }
       else if (PFX.test(x.k)) { o.loc = o.en = nm; }
       else if (EXEN[x.k.slice(4)] && x.k.indexOf('exp:') === 0) { o.loc = NS.t('app.ex_' + x.k.slice(4)); o.en = EXEN[x.k.slice(4)]; }
+      else if (x.k.indexOf('exp:') === 0 && window.NSHeads && NSHeads.find(x.k) && !NSHeads.find(x.k).custom) { var hh = NSHeads.find(x.k); o.loc = NSHeads.label(hh); o.en = hh.en; }   /* a head saved in another language's words */
       else { o.loc = o.en = x.name; }
       return o;
     });
     return { r: r, rows: rows, os: base.os, cs: base.cs, F: P.statements(rows, base.cs) };
   }
+  /* a partnership firm or LLP: "Partner puts money in / takes money out" (round C) */
+  function kName(k) { var b = A.biz && A.biz() || {}; return (k === 'capin' || k === 'drw') && /^(firm|llp)$/.test(b.btype || '') ? T('k_' + k + 'p') : T('k_' + k); }
   function amt(x) { return CRH[x.g] ? r2(x.cr - x.dr) : r2(x.dr - x.cr); }
+  /* trial balance headings (round C): an input GST ledger (debit) sits under current assets, an output one under current
+     liabilities, whatever the net is; a manufacturer's purchases are raw materials and goods, not "stock-in-trade" */
+  function hg(x) { return /^gst-/.test(x.k || '') ? (x.dr >= x.cr ? 'oca' : 'ocl') : x.g; }
+  function gName(g, en) { if (g === 'pur' && A.tfMaker && A.tfMaker()) return en ? 'Purchases (raw materials and goods)' : L('g_purm'); return en ? EN_H[g] : L('g_' + g); }
+  /* gross profit as the trading account works it out (direct expenses included), so Schedule III's note, its tile and the
+     T format show one figure (round C: three different gross profits) */
+  function grossOf(C) {
+    if (!window.NSTF || !window.NSTFV || !NSTF.tradingPL) return C.F.pl.gross;
+    try { var R = NSTF.tradingPL(C.rows, C.cs, NSTFV.dx(A.cfg(), A.tfMaker && A.tfMaker())); return R.gross != null ? R.gross : C.F.pl.gross; } catch (e) { return C.F.pl.gross; }
+  }
   /* each customer and supplier in place of the two totals (balance on the last day) */
   function partyRows(to) {
     var acc = B.accounts(A.data().doc, A.bizName(), to), P2 = B.parties(A.mine(), A.bizName()), out = [];
@@ -124,7 +138,7 @@
       : '<tr><th class="l">' + esc(en ? 'Account' : L('acct')) + '</th><th class="n">' + esc(en ? 'Debit (Rs)' : L('dr')) + '</th><th class="n">' + esc(en ? 'Credit (Rs)' : L('cr')) + '</th></tr>';
     function cells(x) { return (V.det ? '<td class="n">' + c(x.od) + '</td><td class="n">' + c(x.oc) + '</td><td class="n">' + c(x.td) + '</td><td class="n">' + c(x.tc) + '</td>' : '') + '<td class="n">' + c(x.dr) + '</td><td class="n">' + c(x.cr) + '</td>'; }
     var body = V.rows.map(function (x) {
-      var h = !V.grp && x.g !== g0 ? '<tr class="sec"><th colspan="' + n + '" class="l">' + esc(en ? EN_H[x.g] : L('g_' + x.g)) + '</th></tr>' : ''; g0 = x.g;
+      var h = !V.grp && hg(x) !== g0 ? '<tr class="sec"><th colspan="' + n + '" class="l">' + esc(gName(hg(x), en)) + '</th></tr>' : ''; g0 = hg(x);
       return h + '<tr><th scope="row" class="l' + (V.grp ? '' : ' sub') + '">' + esc(en ? x.en : x.loc) + '</th>' + cells(x) + '</tr>';
     }).join('');
     var tot = function (v) { return '<th class="n">' + money(v, false) + '</th>'; };
@@ -143,7 +157,7 @@
   function tbXl(V) {
     var h = V.det ? ['Head', 'Account', 'Opening debit', 'Opening credit', 'Transactions debit', 'Transactions credit', 'Closing debit', 'Closing credit'] : ['Head', 'Account', 'Debit', 'Credit'];
     var v = function (x) { return x || ''; }, out = [h].concat(V.rows.map(function (x) {
-      return [V.grp ? '' : EN_H[x.g], x.en].concat(V.det ? [v(x.od), v(x.oc), v(x.td), v(x.tc)] : [], [v(x.dr), v(x.cr)]);
+      return [V.grp ? '' : gName(hg(x), true), x.en].concat(V.det ? [v(x.od), v(x.oc), v(x.td), v(x.tc)] : [], [v(x.dr), v(x.cr)]);
     }));
     out.push(['Total', ''].concat(V.det ? [V.T.od, V.T.oc, V.T.td, V.T.tc] : [], [V.T.dr, V.T.cr]), []);
     out.push(V.sk ? ['Closing stock (memo only, not added to the totals)', valEn()].concat(V.det ? ['', '', '', ''] : [], [V.cs, '']) : ['Ledger balances only: opening stock and stock brought in are left out (their value is in profit or loss of earlier periods).']);
@@ -225,6 +239,8 @@
     o.push(ln(L('total'), 'Total', S.el, 'tot'), ln(L('assets'), 'Assets', null, 'sec'));
     if (S.nca) o = o.concat([ln(L('nca'), 'Non-current assets', S.nca, 'b')], subs(C, 'ppe'), subs(C, 'ninv'));
     o.push(ln(L('ca'), 'Current assets', S.ca, 'b'), ln(L('inv'), 'Inventories (closing stock at ' + valEn() + ')', S.inv, 'sub'), ln(L('g_trec'), 'Trade receivables', S.trec, 'sub'));
+    var pdr = C.rows.filter(function (x) { return x.k === 'pdd'; })[0];   /* WP-3: trade receivables shown less the provision for doubtful debts */
+    if (pdr && amt(pdr)) o.push(ln(NS.t('wo.l_gross'), 'Trade receivables before provision', r2(S.trec - amt(pdr)), 'sub'), ln(NS.t('wo.l_pdd'), 'Less: provision for doubtful debts', amt(pdr), 'sub'));
     o = o.concat(subs(C, 'cash'), subs(C, 'oca'));
     o.push(ln(L('total'), 'Total', S.assets, 'tot'));
     if (Math.abs(S.diff) >= 0.005) o.push(ln(L('bsdiff'), 'Difference', S.diff, 'bad'));
@@ -257,7 +273,7 @@
   }
   function tbTable(rows, Tt, en) {
     var g0 = '', body = rows.map(function (x) {
-      var h = x.g !== g0 ? '<tr class="sec"><th colspan="3" class="l">' + esc(en ? EN_H[x.g] : L('g_' + x.g)) + '</th></tr>' : ''; g0 = x.g;
+      var h = hg(x) !== g0 ? '<tr class="sec"><th colspan="3" class="l">' + esc(gName(hg(x), en)) + '</th></tr>' : ''; g0 = hg(x);
       return h + '<tr><th scope="row" class="l sub">' + esc(en ? x.en : x.loc) + '</th><td class="n">' + (x.dr ? money(x.dr, false) : '') + '</td><td class="n">' + (x.cr ? money(x.cr, false) : '') + '</td></tr>';
     }).join('');
     return '<table class="tbl fr-tb"><thead><tr><th class="l">' + esc(en ? 'Account' : L('acct')) + '</th><th class="n">' + esc(en ? 'Debit (Rs)' : L('dr')) + '</th><th class="n">' + esc(en ? 'Credit (Rs)' : L('cr')) + '</th></tr></thead><tbody>' +
@@ -276,7 +292,7 @@
     var V = view === 'tb' && tbView(C), pr = view !== 'tb' && prevC(C);
     if (V && V.det) title = 'TRIAL BALANCE (DETAILED)';
     var body = view === 'tb' ? tbGrid(V, true) + '<p>' + (V.sk ? 'Closing stock Rs ' + money(C.cs, false) + ' (' + valEn() + ') is not part of the trial balance: it is shown under inventories.' : 'Ledger balances only: opening stock and stock brought in are left out; their value is in profit or loss of earlier periods.') + (V.grp ? ' One line per group of accounts.' : '') + '</p>'
-      : stTablePY(stLinesPY(C, pr), true, pr) + (view === 'pl' ? '<p>Gross profit (sales less the cost of goods sold): Rs ' + money(C.F.pl.gross, false) + '. Closing stock valued at ' + valEn() + '.</p>' : '');
+      : stTablePY(stLinesPY(C, pr), true, pr) + (view === 'pl' ? '<p>Gross profit (sales less the cost of goods sold): Rs ' + money(grossOf(C), false) + '. Closing stock valued at ' + valEn() + '.</p>' : '');
     return '<div class="stsheet sh" dir="ltr" lang="en-IN" data-sheet>' + bizHead(title, sub) + body +
       '<p class="st-ft">Made with the Nivesh Sahayak App on ' + A.ldate(NS.today()) + ' from the saved records. Format based on Schedule III, Companies Act 2013.</p></div>';
   }
@@ -285,11 +301,11 @@
     view = ['tb', 'pl', 'bs'].indexOf(arg) >= 0 ? arg : view;
     var C = calc(), F = C.F, rows = tbRows(C), Tt = P.totals(rows), ok = Math.abs(Tt.diff) < 0.005, bsOk = Math.abs(F.bs.diff) < 0.005;
     var V = view === 'tb' && tbView(C), pr = view !== 'tb' && prevC(C), pyT = pr && stTablePY(stLinesPY(C, pr), false, pr).split('</table>');
-    var tiles = view === 'tb' ? [['k_dr', money(V.T.dr)], ['k_cr', money(V.T.cr)]] : view === 'pl' ? [['k_rev', money(F.pl.rev), 1], ['k_gross', money(F.pl.gross), 1], [F.pl.profit < 0 ? 'k_loss' : 'k_profit', money(Math.abs(F.pl.profit)), 1]]
+    var tiles = view === 'tb' ? [['k_dr', money(V.T.dr)], ['k_cr', money(V.T.cr)]] : view === 'pl' ? [['k_rev', money(F.pl.rev), 1], ['k_gross', money(grossOf(C)), 1], [F.pl.profit < 0 ? 'k_loss' : 'k_profit', money(Math.abs(F.pl.profit)), 1]]
       : [['k_assets', money(F.bs.assets)], ['k_own', money(F.bs.own)], ['k_borrow', money(r2(F.bs.ltb + F.bs.stb))]];
     var body = view === 'tb' ? tbControls() + '<div class="tbl-wrap">' + tbGrid(V) + '</div><p class="soft">' + esc(T('tbh') + (V.det ? ' ' + S('deth') : '')) + '</p><p class="soft">' + esc(V.sk ? L('csnote', { x: money(C.cs) }) : S('nostock')) + '</p>'
       : '<h3>' + esc(view === 'pl' ? L('plfor', { a: iso(A.ldate(C.r[0])), b: iso(A.ldate(C.r[1])) }) : L('bsat', { d: iso(A.ldate(C.r[1])) })) + '</h3><div class="tbl-wrap">' + pyT[0] + '</table></div>' + pyT[1] +
-        (view === 'pl' ? '<p class="soft">' + esc(L('grossh', { g: money(F.pl.gross) })) + '</p>' : '<p class="soft">' + esc(T('bsh')) + '</p>');
+        (view === 'pl' ? '<p class="soft">' + esc(L('grossh', { g: money(grossOf(C)) })) + '</p>' : '<p class="soft">' + esc(T('bsh')) + '</p>');
     var TX = A.finT && A.finT(view, C); if (TX) { body = TX.body; if (TX.tiles) tiles = TX.tiles; }   /* T format (tformat.js) */
     var warn = '';
     if (!ok) warn += '<p class="note bad">' + esc(L('w_diff', { x: money(Math.abs(Tt.diff)), s: L(Tt.diff > 0 ? 'dr' : 'cr') })) + '</p>';
@@ -362,10 +378,10 @@
         return '<tr><th scope="row">' + esc(x.name) + '</th><td>' + esc(T('ty_' + x.t)) + '</td><td class="n">' + money(o, false) + '</td><td class="n">' + (up ? money(up, false) : '') + '</td><td class="n">' + (down ? money(down, false) : '') + '</td><td class="n"><b>' + money(c, false) + '</b></td></tr>';
       }).join('') + '</tbody></table></div>' : '<p class="soft">' + esc(T('noacc')) + '</p>';
     return '<div class="pane-hd"><h2>' + esc(NS.t('app.capl')) + '</h2></div><p class="soft">' + esc(T('clh')) + '</p>' +
-      '<div class="quick fr-kinds">' + KINDS.map(function (k, i) { return '<button type="button" class="btn' + (i ? '' : ' primary') + '" data-frcl="' + k + '">+ ' + esc(T('k_' + k)) + '</button>'; }).join('') + '</div>' +
+      '<div class="quick fr-kinds">' + KINDS.map(function (k, i) { return '<button type="button" class="btn' + (i ? '' : ' primary') + '" data-frcl="' + k + '">+ ' + esc(kName(k)) + '</button>'; }).join('') + '</div>' +
       period() + tbl +
       '<h3>' + esc(T('entries')) + '</h3>' + (list.length ? '<ul class="rows">' + list.map(function (d) {
-        return '<li><div class="ln"><b>' + esc(T('k_' + d.cl)) + (d.nm ? ': ' + esc(d.nm) : '') + '</b> <span class="soft">' + A.ldate(d.date) + ' · ' + esc(d.no || '') + (d.narr ? ' · ' + esc(d.narr) : '') + '</span></div>' +
+        return '<li><div class="ln"><b>' + esc(kName(d.cl)) + (d.nm ? ': ' + esc(d.nm) : '') + '</b> <span class="soft">' + A.ldate(d.date) + ' · ' + esc(d.no || '') + (d.narr ? ' · ' + esc(d.narr) : '') + '</span></div>' +
           '<b class="amt">' + money(num(d.total)) + '</b><div class="acts"><button type="button" class="btn sm" data-edit="' + esc(d.id) + '">' + esc(A.T('edit')) + '</button><button type="button" class="btn sm" data-del="' + esc(d.id) + '">' + esc(A.T('del')) + '</button></div></li>';
       }).join('') + '</ul>' : '<p class="soft">' + esc(T('none')) + '</p>') +
       '<details class="card"><summary><b>' + esc(A.T('help')) + '</b></summary><p>' + esc(T('help1')) + '</p><p>' + esc(T('help2')) + '</p><p>' + esc(T('help3')) + '</p></details>';
@@ -397,7 +413,7 @@
       (pick ? f('fr-int', T('f_int'), inp('fr-int', r.int || '', { mode: 1 }), T(kind === 'loanout' ? 'f_inth' : 'f_inth2')) : '') +
       f('fr-mode', T(kind === 'capin' || kind === 'loanin' || kind === 'givenin' ? 'f_modein' : 'f_modeout'), '<select id="fr-mode">' + ['cash', 'bank', 'upi', 'cheque'].map(function (m) { return '<option value="' + m + '"' + (m === r.mode ? ' selected' : '') + '>' + esc(A.T('m_' + m)) + '</option>'; }).join('') + '</select>') +
       '<div class="f wide"><label for="fr-narr">' + esc(T('f_narr')) + '</label>' + inp('fr-narr', r.narr || '') + '</div></div><p class="note" data-frwarn hidden aria-live="polite"></p>';
-    $('#fr-dlg-t', dlg).textContent = T('k_' + kind);
+    $('#fr-dlg-t', dlg).textContent = kName(kind);
     form.innerHTML = html + '<div class="dlg-foot btns"><button type="submit" class="btn primary">' + esc(A.T('save')) + '</button><button type="button" class="btn" data-cancel>' + esc(A.T('cancel')) + '</button></div>';
     $('[data-cancel]', form).addEventListener('click', function () { dlg.close(); });
     function val(id) { var e = $('#' + id, form); return e ? e.value.trim() : ''; }
