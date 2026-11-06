@@ -135,6 +135,7 @@
       if (on && b.parentNode.scrollWidth > b.parentNode.clientWidth) b.parentNode.scrollLeft = b.offsetLeft - 40;
     });
     if (location.hash.slice(1) !== sec) history.replaceState(null, '', sec === 'home' ? location.pathname : '#' + sec);
+    secPick();
     return load().then(function () {
       counts();
       var pane = $('[data-pane]');
@@ -154,10 +155,31 @@
     });
   }
   document.addEventListener('ns-lang', function () { setTimeout(secNames, 0); });
+  /* the sections as one dropdown above the screen, on phones and computers (owner, 2026-11-06); the link list stays in the page,
+     hidden, so section links, counts and the parts other files add (hubmore, hubstaff...) keep working */
+  function secPick() {
+    var nav = $('.hub-nav'), hub = nav && nav.parentNode; if (!nav) return;
+    var box = $('.hub-pick', hub), sel;
+    if (!box) {
+      box = NS.el('div', { 'class': 'hub-pick' });
+      box.innerHTML = '<select aria-label="' + esc(nav.getAttribute('aria-label') || '') + '"></select>';
+      hub.insertBefore(box, nav); hub.classList.add('picked');
+      $('select', box).addEventListener('change', function () { show(this.value, true); });
+      new MutationObserver(function () { clearTimeout(secPick.t); secPick.t = setTimeout(secPick, 30); }).observe(nav, { childList: true, subtree: true, characterData: true });
+    }
+    sel = $('select', box);
+    var html = $$('[data-sec]', nav).map(function (a) {
+      var s = a.getAttribute('data-sec'), l = $('span', a), c = $('.n', a), n = c ? c.textContent.trim() : '';
+      var txt = (a.classList.contains('sub') ? ' ' : '') + (l ? l.textContent.trim() : a.textContent.trim()) + (n ? ' (' + n + ')' : '');
+      return '<option value="' + esc(s) + '"' + (s === cur ? ' selected' : '') + '>' + esc(txt) + '</option>';
+    }).join('');
+    if (sel.innerHTML !== html) sel.innerHTML = html;
+    sel.value = cur;
+  }
   function counts() {
     var n = { biz: cache.biz.length, party: cache.party.length, item: cache.item.length, doc: cache.doc.length, bin: cache.bin.length || '', pgroups: G.party.length || '', igroups: G.item.length || '' };
     $$('[data-sec]').forEach(function (b) { var c = $('.n', b), s = b.getAttribute('data-sec'); if (c) c.textContent = n[s] != null ? n[s] : ''; });
-    secNames();
+    secNames(); secPick();
     var m = $('[data-mode]'); if (m) m.textContent = t(NSStore.mode() === 'vault' ? 'my.vault' : 'my.local');
   }
   function homeHtml() {
@@ -609,7 +631,7 @@
           cache.biz.map(function (b) { return '<option value="' + esc(b.id) + '"' + sel(b.id, S.defBiz) + '>' + esc(b.name) + '</option>'; }).join('') + '</select><small class="hint">' + esc(t('hub.h.defbiz')) + '</small></div>' +
         '<div class="f"><label for="st-rem">' + esc(t('hub.remind')) + '</label><select id="st-rem" name="remindDays">' + [7, 15, 30, 0].map(function (d) {
           return '<option value="' + d + '"' + sel(d, S.remindDays != null ? S.remindDays : 7) + '>' + esc(d ? t('hub.every', { n: d }) : t('hub.never')) + '</option>'; }).join('') + '</select></div>' +
-        '<div class="f"><span class="lbl">' + esc(t('lang')) + '</span><small class="hint">' + esc(t('hub.h.lang')) + '</small></div>' +
+        '<div class="f"><label for="st-lang">' + esc(t('lang')) + '</label>' + NS.langSelect('st-lang') + '<small class="hint">' + esc(t('hub.h.lang2')) + '</small></div>' +
       '</div></fieldset>' +
       '<fieldset class="card"><legend>' + esc(t('hub.g.inv')) + '</legend><p class="dc-top"><a class="dc-open" href="' + siteUrl('billing') + '" target="_blank" rel="noopener">' + esc(t('hub.openmk')) + ' ›</a></p>' +
         '<h3 class="dc-sub">' + esc(t('hub.g.num')) + '</h3><div class="fg">' +

@@ -340,12 +340,15 @@
   }
 
   /* ---------- the Additional features screen ---------- */
+  /* the installed App has no language menu at the top: the language is picked here */
+  function langCard() { return '<div class="card nsf-lang f"><label for="nsf-lang"><b>' + esc(NS.t('lang')) + '</b></label>' + NS.langSelect('nsf-lang') + '<small class="hint">' + esc(NS.t('hub.h.lang2')) + '</small></div>'; }
   A.addSection('features', function () {
-    if (!ENTRY) return '<h2>' + esc(T('menu')) + '</h2><p>' + esc(T('first')) + '</p><p><button type="button" class="btn primary" data-nsf-setup>' + esc(T('title')) + '</button></p>';
+    if (!ENTRY) return '<h2>' + esc(T('menu')) + '</h2>' + langCard() + '<p>' + esc(T('first')) + '</p><p><button type="button" class="btn primary" data-nsf-setup>' + esc(T('title')) + '</button></p>';
     var R = rec(ENTRY.kind, CUR.reg, CUR.btype), on = {};
     Object.keys(FEAT).forEach(function (f) { on[f] = isOn(f); });
     return '<div class="pane-hd"><h2><small class="soft">' + esc(T('settings')) + ' ›</small> ' + esc(T('menu')) + '</h2></div>' +
       '<p>' + esc(T('set_p', { name: CUR.name })) + '</p>' +
+      langCard() +
       '<div class="card nsf-now"><p><b>' + esc(T('kind_now')) + '</b> ' + esc(T('k_' + ENTRY.kind)) + ' · ' + lbl(CUR.btype ? 'fm.b_' + CUR.btype : 'fm.b_prop') + '</p>' +
       '<div class="quick"><button type="button" class="btn" data-nsf-setup>' + esc(T('change')) + '</button><button type="button" class="btn" data-nsf-all>' + esc(T('all_on')) + '</button>' +
       '<button type="button" class="btn" data-nsf-rec>' + esc(T('reset')) + '</button></div></div>' +
