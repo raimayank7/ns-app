@@ -571,8 +571,8 @@
   /* ---------- settings ---------- */
   function saveSettings() {
     var o = JSON.parse(JSON.stringify(S)); delete o._last;
-    /* years closed in the App (Batch 2) are changed there only: keep the newest list */
-    return NSStore.meta('settings').then(function (fresh) { if (fresh && fresh.closed) o.closed = S.closed = fresh.closed; return NSStore.meta('settings', o); });
+    /* years closed in the App (Batch 2) and its feature switches are changed there only: keep the newest */
+    return NSStore.meta('settings').then(function (fresh) { if (fresh && fresh.closed) o.closed = S.closed = fresh.closed; if (fresh && fresh.features) o.features = S.features = fresh.features;   /* the installed App's feature switches (firstrun.js) */ return NSStore.meta('settings', o); });
   }
   function settingsHtml() {
     var c = S.invoice || {}, sel = function (v, w) { return String(v) === String(w) ? ' selected' : ''; };
