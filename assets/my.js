@@ -26,7 +26,7 @@
   /* number prefixes of the other documents (Settings); quotation and credit note have two series each */
   var PREFIXES = [['quote', 'quote', 'QT', 'k.quote'], ['quote', 'estimate', 'EST', 'k.estimate'], ['proforma', '', 'PI', 'Doc.proforma'], ['so', '', 'SO', 'Doc.so'], ['challan', '', 'DC', 'Doc.challan'],
     ['po', '', 'PO', 'Doc.po'], ['self', '', 'SI', 'Doc.self'], ['note', 'credit', 'CN', 'k.credit'], ['note', 'creditp', 'PCN', 'k.creditp'], ['note', 'debit', 'DN', 'k.debit'], ['note', 'debitp', 'PDN', 'k.debitp'], ['cashmemo', '', 'CM', 'Doc.cashmemo'], ['receipt', '', 'RCT', 'Doc.receipt'],
-    ['voucher', '', 'PV', 'Doc.voucher'], ['rent', '', 'RR', 'Doc.rent'], ['salary', '', 'SAL', 'Doc.salary'], ['petty', '', 'PCB', 'Doc.petty'],
+    ['voucher', '', 'PV', 'Doc.voucher'], ['rent', '', 'RR', 'Doc.rent'], ['salary', '', 'SAL', 'Doc.salary'], ['petty', '', 'PCB', 'Doc.petty'], ['refund', '', 'RFV', 'k.ref'],   /* refund voucher: its own series on the receipt maker (slip.js C.refund) */
     /* shop and trade sites (kit.js): fixed digits (5th item), always with the financial year */
     ['exp', '', 'EXP', 'Doc.exp'], ['pos', '', 'POS', 'nav.pos', 4], ['pharma', '', 'PH', 'nav.pharmacy', 4], ['resto', '', 'RB', 'nav.restaurant', 4], ['lr', '', 'LR', 'nav.bilty', 4],
     ['job', '', 'JC', 'nav.jobcard', 4], ['rabill', '', 'RA', 'nav.contractorbill', 3], ['fee', '', 'FR', 'nav.feereceipt', 4]];
@@ -35,7 +35,7 @@
     ['hub.grp.sell', [['quote', 'quotation', 'nav.quote'], ['proforma', 'proforma', 'Doc.proforma'], ['so', 'sales-order', 'Doc.so'], ['challan', 'challan', 'Doc.challan'],
       ['cashmemo', 'cash-memo', 'Doc.cashmemo'], ['note', 'credit-note', 'nav.note', 'credit'], ['note', 'debit-note', 'nav.dnote', 'debit'], ['exp', 'export-invoice', 'Doc.exp']]],
     ['hub.grp.buy', [['po', 'purchase-order', 'Doc.po'], ['self', 'self-invoice', 'Doc.self']]],
-    ['hub.grp.money', [['receipt', 'receipt', 'Doc.receipt'], ['voucher', 'voucher', 'Doc.voucher'], ['petty', 'petty-cash', 'Doc.petty'], ['rent', 'rent-receipt', 'Doc.rent'], ['salary', 'salary-slip', 'Doc.salary']]],
+    ['hub.grp.money', [['receipt', 'receipt', 'Doc.receipt'], ['refund', 'receipt', 'k.ref'], ['voucher', 'voucher', 'Doc.voucher'], ['petty', 'petty-cash', 'Doc.petty'], ['rent', 'rent-receipt', 'Doc.rent'], ['salary', 'salary-slip', 'Doc.salary']]],
     ['hub.grp.trade', [['pos', 'pos', 'nav.pos'], ['pharma', 'pharmacy', 'nav.pharmacy'], ['resto', 'restaurant', 'nav.restaurant'], ['lr', 'bilty', 'nav.bilty'], ['job', 'job-card', 'nav.jobcard'],
       ['rabill', 'contractor-bill', 'nav.contractorbill'], ['fee', 'fee-receipt', 'nav.feereceipt']]]];
   function siteUrl(site) { return TOOLS.some(function (x) { return x[0] === site; }) ? toolUrl(site) : 'https://' + site + '.niveshsahayak.in/'; }
