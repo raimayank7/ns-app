@@ -23,6 +23,7 @@
     FORMS.forEach(function (f) { out.push({ k: 'act', label: '+ ' + T(f), sub: T('qk_new'), run: function () { A.openForm(f); } }); });
     NEW.forEach(function (n) { out.push({ k: 'act', label: '+ ' + NS.t(n[2] || 'Doc.' + n[1]), sub: T('qk_new'), run: function () { A.openUrl(A.toolUrl(n[0])); } }); });
     out.push({ k: 'go', label: NS.t('my.title'), sub: T('qk_go'), run: function () { A.openUrl(A.myUrl()); } });
+    if (A.setBiz && C.biz.length > 1) C.biz.forEach(function (b) { if (!A.biz() || b.id !== A.biz().id) out.push({ k: 'go', label: b.name, sub: T('biz'), run: function () { A.setBiz(b.id); } }); });
     C.party.forEach(function (p) { out.push({ k: 'party', label: p.name, sub: [T('qk_party'), p.gstin, p.phone, p.city].filter(Boolean).join(' · '), run: function () { location.hash = 'st/' + encodeURIComponent(B.key(p.name)); } }); });
     A.mine().slice().sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); }).forEach(function (d) {
       var site = (d.type === 'note' && d.kind === 'debit' ? 'debit-note' : SITEOF[d.type || 'invoice']), app = d.app && !/^(receipt|voucher|cashmemo)$/.test(d.type || '');
@@ -84,8 +85,12 @@
     if (e.ctrlKey || e.metaKey || e.altKey || typing(e) || busy()) return;
     var k = e.key;
     if (k === '/' && !DESK) { e.preventDefault(); open(); return; }
+    /* a Hindi, Punjabi or other keyboard layout sends its own letter: go by the key's place on the keyboard then */
+    if (!/^[a-z0-9]$/i.test(k) && /^Key[NRPEB]$/.test(e.code || '')) k = e.code.slice(3);
+    if (e.repeat) return;
     var act = { n: function () { A.openUrl(A.toolUrl('billing')); }, r: function () { A.openForm('min'); }, p: function () { A.openForm('mout'); }, e: function () { A.openForm('exp'); }, b: function () { A.openForm('pbill'); } }[k.toLowerCase()];
-    if (act) { e.preventDefault(); act(); return; }
+    /* pressed while the data is still coming in: runs when it is there, not dropped */
+    if (act) { e.preventDefault(); (A.whenReady || function (f) { f(); })(function () { if (k.toLowerCase() === 'n' || A.biz() && !busy()) act(); }); return; }
     if (/^[1-9]$/.test(k)) { var a = $$('[data-sec]')[+k - 1]; if (a) { e.preventDefault(); location.hash = a.getAttribute('href').replace(/^#?/, ''); } }
   });
 

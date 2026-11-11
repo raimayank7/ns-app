@@ -22,7 +22,7 @@
   window.addEventListener('keydown', function (e) {
     var k = (e.key || '').toLowerCase(), P = window.parent;
     var mine = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && k === 'k' || (e.ctrlKey || e.metaKey) && !e.altKey && k === 'b' ||
-      e.altKey && !e.ctrlKey && !e.metaKey && /^(Digit[1-9]|Key[NRPBX])$/.test(e.code || '');
+      e.altKey && !e.ctrlKey && !e.metaKey && /^(Digit[1-9]|Key[NRPBXS])$/.test(e.code || '');
     if (!mine || !app()) return;
     e.preventDefault(); e.stopImmediatePropagation();
     if (k === 'k' && !e.altKey) try { if (P.NS && P.NS.deskPalette) { var f = document.activeElement; P.focus(); P.NS.deskPalette(f && f !== document.body ? f : null); return; } } catch (er) {}
