@@ -278,7 +278,7 @@
 
   function mount() {
     A.addSection('fees', function () { return '<div class="shim" style="height:160px"></div>'; }, function (p) { pane = p; load().then(paint); });
-    var nav = $('.hub-nav'); if (nav && !$('[data-sec="fees"]', nav) && !(A.door && A.door())) nav.insertAdjacentHTML('beforeend', '<a href="#fees" data-sec="fees"><span>' + esc(T('fee.t')) + '</span></a>');
+    var nav = $('.hub-nav'); if (nav && !$('[data-sec="fees"]', nav) && !(A.door && A.door())) nav.insertAdjacentHTML('beforeend', '<a href="#fees" data-sec="fees"><span data-i18n="fee.t">' + esc(T('fee.t')) + '</span></a>');
   }
   window.NSFeesUI = { load: load };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', mount); else mount();

@@ -7,7 +7,7 @@
 .hm-l.s0 .hm-dot{background:#d33}.hm-l.s1 .hm-dot{background:#d99a00}.hm-l.s2 .hm-dot{background:#2f9e6f}
 .hm-card h3,.hm-home h3,.hm-part h3{margin-top:0}
 .hm-tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin:.2rem 0 1rem}
-.hm-tabs a{padding:.5rem .9rem;border-radius:999px;border:1px solid rgba(127,127,127,.35);text-decoration:none;color:inherit;min-height:40px;display:inline-flex;align-items:center}
+.hm-tabs a{padding:.5rem .9rem;border-radius:999px;border:1px solid rgba(127,127,127,.35);text-decoration:none;color:inherit;min-height:40px;display:inline-flex;align-items:center;gap:6px}
 .hm-tabs a[aria-selected=true]{background:var(--accent,#0E746A);color:#fff;border-color:transparent}
 .hm-mh{display:flex;justify-content:space-between;gap:.8rem;flex-wrap:wrap;align-items:center}
 .hm-bar{height:10px;border-radius:99px;background:rgba(127,127,127,.2);margin:.6rem 0 1rem;overflow:hidden}

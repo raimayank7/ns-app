@@ -45,7 +45,7 @@
     return t('l.' + x.k, v);
   }
   function lineHtml(x) {
-    var href = x.href || '#day', cls = 'hm-l s' + x.sev;
+    var href = x.href || '#day', cls = 'hm-l s' + (x.dot != null ? x.dot : x.sev);
     return '<li class="' + cls + '"><a href="' + esc(href) + '"><span class="hm-dot" aria-hidden="true"></span><span>' + esc(lineText(x)) + '</span></a></li>';
   }
   var GROUPS = ['money', 'tax', 'stock', 'sales', 'people', 'other'];
@@ -145,7 +145,7 @@
     var tab = TABS.indexOf(arg) >= 0 ? arg : 'today';
     var body = { today: todayHtml, month: monthHtml, health: healthHtml, remind: remindHtml }[tab]();
     return '<div class="pane-hd"><h2>' + esc(t('t')) + ' <small class="soft">' + esc(A.bizName()) + '</small></h2></div>' +
-      '<div class="hm-tabs" role="tablist">' + TABS.map(function (x) { return '<a role="tab" href="#day' + (x === 'today' ? '' : '/' + x) + '" aria-selected="' + (x === tab) + '">' + esc(t('tab.' + x)) + '</a>'; }).join('') + '</div>' + body;
+      '<div class="hm-tabs" role="tablist">' + TABS.map(function (x) { return '<a role="tab" data-ic="' + ({ today: 'clock', month: 'calendar', health: 'pulse', remind: 'bell' }[x] || '') + '" href="#day' + (x === 'today' ? '' : '/' + x) + '" aria-selected="' + (x === tab) + '">' + esc(t('tab.' + x)) + '</a>'; }).join('') + '</div>' + body;
   }
   function dayWire(pane, arg) {
     var m = $('[data-hm-month]', pane);
@@ -183,7 +183,8 @@
       '<p><input type="search" class="hm-find" data-hm-find placeholder="' + esc(t('tools.find')) + '" aria-label="' + esc(t('tools.find')) + '"></p>' +
       jobs.map(function (j) {
         return '<div class="card hm-job" data-hm-job><h3>' + esc(t('job.' + j.id)) + '</h3><p class="soft">' + esc(t('job.' + j.id + 'p')) + '</p><div class="hm-sites">' + j.sites.map(function (s) {
-          var nm = siteName(s); return '<a class="btn sm" href="' + esc(A.siteHome(s)) + '" data-hm-site data-n="' + esc(nm.toLowerCase()) + '">' + esc(nm) + '</a>';
+          var nm = siteName(s), doc = ((window.NS_CFG && NS_CFG.tools) || []).some(function (x) { return x[0] === s; });
+          return '<a class="btn sm hm-tool" href="' + esc(A.siteHome(s)) + '" data-hm-site data-noic data-ic="' + (doc ? 'd-' : 't-') + esc(s) + '" data-n="' + esc(nm.toLowerCase()) + '">' + esc(nm) + '</a>';
         }).join('') + '</div></div>';
       }).join('');
   }

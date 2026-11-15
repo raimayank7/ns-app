@@ -157,7 +157,7 @@
   /* ---------- the menu entry and the boxes on the home screen ---------- */
   function menuLink() {
     var nav = $('.hub-nav'); if (!nav || $('a[data-sec="packs"]', nav)) return;
-    var a = NS.el('a', { href: '#packs', 'data-sec': 'packs', 'data-ic': 'set' }, '<span></span>'); nav.appendChild(a);
+    var a = NS.el('a', { href: '#packs', 'data-sec': 'packs', 'data-ic': 'pack' }, '<span data-i18n="pk.title">' + NS.esc(NS.t('pk.title')) + '</span>'); nav.appendChild(a);
     $('span', a).textContent = T('menu'); a.title = T('menu');
   }
   function overdueRows() {

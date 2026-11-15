@@ -33,7 +33,7 @@
     if (over.length) {
       var tot = r2(over.reduce(function (a, x) { return a + x.b.left; }, 0));
       out.push(line('money', over.some(function (x) { return x.late > 30; }) ? 0 : 1, 'chase', { n: over.length, a: tot }, '#dues', tot));
-      over.slice(0, 3).forEach(function (x) { out.push(line('money', 2, 'chase1', { p: x.b.party, a: x.b.left, n: x.late }, '#st/' + encodeURIComponent(key(x.b.party)), x.b.left, x.due, 'chase1:' + x.b.id)); });
+      over.slice(0, 3).forEach(function (x) { var l = line('money', 2, 'chase1', { p: x.b.party, a: x.b.left, n: x.late }, '#st/' + encodeURIComponent(key(x.b.party)), x.b.left, x.due, 'chase1:' + x.b.id); l.dot = x.late > 30 ? 0 : 1; out.push(l); });
     }
     /* bills we have to pay: overdue or due within 7 days (only when the bill carries a due date or the party's credit days) */
     var pay = bl.filter(function (b) { return b.side === 'pay'; }).map(function (b) { var due = dueOfBill(b, cd); return due ? { b: b, due: due, left: gap(today, due) } : null; })
