@@ -17,8 +17,11 @@
   var SITEOF = { invoice: 'billing', quote: 'quotation', proforma: 'proforma', so: 'sales-order', challan: 'challan', po: 'purchase-order', self: 'self-invoice', note: 'credit-note', cashmemo: 'cash-memo',
     receipt: 'receipt', voucher: 'voucher', rent: 'rent-receipt', salary: 'salary-slip', petty: 'petty-cash' };
   /* shop and trade records (kit.js): type -> [site, name key]; they open in their own site with ?open=<id> */
-  var KITOF = { pos: ['pos', 'nav.pos'], pharma: ['pharmacy', 'nav.pharmacy'], resto: ['restaurant', 'nav.restaurant'], lr: ['bilty', 'nav.bilty'], job: ['job-card', 'nav.jobcard'],
+  var KITOF = { pos: ['pos', 'nav.pos'], pharma: ['pharmacy', 'nav.pharmacy'], resto: ['restaurant', 'nav.restaurant'], lr: ['bilty', 'nav.bilty'], job: ['job-card', 'nav.jobcard'], hotel: ['hotel', 'nav.hotel'], rentb: ['rent', 'nav.rentmgr'],
     rabill: ['contractor-bill', 'nav.contractorbill'], fee: ['fee-receipt', 'nav.feereceipt'] };
+  KITOF.visit = ['clinic', 'nav.clinic']; KITOF.svc = ['salon', 'nav.salon'];
+  KITOF.jewel = ['jewellery', 'nav.jewellery']; KITOF.garment = ['garment', 'nav.garment'];   /* group C trade tools */
+  KITOF.mandi = ['mandi', 'nav.mandi']; KITOF.pump = ['petrol', 'nav.petrol'];   /* group E trade tools */
   function toolUrl(site) { if (site === 'app') return APP; var x = TOOLS.filter(function (x) { return x[0] === site; })[0] || TOOLS[0]; return LOCAL ? 'http://localhost:' + x[4] + '/' : 'https://' + x[1] + '/'; }
   /* records made in the Nivesh Sahayak App (purchase bills, expenses, opening balances) open there */
   var APP = LOCAL ? 'http://localhost:8880/' : 'https://app.niveshsahayak.in/';
@@ -29,15 +32,20 @@
     ['voucher', '', 'PV', 'Doc.voucher'], ['rent', '', 'RR', 'Doc.rent'], ['salary', '', 'SAL', 'Doc.salary'], ['petty', '', 'PCB', 'Doc.petty'], ['refund', '', 'RFV', 'k.ref'],   /* refund voucher: its own series on the receipt maker (slip.js C.refund) */
     /* shop and trade sites (kit.js): fixed digits (5th item), always with the financial year */
     ['exp', '', 'EXP', 'Doc.exp'], ['pos', '', 'POS', 'nav.pos', 4], ['pharma', '', 'PH', 'nav.pharmacy', 4], ['resto', '', 'RB', 'nav.restaurant', 4], ['lr', '', 'LR', 'nav.bilty', 4],
-    ['job', '', 'JC', 'nav.jobcard', 4], ['rabill', '', 'RA', 'nav.contractorbill', 3], ['fee', '', 'FR', 'nav.feereceipt', 4]];
+    ['job', '', 'JC', 'nav.jobcard', 4], ['hotel', '', 'HT', 'nav.hotel', 4], ['rentb', '', 'RM', 'nav.rentmgr', 4], ['rabill', '', 'RA', 'nav.contractorbill', 3], ['fee', '', 'FR', 'nav.feereceipt', 4]];
+  PREFIXES.push(['visit', '', 'OPD', 'nav.clinic', 4], ['svc', '', 'SV', 'nav.salon', 4]);
+  PREFIXES.push(['jewel', '', 'JW', 'nav.jewellery', 4], ['garment', '', 'GM', 'nav.garment', 4]);
+  PREFIXES.push(['mandi', '', 'MN', 'nav.mandi', 3], ['pump', '', 'SR', 'nav.petrol', 4]);
   /* Settings: one small card per document, grouped: [group key, [[type, maker site, name key], ...]]; a card shows that type's PREFIXES rows */
   var DOCCARDS = [
     ['hub.grp.sell', [['quote', 'quotation', 'nav.quote'], ['proforma', 'proforma', 'Doc.proforma'], ['so', 'sales-order', 'Doc.so'], ['challan', 'challan', 'Doc.challan'],
       ['cashmemo', 'cash-memo', 'Doc.cashmemo'], ['note', 'credit-note', 'nav.note', 'credit'], ['note', 'debit-note', 'nav.dnote', 'debit'], ['exp', 'export-invoice', 'Doc.exp']]],
     ['hub.grp.buy', [['po', 'purchase-order', 'Doc.po'], ['self', 'self-invoice', 'Doc.self']]],
     ['hub.grp.money', [['receipt', 'receipt', 'Doc.receipt'], ['refund', 'receipt', 'k.ref'], ['voucher', 'voucher', 'Doc.voucher'], ['petty', 'petty-cash', 'Doc.petty'], ['rent', 'rent-receipt', 'Doc.rent'], ['salary', 'salary-slip', 'Doc.salary']]],
-    ['hub.grp.trade', [['pos', 'pos', 'nav.pos'], ['pharma', 'pharmacy', 'nav.pharmacy'], ['resto', 'restaurant', 'nav.restaurant'], ['lr', 'bilty', 'nav.bilty'], ['job', 'job-card', 'nav.jobcard'],
-      ['rabill', 'contractor-bill', 'nav.contractorbill'], ['fee', 'fee-receipt', 'nav.feereceipt']]]];
+    ['hub.grp.trade', [['pos', 'pos', 'nav.pos'], ['pharma', 'pharmacy', 'nav.pharmacy'], ['resto', 'restaurant', 'nav.restaurant'], ['lr', 'bilty', 'nav.bilty'], ['job', 'job-card', 'nav.jobcard'], ['hotel', 'hotel', 'nav.hotel'], ['rentb', 'rent', 'nav.rentmgr'],
+      ['rabill', 'contractor-bill', 'nav.contractorbill'], ['fee', 'fee-receipt', 'nav.feereceipt'], ['visit', 'clinic', 'nav.clinic'], ['svc', 'salon', 'nav.salon']]]];
+  DOCCARDS[DOCCARDS.length - 1][1].push(['jewel', 'jewellery', 'nav.jewellery'], ['garment', 'garment', 'nav.garment']);
+  DOCCARDS.filter(function (g) { return g[0] === 'hub.grp.trade'; })[0][1].push(['mandi', 'mandi', 'nav.mandi'], ['pump', 'petrol', 'nav.petrol']);
   function siteUrl(site) { return TOOLS.some(function (x) { return x[0] === site; }) ? toolUrl(site) : 'https://' + site + '.niveshsahayak.in/'; }
 
   /* field: [key, label key, kind, extra]; kinds: text, area, state, gstin, sel, num, img, unit, gst, ltr */

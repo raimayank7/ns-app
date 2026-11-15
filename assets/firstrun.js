@@ -29,24 +29,27 @@
     ['gst', [['gstr', 'fr.f_gstr', { ic: ['t-gstr1', 't-gstr3b', 't-gstr2b', 't-gst-calendar'] }], ['cmp08', 'nav.cmp08', { ic: ['t-cmp08'] }],
       ['einv', 'fr.f_einv', { ic: ['t-e-invoice', 't-eway-bill'] }], ['tds', 'nav.tds', { ic: ['t-tds'] }], ['gsttools', 'fr.f_gsttools', { ic: ['t-hsn', 't-gstin', 'd-self-invoice'] }]]],
     ['ind', [['pos', 'nav.pos', { ic: ['t-pos'] }], ['pharmacy', 'nav.pharmacy', { ic: ['t-pharmacy'] }], ['resto', 'nav.restaurant', { ic: ['t-restaurant'] }],
-      ['bilty', 'nav.bilty', { ic: ['t-bilty'] }], ['rabill', 'fr.f_rabill', { ic: ['t-contractor-bill'] }], ['fee', 'nav.feereceipt', { ic: ['t-fee-receipt'] }], ['jobcard', 'nav.jobcard', { ic: ['t-job-card'] }]]],
+      ['bilty', 'nav.bilty', { ic: ['t-bilty'] }], ['rabill', 'fr.f_rabill', { ic: ['t-contractor-bill'] }], ['fee', 'nav.feereceipt', { ic: ['t-fee-receipt'] }], ['jobcard', 'nav.jobcard', { ic: ['t-job-card'] }], ['hotel', 'nav.hotel', { ic: ['t-hotel'] }], ['rentmgr', 'nav.rentmgr', { ic: ['t-rent'] }],
+      ['garage', 'nav.garage', { ic: ['t-garage'] }], ['amc', 'nav.amc', { ic: ['t-amc'] }]]],
     ['staff', [['sman', 'app.b2sman', { sec: ['b2sman'] }], ['salary', 'nav.salary', { ic: ['d-salary-slip'] }]]]
   ];
   var FEAT = {}; CAT.forEach(function (g) { g[1].forEach(function (f) { FEAT[f[0]] = f; }); });
 
   /* ---------- what each business gets ON at the start (owner's idea: only what the business needs) ---------- */
-  var KINDS = ['shop', 'whole', 'mfg', 'svc', 'resto', 'pharma', 'trans', 'contr', 'school', 'other'];
+  var KINDS = ['shop', 'whole', 'mfg', 'svc', 'resto', 'pharma', 'trans', 'contr', 'school', 'salon', 'clinic', 'other'];
   var BASE = ['buy', 'books', 'reports'];
   var REC = {
     shop: ['stock', 'barcode', 'khata', 'chq', 'pos'],
     whole: ['orders', 'stock', 'godown', 'chq', 'bankreco', 'grp', 'sman', 'einv'],
     mfg: ['orders', 'stock', 'godown', 'make', 'job', 'mfgac', 'fin', 'chq', 'bankreco', 'einv', 'salary', 'jv', 'tally'],
-    svc: ['repeat', 'tds', 'bankreco'],
+    svc: ['repeat', 'tds', 'bankreco', 'amc'],
     resto: ['resto', 'stock'],
     pharma: ['pharmacy', 'stock', 'barcode', 'khata'],
     trans: ['bilty', 'chq', 'tds', 'bankreco'],
     contr: ['rabill', 'orders', 'tds', 'chq', 'fa'],
     school: ['fee', 'salary', 'repeat'],
+    salon: ['repeat', 'salary'],
+    clinic: ['repeat', 'salary'],
     other: []
   };
   var FORMS = ['prop', 'firm', 'llp', 'co', 'npo'], REGS = ['regular', 'comp', 'unreg'];
@@ -319,7 +322,8 @@
     }).then(function () {
       firstRun = false; dlg.close(); NS.toast(T('done', { name: S.name }));
       if (location.hash.slice(1) !== 'features') location.hash = '';
-      return refresh(true);
+      var offer = NS.packOffer && NS.packOffer;   /* trade packs (packs.js): offer the pack of this type of business right after the setup */
+      return refresh(true).then(function () { if (offer) offer(S.kind); });
     }, function (x) { btn.disabled = false; NS.toast(NS.t('nosave', { e: x.message }), 'bad'); });
   }
   /* "Later": not again in this session (the next start of the App asks again); until then every feature stays on */

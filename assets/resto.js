@@ -30,6 +30,86 @@
     o.newKot = d.items.filter(function (it) { return it.desc && !it.kot; }).length;
     return o;
   }
+  /* ---------- cafe mode: tap-to-add menu grid (logic in cafecore.js; dishes are item masters with menu:1) ---------- */
+  var CC = window.NSCafe, MENU = null, ALL = [], CAT = null, QRY = '', EDIT = null, EDITOPEN = false;
+  function cafeBox() {
+    return '<div class="cf" id="cf"><div class="cf-top"><input type="search" id="cf-q" dir="auto" autocomplete="off" placeholder="' + esc(t('cf.search')) + '" aria-label="' + esc(t('cf.search')) + '"><button type="button" class="btn sm" data-cf="edit" aria-expanded="false">' + esc(t('cf.edit')) + '</button></div>' +
+      '<div class="cf-cats" id="cf-cats" role="group" aria-label="' + esc(t('cf.cats')) + '"></div><div class="cf-grid" id="cf-grid" aria-live="polite"></div>' +
+      '<div class="cf-custom"><b>' + esc(t('cf.custom')) + '</b><div class="cf-row"><input id="cf-cn" dir="auto" maxlength="60" placeholder="' + esc(t('cf.cname')) + '" aria-label="' + esc(t('cf.cname')) + '"><input id="cf-cp" dir="ltr" inputmode="decimal" placeholder="' + esc(t('cf.cprice')) + '" aria-label="' + esc(t('cf.cprice')) + '"></div>' +
+      '<div class="row"><button type="button" class="btn sm" data-cf="cadd">' + esc(t('cf.cadd')) + '</button><button type="button" class="btn sm" data-cf="csave">' + esc(t('cf.csave')) + '</button></div></div>' +
+      '<div class="cf-edit" id="cf-edit" hidden><h3>' + esc(t('cf.edit')) + '</h3><p class="hint">' + esc(t('cf.edith')) + '</p><div class="cf-row">' +
+      '<div class="f"><label for="cf-en">' + esc(t('cf.name')) + '</label><input id="cf-en" dir="auto" maxlength="60"></div><div class="f"><label for="cf-ep">' + esc(t('cf.price')) + '</label><input id="cf-ep" dir="ltr" inputmode="decimal"></div>' +
+      '<div class="f"><label for="cf-ec">' + esc(t('cf.cat')) + '</label><input id="cf-ec" dir="auto" maxlength="30" list="cf-cl" placeholder="' + esc(t('cf.catph')) + '"><datalist id="cf-cl"></datalist></div></div>' +
+      '<div class="row"><button type="button" class="btn primary sm" data-cf="esave" id="cf-es">' + esc(t('cf.save')) + '</button><button type="button" class="btn sm" data-cf="ecancel">' + esc(t('cf.cancel')) + '</button><button type="button" class="btn sm" data-cf="import">' + esc(t('cf.import')) + '</button></div>' +
+      '<ul class="cf-el" id="cf-el"></ul></div></div>';
+  }
+  function dishById(id) { return (MENU || []).filter(function (m) { return m.id === id; })[0]; }
+  function cafeDraw() {
+    var grid = $('#cf-grid'); if (!grid) return;
+    if (MENU === null) { grid.innerHTML = ''; return; }
+    var cs = CC.cats(MENU);
+    if (CAT !== null && cs.indexOf(CAT) < 0) CAT = null;
+    var chips = $('#cf-cats');
+    chips.hidden = cs.length < 2 && !(cs.length === 1 && cs[0]);
+    chips.innerHTML = [[null, t('cf.all')]].concat(cs.map(function (c) { return [c, c || t('cf.other')]; })).map(function (c) {
+      return '<button type="button" class="cf-chip" data-cf="cat" data-c="' + (c[0] === null ? '*' : esc(c[0])) + '" aria-pressed="' + String(c[0] === CAT) + '">' + esc(c[1]) + '</button>';
+    }).join('');
+    var list = CC.filter(MENU, CAT, QRY);
+    grid.innerHTML = !MENU.length ? '<p class="cf-empty">' + esc(t('cf.empty')) + '</p>' : list.length ? list.map(function (m) {
+      var nm = esc(m.desc), pr = NS.money(CC.priceOf(m));
+      return '<div class="cf-t" data-d="' + esc(CC.key(m.desc)) + '"><button type="button" class="cf-add" data-cf="tap" data-id="' + esc(m.id) + '" aria-label="' + esc(t('cf.addn', { x: m.desc, v: pr })) + '"><span class="cf-n">' + nm + '</span><span class="cf-p">' + pr + '</span><span class="cf-q" hidden></span></button>' +
+        '<button type="button" class="cf-m" data-cf="minus" data-id="' + esc(m.id) + '" aria-label="' + esc(t('cf.minusn', { x: m.desc })) + '" hidden>−</button></div>';
+    }).join('') : '<p class="cf-empty">' + esc(t('cf.nomatch')) + '</p>';
+    $('#cf-cl').innerHTML = cs.filter(Boolean).map(function (c) { return '<option value="' + esc(c) + '">'; }).join('');
+    $('#cf-el').innerHTML = MENU.map(function (m) {
+      return '<li><span><b>' + esc(m.desc) + '</b>' + (m.cat ? ' · ' + esc(m.cat) : '') + ' · ' + NS.money(CC.priceOf(m)) + '</span><span class="row"><button type="button" class="btn sm" data-cf="eedit" data-id="' + esc(m.id) + '">' + esc(t('cf.editd')) + '</button><button type="button" class="btn sm danger" data-cf="erm" data-id="' + esc(m.id) + '">' + esc(t('cf.rmmenu')) + '</button></span></li>';
+    }).join('');
+    var ed = $('#cf-edit'); if (ed) ed.hidden = !EDITOPEN;
+    var eb = $('[data-cf="edit"]'); if (eb) eb.setAttribute('aria-expanded', String(EDITOPEN));
+    cafeBadges();
+  }
+  /* how many of each dish are on the bill: a badge on the tile and the minus button */
+  function cafeBadges() {
+    var d = K && K.doc && K.doc(); if (!d || !CC) return;
+    $$('#cf-grid .cf-t').forEach(function (tile) {
+      var q = CC.qtyOf(d.items, tile.getAttribute('data-d')), b = tile.querySelector('.cf-q'), m = tile.querySelector('.cf-m');
+      b.hidden = !q; b.textContent = q ? String(NS.qty ? NS.qty(q) : q) : ''; m.hidden = !q; tile.classList.toggle('on', !!q);
+    });
+  }
+  function loadMenu() {
+    return NSStore.list('item').then(function (l) { ALL = NS.forBiz(l, K.doc().seller); MENU = CC.menuOf(ALL); cafeDraw(); }, function () { MENU = MENU || []; cafeDraw(); });
+  }
+  function putTap(m) { var d = K.doc(); CC.tap(d.items, m, row); sync(d); K.refill(); }
+  function saveDish(c, editId, andBill) {
+    var x = CC.clean(c); if (!x) { NS.toast(t('cf.v'), 'bad'); return Promise.resolve(false); }
+    if (CC.clash(MENU, x, editId)) { NS.toast(t('cf.dup', { x: x.desc }), 'bad'); return Promise.resolve(false); }
+    return NSStore.put('item', CC.toRecord(x, ALL, editId)).then(function () { NS.toast(t('cf.saved', { x: x.desc })); if (andBill) putTap(x); return loadMenu().then(function () { return true; }); }, function (e) { NS.toast(t('nosave', { e: e.message }), 'bad'); return false; });
+  }
+  function editClear() { EDIT = null; ['#cf-en', '#cf-ep', '#cf-ec'].forEach(function (s) { $(s).value = ''; }); $('#cf-es').textContent = t('cf.save'); }
+  function cafeClick(b) {
+    var a = b.getAttribute('data-cf'), id = b.getAttribute('data-id'), m = id && dishById(id), d = K.doc();
+    if (a === 'tap' && m) putTap(m);
+    else if (a === 'minus' && m) { if (CC.minus(d.items, m.desc, row)) { sync(d); K.refill(); } else NS.toast(t('cf.sentk'), 'bad'); }
+    else if (a === 'cat') { var c = b.getAttribute('data-c'); CAT = c === '*' ? null : c; cafeDraw(); }
+    else if (a === 'edit') { EDITOPEN = !EDITOPEN; cafeDraw(); if (EDITOPEN) $('#cf-en').focus(); }
+    else if (a === 'cadd' || a === 'csave') {
+      var c2 = { desc: $('#cf-cn').value, price: $('#cf-cp').value }, x = CC.clean(c2);
+      if (!x) { NS.toast(t('cf.v'), 'bad'); return; }
+      if (a === 'csave') { saveDish(c2, null, true).then(function (ok) { if (ok) { $('#cf-cn').value = ''; $('#cf-cp').value = ''; } }); return; }
+      putTap(x); $('#cf-cn').value = ''; $('#cf-cp').value = ''; $('#cf-cn').focus();
+    }
+    else if (a === 'esave') saveDish({ desc: $('#cf-en').value, price: $('#cf-ep').value, cat: $('#cf-ec').value }, EDIT, false).then(function (ok) { if (ok) { editClear(); $('#cf-en').focus(); } });
+    else if (a === 'ecancel') editClear();
+    else if (a === 'eedit' && m) { EDIT = m.id; $('#cf-en').value = m.desc; $('#cf-ep').value = String(CC.priceOf(m)); $('#cf-ec').value = m.cat || ''; $('#cf-es').textContent = t('cf.update'); $('#cf-en').focus(); }
+    else if (a === 'erm' && m) { NSStore.put('item', Object.assign({}, m, { menu: 0 })).then(function () { NS.toast(t('cf.removed', { x: m.desc })); if (EDIT === m.id) editClear(); return loadMenu(); }); }
+    else if (a === 'import') {
+      var im = CC.importable(ALL);
+      if (!im.length) { NS.toast(t('cf.noimp'), 'bad'); return; }
+      if (!confirm(t('cf.cimp', { n: im.length }))) return;
+      Promise.all(im.map(function (x) { return NSStore.put('item', Object.assign({}, x, { menu: 1 })); })).then(function () { NS.toast(t('cf.imported', { n: im.length })); return loadMenu(); });
+    }
+  }
+
   function loadOpen() {
     var who = String(K.doc().seller.name || '').trim().toLowerCase();
     return NSStore.list('doc').then(function (all) {
@@ -67,7 +147,7 @@
         K.card(t('rt.order'), '<div class="fg">' +
           K.f('otype', t('rt.otype'), { type: 'select', opts: [['dine', t('rt.dine')], ['take', t('rt.take')], ['del', t('rt.del')]] }) +
           K.f('table', t('rt.table'), { ltr: 1, show: 'otype=dine', ph: 'T4' }) + K.f('guests', t('rt.guests'), { mode: 'numeric', ltr: 1, show: 'otype=dine' }) + K.f('waiter', t('rt.waiter')) +
-          '</div>' + K.list('items', t('rt.additem')) + '<div class="sums" id="ed-sums" aria-live="polite"></div>' +
+          '</div>' + cafeBox() + K.list('items', t('rt.additem')) + '<div class="sums" id="ed-sums" aria-live="polite"></div>' +
           '<div class="row pos-go"><button type="button" class="btn" data-rt="kot">' + esc(t('rt.kot')) + '</button><button type="button" class="btn" data-rt="hold">' + esc(t('rt.hold')) + '</button></div>') +
         K.card(t('rt.billcard'), '<div class="fg">' +
           K.f('disc', t('rt.disc'), { mode: 'decimal', ltr: 1 }) +
@@ -106,8 +186,9 @@
       });
     },
     pickItem: function (it, m, d) { it.desc = m.desc; if (m.price != null && m.price !== '') it.price = String(m.price); else if (m.rate !== '' && m.rate != null) it.price = String(num(m.rate)); sync(d); },
-    input: function (p, el, d, K) { if (p === 'gstMode' || p === 'incl' || p === 'disc') { d.kind = kindOf(d); d.withGst = d.kind === 'tax'; sync(d); K.refill(); } if (p === 'seller.name') loadOpen(); },
+    input: function (p, el, d, K) { if (p === 'gstMode' || p === 'incl' || p === 'disc') { d.kind = kindOf(d); d.withGst = d.kind === 'tax'; sync(d); K.refill(); } if (p === 'seller.name') { loadOpen(); loadMenu(); } },
     sums: sums,
+    drawn: function () { cafeBadges(); },
     edSums: function (d, o) {
       return '<span>' + esc(t('sum.items', { n: o.rows.length })) + '</span>' + (o.tax ? '<span>' + esc(t('sum.gst', { v: NS.money(o.tax) })) + '</span>' : '') + '<b class="pos-big">' + esc(t('sum.total', { v: NS.money(o.total) })) + '</b>' +
         (o.split ? '<span>' + esc(t('rt.each', { n: Math.floor(num(d.split)), v: NS.money(o.split) })) + '</span>' : '') + (o.newKot ? '<span class="warn">' + esc(t('rt.newk', { n: o.newKot })) + '</span>' : '');
@@ -131,7 +212,7 @@
       delete rec._kot;
     },
     load: function (d) { d.items = (d.items || []).filter(function (it) { return !it.sc; }); if (!d.payMode) d.payMode = d.status === 'unpaid' ? 'credit' : 'cash'; if (!d.items.length) d.items = [row()]; },
-    saved: function () { loadOpen(); },
+    saved: function () { loadOpen(); loadMenu(); },
     copyOf: function (d) { d.status = 'open'; d.kotNo = 0; d.table = ''; d.items.forEach(function (it) { it.kot = 0; }); },
     histName: function (d) { return (d.table ? d.table + ' · ' : '') + (d.buyer && d.buyer.name || t({ dine: 'rt.dine', take: 'rt.take', del: 'rt.del' }[d.otype] || 'rt.dine')); },
     histPill: function (d) { return ' <span class="pill ' + (d.status === 'paid' ? 'ok' : '') + '">' + esc(t(d.status === 'open' ? 'rt.open' : d.status === 'paid' ? 'h.paidp' : 'h.unpaidp')) + '</span>'; },
@@ -168,7 +249,16 @@
         (d.notes ? '<div class="nt"><div><p>' + esc(d.notes).replace(/\n/g, '<br>') + '</p></div></div>' : '') + K.made() + '</div>';
     },
     wire: function (ed, K) {
-      if (ed._rt) return; ed._rt = 1;   /* the form element stays when the editor is redrawn */
+      cafeDraw();   /* the editor was drawn again (language, opened bill): the menu grid is drawn again too */
+      if (ed._rt) return; ed._rt = 1;
+      ed.addEventListener('click', function (e) { var b = e.target.closest('[data-cf]'); if (b) cafeClick(b); });
+      ed.addEventListener('input', function (e) { if (e.target.id === 'cf-q') { QRY = e.target.value; cafeDraw(); } });
+      ed.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') return;
+        if (e.target.id === 'cf-q') { e.preventDefault(); var l = CC.filter(MENU || [], CAT, QRY); if (l.length === 1) { putTap(l[0]); QRY = ''; e.target.value = ''; cafeDraw(); } }
+        else if (e.target.id === 'cf-cn' || e.target.id === 'cf-cp') { e.preventDefault(); cafeClick($('[data-cf="cadd"]')); }
+        else if (/^cf-e[npc]$/.test(e.target.id)) { e.preventDefault(); cafeClick($('[data-cf="esave"]')); }
+      });   /* the form element stays when the editor is redrawn */
       ed.addEventListener('click', function (e) {
         var b = e.target.closest('[data-rt],[data-tbl]'); if (!b) return;
         var a = b.getAttribute('data-rt'), id = b.getAttribute('data-tbl');
@@ -180,6 +270,6 @@
         else if (a === 'settlenp') settle(false);
       });
     },
-    ready: function () { loadOpen(); }
+    ready: function () { loadOpen(); loadMenu(); document.addEventListener('ns-data', loadMenu); }
   });
 })();

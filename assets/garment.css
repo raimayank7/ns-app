@@ -1,0 +1,25 @@
+/* garment.niveshsahayak.in: size x colour grid on the bill, products dialog, price labels */
+.gm-grid{border-collapse:separate;border-spacing:6px;margin:4px 0}
+.gm-grid th{font-weight:600;font-size:.9rem;padding:2px 4px;text-align:center;white-space:nowrap;color:var(--soft)}
+.gm-grid tbody th{text-align:start;position:sticky;inset-inline-start:0;background:var(--surface);z-index:1;padding-inline-end:8px;color:var(--ink)}
+.gm-c{position:relative;display:flex;justify-content:center}
+.gm-cell{min-width:54px;min-height:48px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer;position:relative;touch-action:manipulation}
+.gm-cell b{font-size:1.05rem}
+.gm-cell:hover,.gm-cell:focus-visible{border-color:var(--brand,#0e746a);outline:2px solid transparent;box-shadow:0 0 0 2px var(--brand,#0e746a)}
+.gm-cell.out{opacity:.55;border-style:dashed}
+.gm-cell.on{border-color:var(--brand,#0e746a);background:color-mix(in srgb,var(--brand,#0e746a) 12%,var(--surface))}
+.gm-badge{position:absolute;top:-8px;inset-inline-end:-6px;min-width:20px;height:20px;border-radius:10px;background:var(--brand,#0e746a);color:#fff;font-size:.78rem;line-height:20px;padding:0 5px;text-align:center}
+.gm-minus{position:absolute;bottom:-8px;inset-inline-start:-6px;width:24px;height:24px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font-size:1rem;line-height:1;cursor:pointer;padding:0}
+.gm-none{color:var(--soft)}
+.gm-tools{margin-top:8px}
+.gm-q{width:64px;min-height:44px;text-align:center}
+.gm-pl{list-style:none;margin:0;padding:0}
+.gm-pl li{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.gm-dlg{width:min(760px,calc(100vw - 16px))}
+#gm-lbl{display:none}
+@media print{
+  html.gm-lbl-on body>*:not(#gm-lbl){display:none!important}
+  html.gm-lbl-on #gm-lbl{display:grid;grid-template-columns:repeat(3,1fr);gap:2mm;padding:6mm;background:#fff;color:#000}
+  html.gm-lbl-on .gm-l{display:flex;flex-direction:column;gap:1px;border:.3mm dashed #888;padding:2mm;font:9pt/1.25 sans-serif;break-inside:avoid;min-height:24mm}
+  html.gm-lbl-on .gm-l strong{font-size:12pt}
+}

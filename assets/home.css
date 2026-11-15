@@ -1,0 +1,28 @@
+/* My day, month-end checklist, business health, reminders and the front door (home.js). Colours come from the site's own variables. */
+.hm-sum{font-weight:600;margin:.2rem 0 .8rem}
+.hm-list{list-style:none;margin:0;padding:0;display:grid;gap:.35rem}
+.hm-l a{display:flex;gap:.6rem;align-items:flex-start;padding:.55rem .65rem;border-radius:10px;background:var(--bg2,rgba(127,127,127,.08));color:inherit;text-decoration:none;min-height:44px;line-height:1.35;overflow-wrap:anywhere}
+.hm-l a:hover,.hm-l a:focus-visible{outline:2px solid var(--accent,#0E746A);outline-offset:1px}
+.hm-dot{flex:none;width:.7rem;height:.7rem;border-radius:50%;margin-top:.35rem;background:#8a94a0}
+.hm-l.s0 .hm-dot{background:#d33}.hm-l.s1 .hm-dot{background:#d99a00}.hm-l.s2 .hm-dot{background:#2f9e6f}
+.hm-card h3,.hm-home h3,.hm-part h3{margin-top:0}
+.hm-tabs{display:flex;gap:.4rem;flex-wrap:wrap;margin:.2rem 0 1rem}
+.hm-tabs a{padding:.5rem .9rem;border-radius:999px;border:1px solid rgba(127,127,127,.35);text-decoration:none;color:inherit;min-height:40px;display:inline-flex;align-items:center}
+.hm-tabs a[aria-selected=true]{background:var(--accent,#0E746A);color:#fff;border-color:transparent}
+.hm-mh{display:flex;justify-content:space-between;gap:.8rem;flex-wrap:wrap;align-items:center}
+.hm-bar{height:10px;border-radius:99px;background:rgba(127,127,127,.2);margin:.6rem 0 1rem;overflow:hidden}
+.hm-bar i{display:block;height:100%;background:var(--accent,#0E746A);border-radius:99px}
+.hm-steps{list-style:none;margin:0;padding:0;display:grid;gap:.5rem}
+.hm-steps li{display:grid;grid-template-columns:1fr auto;gap:.2rem .6rem;align-items:center;padding:.6rem;border-radius:10px;background:var(--bg2,rgba(127,127,127,.08))}
+.hm-steps li>.soft{grid-column:1;font-size:.9em}.hm-steps li>a{grid-column:2;grid-row:1 / span 2}
+.hm-steps .chk{display:flex;gap:.5rem;align-items:flex-start}
+.hm-steps input[type=checkbox]{width:22px;height:22px;flex:none}
+.hm-score{display:flex;gap:1rem;align-items:center;border-left:6px solid #8a94a0}
+.hm-score.good{border-color:#2f9e6f}.hm-score.ok{border-color:#d99a00}.hm-score.low{border-color:#d33}
+.hm-big{display:flex;align-items:baseline;gap:.15rem}.hm-big b{font-size:2.6rem;line-height:1}.hm-big span{opacity:.7}
+.hm-ph{display:flex;justify-content:space-between;gap:.6rem;align-items:center}
+.hm-limit ul{margin:.4rem 0 0;padding-left:1.1rem}.hm-limit li{margin:.35rem 0}
+.hm-find{width:100%;max-width:26rem;min-height:44px}
+.hm-sites{display:flex;flex-wrap:wrap;gap:.45rem}.hm-sites .btn{min-height:40px}
+.hm-home .quick{margin:.7rem 0 0}
+@media (max-width:480px){.hm-steps li{grid-template-columns:1fr}.hm-steps li>a{grid-column:1;grid-row:auto;justify-self:start}.hm-big b{font-size:2.1rem}}

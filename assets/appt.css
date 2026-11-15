@@ -1,0 +1,29 @@
+/* appointment book, people and renewals screens (appt.js) */
+dialog.ap-dlg{width:min(860px,calc(100vw - 16px))}
+.ap-dlg .dlg-b{padding:12px 14px 18px}
+.ap-tabs{display:flex;gap:6px;padding:8px 14px 0;overflow-x:auto;border-bottom:1px solid var(--line)}
+.ap-tabs button{flex:1 0 auto;min-height:44px;padding:0 14px;border:1px solid var(--line);border-bottom:0;border-radius:10px 10px 0 0;background:var(--surface);color:var(--ink);font:700 .92rem var(--font);cursor:pointer}
+.ap-tabs button[aria-selected=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.ap-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 10px}
+.ap-bar input{min-height:44px;padding:0 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit;flex:1 1 140px;min-width:0}
+.ap-sum{margin:6px 0;color:var(--soft);font-size:.92rem}
+.ap-list{list-style:none;margin:8px 0;padding:0}
+.ap-list>li{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}
+.ap-main{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}
+.ap-acts{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ap-acts .btn{min-height:40px}
+.ap-acts .pill{border:0;cursor:pointer;min-height:36px;padding:0 12px;font-size:.8rem}
+.ap-acts .pill.mid,.pill.mid{background:#FEF3C7;color:#92400E}
+.ap-cancelled .ap-who,.ap-noshow .ap-who{text-decoration:line-through;opacity:.7}
+.ap-hist{flex-basis:100%;list-style:none;margin:6px 0 0;padding:8px 10px;background:var(--bg);border-radius:10px;font-size:.9rem}
+.ap-hist li{padding:4px 0}
+.ap-form{margin:10px 0}
+.ap-slots{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}
+.ap-slots .chip{min-height:36px}
+.ap-t{width:100%;border-collapse:collapse;margin:8px 0}
+.ap-t th,.ap-t td{padding:8px;border-bottom:1px solid var(--line);text-align:start}
+.ap-t td{text-align:end;font-weight:700}
+.ap-t .grand th,.ap-t .grand td{font-size:1.05rem}
+.ap-deskbtns{flex-wrap:wrap;gap:8px}
+.ap-dlg .warn,.warn{color:#B45309;font-weight:600}
+@media (max-width:520px){.ap-acts{width:100%}.ap-tabs button{padding:0 10px}}
