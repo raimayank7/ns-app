@@ -1,0 +1,15 @@
+/* Compliance pack (msme.js): MSME payables, limits helper, backup health. Colours come from the site's own variables. */
+.cp-t th[scope=row]{min-width:9rem}
+.cp-sup select,.cp-sup input{width:100%;min-width:0;min-height:40px}
+.cp-sup td{vertical-align:middle}
+.cp-bar{margin:.3rem 0 .1rem}
+.cp-bar.over i{background:#d33}.cp-bar.near i{background:#d99a00}.cp-bar.under i{background:#2f9e6f}
+.cp-lim.over{border-left:6px solid #d33}.cp-lim.near{border-left:6px solid #d99a00}.cp-lim.under{border-left:6px solid #2f9e6f}
+.cp-lim h3{margin:0}.cp-lim p{margin:.4rem 0}
+.cp-dues{margin:.6rem 0}.cp-dues.bad{border-color:#d33}
+.cp-bk h3{margin:0}.cp-bk p{margin:.35rem 0}
+.cp-sheet h4{margin:.2rem 0 .5rem}
+.cp-sheet .pill{white-space:nowrap}
+@media print{.cp-sheet .pill{border:1px solid #999;background:none!important;color:#000!important}}
+.stsheet.wide.cp-sheet{min-width:0}
+.cp-sheet .tbl-wrap{overflow-x:auto}

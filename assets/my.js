@@ -66,7 +66,10 @@
       ['ship.addr', 'l.shaddr', 'area', { wide: 1, hint: 'hub.h.ship' }], ['ship.state', 'l.shstate', 'state'],
       /* Batch 1: price type and credit terms */
       ['ptype', 'b1.ptype', 'sel', { opts: [['retail', 'b1.pt_retail'], ['wholesale', 'b1.pt_whole']], hint: 'b1.h_ptype' }],
-      ['climit', 'b1.climit', 'num', { hint: 'b1.h_climit' }], ['cdays', 'b1.cdays', 'num', { hint: 'b1.h_cdays' }]
+      ['climit', 'b1.climit', 'num', { hint: 'b1.h_climit' }], ['cdays', 'b1.cdays', 'num', { hint: 'b1.h_cdays' }],
+      /* compliance pack: MSME payables (size, Udyam number as typed by the supplier, days agreed in writing) */
+      ['msme', 'cp.f_size', 'sel', { opts: [['', 'cp.sz_none'], ['micro', 'cp.sz_micro'], ['small', 'cp.sz_small'], ['medium', 'cp.sz_medium'], ['other', 'cp.sz_other']], hint: 'cp.h_size' }],
+      ['udyam', 'cp.f_ud', 'ltr', { max: 22, upper: 1, ph: 'UDYAM-XX-00-0000000' }], ['agdays', 'cp.f_ag', 'num', { hint: 'cp.f_ag_h' }]
     ],
     item: [
       ['desc', 'hub.f.iname', 'text', { req: 1, wide: 1 }], ['kind', 'l.type', 'sel', { opts: [['goods', 'hub.k.goods'], ['service', 'hub.k.service']] }],
@@ -79,13 +82,13 @@
   var CSV = {
     biz: [['name', 'Name'], ['addr', 'Address'], ['city', 'City'], ['pin', 'PIN code'], ['state', 'State code'], ['gstin', 'GSTIN'], ['phone', 'Phone'], ['email', 'Email'], ['bankName', 'Bank'], ['bankAcc', 'Account no'], ['bankIfsc', 'IFSC'], ['bankBranch', 'Branch'], ['upi', 'UPI ID'], ['gst.legal', 'Legal name'], ['gst.trade', 'Trade name']],
     party: [['role', 'Type'], ['name', 'Name'], ['phone', 'Phone'], ['email', 'Email'], ['addr', 'Address'], ['city', 'City'], ['pin', 'PIN code'], ['state', 'State code'], ['gstin', 'GSTIN'], ['ship.addr', 'Ship-to address'], ['ship.state', 'Ship-to state code'], ['gst.legal', 'Legal name'], ['gst.trade', 'Trade name'],
-      ['ptype', 'Price type'], ['climit', 'Credit limit'], ['cdays', 'Credit days'], ['group', 'Group']],
+      ['ptype', 'Price type'], ['climit', 'Credit limit'], ['cdays', 'Credit days'], ['msme', 'MSME size'], ['udyam', 'Udyam no'], ['agdays', 'Agreed credit days'], ['group', 'Group']],
     item: [['desc', 'Name'], ['kind', 'Type'], ['cat', 'Group'], ['code', 'Item code'], ['hsn', 'HSN/SAC'], ['unit', 'Unit'], ['rate', 'Rate'], ['wrate', 'Wholesale rate'], ['mrp', 'MRP'], ['prate', 'Purchase price'], ['gst', 'GST %']]
   };
   var NAMEKEY = { biz: 'name', party: 'name', item: 'desc' };
   var SECS = ['home', 'biz', 'party', 'pgroups', 'item', 'igroups', 'doc', 'settings', 'backup', 'bin', 'log'];
   var GSEC = { pgroups: 'party', igroups: 'item' };   /* the Groups screen of each master */
-  var NUMS = { rate: 1, wrate: 1, mrp: 1, prate: 1, climit: 1, cdays: 1 };
+  var NUMS = { rate: 1, wrate: 1, mrp: 1, prate: 1, climit: 1, cdays: 1, agdays: 1 };
   var cur = 'home', q = '', gf = '', S = {}, RAW = {}, SB = '', cache = {}, G = { party: [], item: [] };
 
   function key(s) { return String(s || '').trim().toLowerCase(); }
@@ -353,6 +356,11 @@
       if (!nm) { NS.toast(t('hub.v.name'), 'bad'); again = false; return; }
       if (cache[s].some(function (x) { return x.id !== r.id && key(x[NAMEKEY[s]]) === nm; })) { NS.toast(t('hub.v.dup', { name: r[NAMEKEY[s]] }), 'bad'); again = false; return; }
       if (r.gstin && !NS.gstinCheck(r.gstin).ok) { NS.toast(NS.gstinCheck(r.gstin).msg, 'bad'); g.focus(); again = false; return; }
+      if (s === 'party') {   /* compliance pack: Udyam number (format only, nothing is looked up), agreed days at most 45 */
+        if (r.udyam) { var ud = udyamFmt(r.udyam); if (!ud) { NS.toast(t('cp.udbad'), 'bad'); f.elements.udyam.focus(); again = false; return; } r.udyam = ud; } else delete r.udyam;
+        if (r.agdays != null && r.agdays !== '') r.agdays = Math.max(0, Math.min(45, Math.floor(r.agdays))); else delete r.agdays;
+        if (!r.msme) delete r.msme;
+      }
       if (r.bankIfsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(r.bankIfsc)) { NS.toast(t('hub.v.ifsc'), 'bad'); f.elements.bankIfsc.focus(); again = false; return; }
       var first = s === 'biz' && !cache.biz.length && !S.defBiz;
       NSStore.put(s, r).then(function (saved) {
@@ -366,6 +374,7 @@
     if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); }
     var firstIn = $('input:not([type=file]),select,textarea', f); if (firstIn && !(s === 'party')) firstIn.focus(); else if ($('[name=name]', f)) $('[name=name]', f).focus();
   }
+  function udyamFmt(s) { var m = /^UDYAM([A-Z]{2})(\d{2})(\d{7})$/.exec(String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '')); return m ? 'UDYAM-' + m[1] + '-' + m[2] + '-' + m[3] : ''; }
   function shrink(file, max) {
     return new Promise(function (res) {
       var img = new Image(), url = URL.createObjectURL(file);
@@ -849,6 +858,9 @@
         if (r.kind) r.kind = /serv/i.test(r.kind) ? 'service' : 'goods';
         Object.keys(NUMS).forEach(function (k) { if (r[k] != null) r[k] = NS.num(r[k]); });
         if (r.ptype) r.ptype = /whole/i.test(r.ptype) ? 'wholesale' : 'retail';
+        if (r.msme) { var mz = String(r.msme).toLowerCase().trim(); if (['micro', 'small', 'medium', 'other'].indexOf(mz) >= 0) r.msme = mz; else delete r.msme; }
+        if (r.udyam) { var uz = udyamFmt(r.udyam); if (uz) r.udyam = uz; else delete r.udyam; }
+        if (r.agdays !== undefined && r.agdays !== '') r.agdays = Math.max(0, Math.min(45, Math.floor(+r.agdays || 0))); else delete r.agdays;
         if (r.gst != null) r.gst = NS.num(String(r.gst).replace('%', ''));
         var have = byName[nm];
         if (s === 'party' && r.group) {

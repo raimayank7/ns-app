@@ -57,7 +57,7 @@
       var xs = list.filter(function (x) { return (GROUPS.indexOf(x.group) >= 0 ? x.group : 'other') === g; });
       return xs.length ? '<div class="card hm-card"><h3>' + esc(t('g.' + g)) + '</h3><ul class="hm-list">' + xs.map(lineHtml).join('') + '</ul></div>' : '';
     }).join('') : '<div class="card"><p>' + esc(t('quiet')) + '</p></div>';
-    return '<p class="hm-sum">' + esc(n ? t('sum', { n: n }) : t('sum0')) + '</p>' + body + '<p class="soft">' + esc(t('today.note')) + '</p>';
+    return '<p class="hm-sum">' + esc(n ? t('sum', { n: n }) : t('sum0')) + '</p>' + (H.tops || []).map(function (f) { return f(); }).join('') + body + '<p class="soft">' + esc(t('today.note')) + '</p>';
   }
 
   /* ---------- month-end checklist ---------- */
