@@ -12,6 +12,12 @@
 .sf-gate h2{margin:0;font-size:1.15rem}
 .sf-gate select,.sf-gate input{min-height:44px;font-size:1rem;width:100%;box-sizing:border-box}
 .sf-msg{min-height:1.2em;margin:0;color:var(--bad);font-size:.92rem}
+.sf-num{display:flex;flex-direction:column;gap:8px;margin:6px 0 8px}
+.sf-opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface2);cursor:pointer;margin:0 0 6px;min-height:44px}
+.sf-opt input{margin-top:3px;flex:none;width:20px;height:20px}
+.sf-opt span{min-width:0;overflow-wrap:anywhere}
+.sf-opt small{display:block;margin-top:2px;font-weight:400}
+.sf-opt:has(input:checked){border-color:var(--accent,var(--ink))}
 /* a staff member does not see the final accounts, stock-value and settings screens (the real lock is in store.js; this only tidies the screen) */
 html.sf-staff [data-sec="fin"],html.sf-staff [data-sec="fam"],html.sf-staff [data-sec="capl"],html.sf-staff [data-sec="acx"],html.sf-staff [data-sec="stf"],html.sf-staff [data-sec="grp"],
 html.sf-staff #ns-side a[href$="#fin"],html.sf-staff #ns-side a[href*="#fin/"],html.sf-staff #ns-side a[href$="#fam"],html.sf-staff #ns-side a[href$="#capl"],html.sf-staff #ns-side a[href$="#acx"],html.sf-staff #ns-side a[href$="#stf"],

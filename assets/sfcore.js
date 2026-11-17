@@ -23,7 +23,7 @@
   'use strict';
   var SYNC = { biz: 1, party: 1, item: 1, doc: 1, meta: 1, log: 1 };
   /* only these meta records are shared; the rest (lastBackup, pin, who, language ...) belongs to one computer */
-  var META_OK = { settings: 1, groups: 1, heads: 1, staff: 1 };
+  var META_OK = { settings: 1, groups: 1, heads: 1, staff: 1, sfcfg: 1 };
   var MAX_CF = 20;
 
   function stable(v) {
@@ -303,6 +303,49 @@
     (nos || []).forEach(function (n) { n = String(n || ''); if (n.indexOf(prefix) !== 0) return; var m = n.match(/(\d+)\s*$/); if (m) max = Math.max(max, +m[1]); });
     return prefix + String(max + 1).padStart(digits || 3, '0');
   }
+  /* ---------- one common series (the default): numbers are RESERVED live by writing a small file, numbers/<series>/<number>.<computer> ---------- */
+  /* Why: with no server, two computers can pick the same next number at the same moment. Each one writes its claim, waits a moment, lists the
+     claims again and keeps the number only if no other live computer with a smaller id claimed it too; the loser takes the next number.
+     A reservation that is never used (form closed, computer gone) is given back: a computer whose heartbeat stopped holds nothing. */
+  function seriesDir(scope, prefix) {
+    var raw = String(scope || '') + '|' + prefix, h = 5381;
+    for (var i = 0; i < raw.length; i++) h = ((h * 33) ^ raw.charCodeAt(i)) >>> 0;
+    return String(prefix).replace(/[^A-Za-z0-9-]+/g, '_').slice(0, 30) + '.' + h.toString(36);
+  }
+  function claimName(n, dev) { return String(n).padStart(7, '0') + '.' + dev; }
+  function parseClaim(name) { var m = /^(\d{7,})\.([A-Za-z0-9]+)$/.exec(String(name)); return m ? { n: +m[1], dev: m[2] } : null; }
+  function tailNum(no) { var m = String(no || '').match(/(\d+)\s*$/); return m ? +m[1] : 0; }
+  /* the number to try: a free hole left by a computer that is gone, else one after the highest number in use or reserved */
+  function pickCandidate(claims, used, me, held, fresh, skip) {
+    var live = {}, holes = [], max = 0;
+    Object.keys(used).forEach(function (n) { max = Math.max(max, +n); });
+    Object.keys(skip || {}).forEach(function (n) { max = Math.max(max, +n); });
+    claims.forEach(function (c) {
+      if (used[c.n]) return;
+      if (c.dev === me ? held[c.n] : fresh(c.dev)) { live[c.n] = 1; max = Math.max(max, c.n); } else holes.push(c.n);
+    });
+    holes = holes.filter(function (n) { return !live[n] && !(skip || {})[n]; }).sort(function (a, b) { return a - b; });
+    return holes.length ? holes[0] : max + 1;
+  }
+  /* io = { list(series) -> names[], put(series, name), del(series, name), wait(ms) }
+     o  = { series, me, used: {number: 1}, held: {number: 1}, fresh(dev) -> bool, settle(ms) } */
+  function claimNumber(io, o) {
+    var skip = {}, tries = 0;
+    function go() {
+      if (++tries > 40) return Promise.reject(new Error('numbers busy'));
+      return io.list(o.series).then(function (names) {
+        var claims = names.map(parseClaim).filter(Boolean), n = pickCandidate(claims, o.used, o.me, o.held, o.fresh, skip), mine = claimName(n, o.me);
+        return io.put(o.series, mine).then(function () { return io.wait(o.settle); }).then(function () { return io.list(o.series); }).then(function (names2) {
+          var rivals = names2.map(parseClaim).filter(function (c) { return c && c.n === n && c.dev !== o.me && o.fresh(c.dev); });
+          if (!rivals.some(function (c) { return c.dev < o.me; })) return n;
+          skip[n] = 1;
+          return io.del(o.series, mine).then(go);
+        });
+      });
+    }
+    return go();
+  }
+
   function activeDevices(devices, now, mins) { return devices.filter(function (d) { return now - (d.last || 0) <= (mins || 10) * 60000; }); }
 
   /* ---------- roles: a convenience lock, not security (anyone who can open the folder can read and change its files) ---------- */
@@ -310,13 +353,13 @@
   function can(role, cap) { return !!(CAN[role] && CAN[role][cap]); }
   var STAFF_HIDDEN = ['fin', 'fam', 'capl', 'acx', 'stf', 'grp'];   /* App sections a staff member does not see */
   function blockedHash(role, hash) { return role === 'staff' && STAFF_HIDDEN.indexOf(String(hash || '').replace(/^#/, '').split('/')[0]) >= 0; }
-  var STAFF_NO_META = { settings: 1, pin: 1, groups: 1, heads: 1, sf: 1 };
+  var STAFF_NO_META = { settings: 1, pin: 1, groups: 1, heads: 1, sf: 1, sfcfg: 1 };
   function denied(role, op, store, id) { return role === 'staff' && (op === 'del' || (store === 'meta' && !!STAFF_NO_META[id])); }
 
   return {
     SYNC: SYNC, META_OK: META_OK, stable: stable, hash: hash, eq: eq, clone: clone, Clock: Clock, Log: Log, Replica: Replica, merge2: merge2,
     parseNdjson: parseNdjson, line: line, fileFor: fileFor, monthOf: monthOf, validOp: validOp, syncable: syncable,
-    dupNumbers: dupNumbers, pickTag: pickTag, mustRepick: mustRepick, activeDevices: activeDevices, nextNumber: nextNumber, AUTO_NO: AUTO_NO, skew: skew,
+    dupNumbers: dupNumbers, pickTag: pickTag, mustRepick: mustRepick, activeDevices: activeDevices, seriesDir: seriesDir, claimName: claimName, parseClaim: parseClaim, tailNum: tailNum, pickCandidate: pickCandidate, claimNumber: claimNumber, nextNumber: nextNumber, AUTO_NO: AUTO_NO, skew: skew,
     can: can, blockedHash: blockedHash, denied: denied, STAFF_HIDDEN: STAFF_HIDDEN
   };
 });

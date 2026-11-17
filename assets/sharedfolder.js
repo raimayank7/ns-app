@@ -18,6 +18,7 @@
     var now = o.now || Date.now, rep = null, dev = null, devInfo = null, team = null, teamRev = 0, locked = false;
     var fileCache = {}, st = { state: 'off', last: 0, users: 0, devices: [], conflicts: [], dups: [], held: 0, copies: 0, bad: 0, skew: [], err: '' };
     var newOps = 0, dirty = true, timer = 0, queued = false, running = null, lastDocs = [], lastLocal = {}, confirmDel = false;
+    var held = {}, editing = {}, claimQ = Promise.resolve(), lastBeat = 0, beatDirty = false;
 
     function sub(dir, names, make) {   /* entries/<id>: walk down, creating when asked */
       return names.reduce(function (p, n) { return p.then(function (d) { return d.getDirectoryHandle(n, { create: !!make }); }); }, Promise.resolve(dir));
@@ -127,15 +128,16 @@
     function cycle(dir, opts) {
       var stores = ['biz', 'party', 'item', 'doc', 'meta', 'log'];
       newOps = 0;
-      return readEntries(dir).then(function () { return readDevices(dir); }).then(function (devices) {
+      return (opts && opts.beatOnly && lastLocal.doc ? Promise.resolve() : readEntries(dir)).then(function () { return readDevices(dir); }).then(function (devices) {
         /* a poll with nothing new in the folder and nothing saved here: only the heartbeat (the work grows with the number of records) */
-        if (opts && opts.poll && !dirty && !newOps && lastLocal.doc) return { out: { ops: [], actions: [], held: st.held, conflicts: st.conflicts }, devices: devices };
+        if ((opts && opts.poll && !dirty && !newOps || opts && opts.beatOnly) && lastLocal.doc) return { out: { ops: [], actions: [], held: st.held, conflicts: st.conflicts }, devices: devices };
         return readTeam(dir).then(function () {
           if (o.who) rep.setWho(o.who());
           return Promise.all(stores.map(function (s) { return o.store.list(s); })).then(function (lists) {
             var local = {}; stores.forEach(function (s, i) { local[s] = lists[i] || []; });
             local.meta = local.meta.filter(function (r) { return C.META_OK[r.id]; });
             lastLocal = local; lastDocs = local.doc;
+            Object.keys(held).forEach(function (k) { if (lastDocs.some(function (d) { return d.no === held[k].no; })) delete held[k]; });   /* saved: the number is used now */
             var out = rep.cycle(local, { confirmDeletes: confirmDel || (opts && opts.confirmDeletes) }, now());
             confirmDel = false; dirty = false;
             /* write what this computer did, then change the records here */
@@ -153,18 +155,29 @@
           });
         });
       }).then(function (r) {
-        /* the folder says who is here: tag (invoice letter), heartbeat */
+        /* the folder says who is here: heartbeat (also: which bill each computer is editing), and the letter in letters mode */
         var devices = r.devices.filter(function (d) { return d.id !== dev.id; });
         var mine = r.devices.filter(function (d) { return d.id === dev.id; })[0] || {};
-        var tag = mine.tag || '';
-        if (!tag || C.mustRepick(r.devices.concat(mine.id ? [] : [{ id: dev.id, tag: tag, joined: dev.joined }]), dev.id)) tag = C.pickTag(devices, dev.id);
-        devInfo = { v: 1, id: dev.id, inst: dev.inst, name: dev.name || '', tag: tag, joined: dev.joined, last: now(), who: o.who ? o.who() : '', ops: rep.seq };
-        return writeWhole(dir, ['devices'], dev.id + '.json', JSON.stringify(devInfo)).then(function () {
+        var tag = '';
+        if (numbering() === 'letters') {
+          tag = mine.tag || '';
+          if (!tag || C.mustRepick(r.devices.concat(mine.id ? [] : [{ id: dev.id, tag: tag, joined: dev.joined }]), dev.id)) tag = C.pickTag(devices, dev.id);
+        }
+        var edit = []; Object.keys(editing).forEach(function (k) { edit.push({ id: editing[k].id, no: editing[k].no }); });
+        devInfo = { v: 1, id: dev.id, inst: dev.inst, name: dev.name || '', tag: tag, joined: dev.joined, last: now(), who: o.who ? o.who() : '', ops: rep.seq, edit: edit };
+        var due = !(opts && opts.poll) || r.wrote || beatDirty || now() - lastBeat > 10000;   /* a quick poll rewrites the heartbeat file only every 10 s */
+        var show = function () {
           var all = devices.concat([devInfo]);
-          st.devices = all; st.users = C.activeDevices(all, now(), 10).length; st.tag = tag;
-          st.conflicts = r.out.conflicts; st.held = r.out.held; st.dups = C.dupNumbers(lastDocs);
+          st.devices = all; st.users = C.activeDevices(all, now(), 10).length; st.tag = tag; st.numbering = numbering();
+          st.live = devices.filter(function (d) { return now() - (d.last || 0) < 45000; }).length;
+          st.conflicts = r.out.conflicts; st.held = r.out.held; st.dups = C.dupNumbers(lastDocs); st.reserved = reservedList();
           st.state = r.out.held ? 'hold' : 'ok'; st.last = now(); st.err = '';
           if (o.setTag) o.setTag(tag);
+        };
+        if (!due) { show(); return; }
+        beatDirty = false; lastBeat = now();
+        return writeWhole(dir, ['devices'], dev.id + '.json', JSON.stringify(devInfo)).then(function () {
+          show();
           var s = rep.state(); s.vault = rep.vault;
           /* the file's own "modified" time is set by the folder's computer or by this one: a big difference to this clock means the clock is wrong */
           return o.kv.set('sfstate', s).then(function () { return sub(dir, ['devices'], false).then(function (d) { return d.getFileHandle(dev.id + '.json'); }).then(function (fh) { return fh.getFile(); }); })
@@ -186,11 +199,79 @@
       });
       return running;
     }
+    /* ---- one common series: numbers reserved live (see sfcore.js claimNumber) ---- */
+    function cfgv() { var r = (lastLocal.meta || []).filter(function (x) { return x.id === 'sfcfg'; })[0]; return r && r.v || {}; }
+    function numbering() { return cfgv().numbering === 'letters' ? 'letters' : 'common'; }
+    function settleMs() { return cfgv().slow ? 2000 : 700; }
+    function reservedList() { return Object.keys(held).map(function (k) { return held[k].no; }); }
+    function heldSet(sid) { var s = {}; Object.keys(held).forEach(function (k) { if (held[k].sid === sid) s[held[k].n] = 1; }); return s; }
+    function claimIo(dir) {
+      return {
+        list: function (series) { return sub(dir, ['numbers', series], true).then(function (d) { return eachEntry(d).then(function (es) { return es.filter(function (e) { return e.kind === 'file'; }).map(function (e) { return e.name; }); }); }); },
+        put: function (series, name) {
+          return sub(dir, ['numbers', series], true).then(function (d) { return d.getFileHandle(name, { create: true }); })
+            .then(function (fh) { return fh.createWritable(); }).then(function (w) { return w.write(String(now())).then(function () { return w.close(); }); });
+        },
+        del: function (series, name) { return sub(dir, ['numbers', series], true).then(function (d) { return d.removeEntry(name); }).catch(function () {}); },
+        wait: function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+      };
+    }
+    function dropHeld(owner, h) {
+      var e = held[owner]; if (!e) return Promise.resolve();
+      delete held[owner];
+      if (lastDocs.some(function (d) { return d.no === e.no; })) return Promise.resolve();   /* a bill has it: the number stays used */
+      return claimIo(h).del(e.sid, e.name);
+    }
+    function doClaim(a) {
+      return Promise.resolve().then(function () { return o.dir(); }).then(function (h) {
+        if (!h) return null;
+        return o.perm(h).then(function (p) {
+          if (p !== 'granted') return null;
+          return (dev && rep ? Promise.resolve() : run()).then(function () {
+            if (!dev || numbering() !== 'common') return null;
+            var sid = C.seriesDir(a.scope, a.prefix), cur = held[a.owner], used = {};
+            (a.nos || []).forEach(function (no) { var n = C.tailNum(no); if (n) used[n] = 1; });
+            /* this form already has a number reserved in this series and no bill took it yet: the same number again */
+            if (cur && cur.sid === sid && !used[cur.n]) return cur.no;
+            return dropHeld(a.owner, h).then(function () { return readDevices(h); }).then(function (devs) {
+              var by = {}, t = now(); devs.forEach(function (d) { by[d.id] = d; });
+              var fresh = function (id) { if (id === dev.id) return true; var d = by[id]; return !d || t - (d.last || 0) < 180000; };
+              return C.claimNumber(claimIo(h), { series: sid, me: dev.id, used: used, held: heldSet(sid), fresh: fresh, settle: settleMs() }).then(function (n) {
+                var no = a.prefix + String(n).padStart(a.digits || 3, '0');
+                held[a.owner] = { sid: sid, n: n, no: no, name: C.claimName(n, dev.id) };
+                st.reserved = reservedList(); return no;
+              });
+            });
+          });
+        });
+      });
+    }
+    function claim(a) {   /* a = { owner, scope, prefix, digits, nos }; null = no common number (mode off, letters mode, folder out of reach): the maker numbers as usual */
+      claimQ = claimQ.then(function () { return doClaim(a); }).catch(function (e) { st.err = String(e && e.message || e); return null; });
+      return claimQ;
+    }
+    function release(owner) {
+      /* read the bills again first: a bill saved a moment ago has used its number and must keep it */
+      return Promise.all([o.dir(), o.store.list('doc')]).then(function (r) { if (r[1]) lastDocs = r[1]; return r[0] ? dropHeld(owner, r[0]) : null; }).then(function () { st.reserved = reservedList(); }, function () {});
+    }
+    function setEditing(owner, id, no) {
+      if (id) editing[owner] = { id: id, no: no || '' }; else delete editing[owner];
+      beatDirty = true; return run({ poll: true });
+    }
+    function editorOf(id) {
+      var t = now(), hit = null;
+      (st.devices || []).forEach(function (d) {
+        if (hit || !dev || d.id === dev.id || t - (d.last || 0) > 90000) return;
+        if ((d.edit || []).some(function (e) { return String(e.id) === String(id); })) hit = { name: d.name || d.id, who: d.who || '' };
+      });
+      return hit;
+    }
     function soon(ms) { dirty = true; clearTimeout(timer); timer = setTimeout(run, ms == null ? 1200 : ms); }
 
     return {
       run: run, soon: soon, status: function () { return st; }, team: function () { return team; }, setTeam: function (t, dir) { t.rev = (teamRev || 0) + 1; team = t; teamRev = t.rev; return writeWhole(dir, [], 'team.json', JSON.stringify(t)); },
       device: function () { return dev; }, setName: function (n) { return loadDev().then(function (d) { dev = d; dev.name = n; return o.kv.set('sfdev', dev); }); },
+      claim: claim, release: release, setEditing: setEditing, editorOf: editorOf, numbering: numbering, reserved: reservedList,
       ack: function (key) { rep.ack(key); return run(); }, confirmDeletes: function () { confirmDel = true; return run(); },
       replica: function () { return rep; }, local: function () { return lastLocal; },
       reset: function () { rep = null; dev = null; fileCache = {}; st.state = 'off'; return o.kv.set('sfstate', null); },
@@ -209,7 +290,8 @@
     set: function (k, v) { return kdb().then(function (d) { return new Promise(function (res) { var t = d.transaction('h', 'readwrite'); v == null ? t.objectStore('h').delete(k) : t.objectStore('h').put(v, k); t.oncomplete = res; t.onerror = res; }); }); }
   };
   var SS = { get: function (k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }, set: function (k, v) { try { v == null ? sessionStorage.removeItem(k) : sessionStorage.setItem(k, v); } catch (e) {} } };
-  function setTag(t) { NSStore.meta('sf-tag', t || null).catch(function () {}); try { if (t) localStorage.setItem('ns-sf-tag', t); else localStorage.removeItem('ns-sf-tag'); } catch (e) {} }
+  var curTag = null;
+  function setTag(t) { t = t || ''; if (t === curTag) return; curTag = t; NSStore.meta('sf-tag', t || null).catch(function () {}); try { if (t) localStorage.setItem('ns-sf-tag', t); else localStorage.removeItem('ns-sf-tag'); } catch (e) {} }
   var pageStore = {
     list: function (s) { return NSStore._call('list', { store: s }).then(function (r) { return r || []; }, function () { return []; }); },
     put: function (s, rec) { return NSStore._call('put', { store: s, value: rec }); },
@@ -357,6 +439,7 @@
     h += '<h3>' + E(T('sfd.conf.t', { n: s.conflicts.length })) + '</h3>' + (s.conflicts.length ? '<ul class="sf-list">' + s.conflicts.slice(0, 50).map(conflictRow).join('') + '</ul>' : '<p class="soft">' + E(T('sfd.conf.none')) + '</p>');
     if (s.dups.length) h += '<h3>' + E(T('sfd.dup.t')) + '</h3><ul class="sf-list">' + s.dups.map(function (d) { return '<li><span>' + E(T('sfd.dup', { no: d.no, n: d.docs.length })) + '</span></li>'; }).join('') + '</ul>';
     var dv = eng.device() || {}, tag = s.tag || '';
+    h += numHtml(s);
     h += '<h3>' + E(T('sfd.comp')) + '</h3><div class="f"><label for="sf-name">' + E(T('sfd.comp.n')) + '</label><input id="sf-name" data-sf-name maxlength="30" value="' + E(dv.name || '') + '"><small class="hint">' + E(T('sfd.comp.h')) + '</small></div>' +
       (tag ? '<p class="soft">' + E(T('sfd.series', { tag: tag })) + ' ' + E(T('sfd.sites')) + '</p>' : '') +
       '<ul class="sf-list">' + (s.devices || []).map(function (d) { return '<li><span><b>' + E(d.name || d.id) + '</b> · ' + E(d.who || '') + (d.tag ? ' · ' + E(d.tag) : '') + '</span><span class="soft">' + E(ago(d.last)) + '</span></li>'; }).join('') + '</ul>';
@@ -364,6 +447,22 @@
     return h + '<p class="soft">' + E(T('sfd.limits')) + '</p>';
   }
   function team() { return eng && eng.team(); }
+  /* bill numbers: one common series (default) or a letter for every computer */
+  function numHtml(s) {
+    var mode = s.numbering === 'letters' ? 'letters' : 'common', dis = role() === 'staff' ? ' disabled' : '';
+    var h = '<h3>' + E(T('sfd.num.t')) + '</h3><div class="sf-num" role="radiogroup" aria-label="' + E(T('sfd.num.t')) + '">' +
+      '<label class="sf-opt"><input type="radio" name="sfnum" data-sf-num="common"' + (mode === 'common' ? ' checked' : '') + dis + '> <span><b>' + E(T('sfd.num.common')) + '</b><small class="hint">' + E(T('sfd.num.common.h')) + '</small></span></label>' +
+      '<label class="sf-opt"><input type="radio" name="sfnum" data-sf-num="letters"' + (mode === 'letters' ? ' checked' : '') + dis + '> <span><b>' + E(T('sfd.num.letters')) + '</b><small class="hint">' + E(T('sfd.num.letters.h')) + '</small></span></label></div>';
+    if (mode === 'common') {
+      h += '<label class="sf-opt"><input type="checkbox" data-sf-slow' + (cfgNow().slow ? ' checked' : '') + dis + '> <span>' + E(T('sfd.num.slow')) + '</span></label>';
+      var res = (s.reserved || []);
+      h += '<p class="soft">' + E(res.length ? T('sfd.reserved', { list: res.join(', ') }) : T('sfd.reserved.none')) + '</p>';
+    }
+    return h;
+  }
+  var cfgCache = {};
+  function cfgNow() { return cfgCache; }
+  function loadCfg() { return NSStore.meta('sfcfg').then(function (v) { cfgCache = v || {}; return cfgCache; }, function () { return cfgCache; }); }
   function rolesHtml() {
     var tm = team() || {}, h = '<h3>' + E(T('sfd.roles.t')) + '</h3><p class="soft">' + E(T('sfd.roles.p')) + '</p>';
     h += '<form class="sf-form" data-sf-owner novalidate><div class="f"><label for="sf-op">' + E(T(tm.owner ? 'sfd.owner.new' : 'sfd.owner.pin')) + '</label><input id="sf-op" type="password" inputmode="numeric" maxlength="8" autocomplete="new-password" dir="ltr"></div><button type="submit" class="btn sm">' + E(T('sfd.set')) + '</button></form>';
@@ -376,7 +475,19 @@
   function render() {
     var pane = NS.$('[data-md-pane="sf"]');
     if (!pane) return;
-    NS.sfHtml = pane.innerHTML = panelHtml();
+    loadCfg().then(function () {
+      if (NS.$('[data-md-pane="sf"]') !== pane) return;
+      /* a round every few seconds must not wipe what is being typed (a PIN, the name of this computer) */
+      var ae = document.activeElement;
+      if (ae && pane.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) && ae.type !== 'radio' && ae.type !== 'checkbox') return;
+      var html = panelHtml(); if (html === NS.sfHtml && pane.innerHTML) return;
+      NS.sfHtml = pane.innerHTML = html; wireName();
+    });
+    return;
+  }
+  function wireName() {
+    var pane = NS.$('[data-md-pane="sf"]'); if (!pane) return;
+
     var again = NS.$('#sf-name'); if (again) again.addEventListener('change', function () { eng.setName(again.value.trim()).then(function () { eng.run(); }); });
   }
   function mdPart(body) {
@@ -417,6 +528,12 @@
     else if (a === 'deleteit') done(NSStore.del(b.getAttribute('data-s'), b.getAttribute('data-r')).then(function () { return eng.ack(k); }));
     else if (a === 'rmstaff') { var tm = JSON.parse(JSON.stringify(team())); tm.staff.splice(+b.getAttribute('data-i'), 1); done(kv.get('sfdir').then(function (h) { return eng.setTeam(tm, h); })); }
   });
+  document.addEventListener('change', function (e) {
+    var t = e.target; if (!t || !t.matches) return;
+    var set = function (patch) { return NSStore.meta('sfcfg').then(function (c) { return NSStore.meta('sfcfg', Object.assign({}, c || {}, patch)); }).then(function () { cfgCache = Object.assign({}, cfgCache, patch); return eng ? eng.run() : null; }); };
+    if (t.matches('[data-sf-num]')) done(set({ numbering: t.getAttribute('data-sf-num') }));
+    else if (t.matches('[data-sf-slow]')) done(set({ slow: !!t.checked }));
+  });
   document.addEventListener('submit', function (e) {
     var f = e.target; if (!f.matches) return;
     if (f.matches('[data-sf-owner]')) {
@@ -431,24 +548,31 @@
   });
 
   /* ---------- page start: the App (or My data) as a top-level page, when it was switched on ---------- */
+  var readyRes, readyP = new Promise(function (r) { readyRes = r; });   /* the makers wait for this before asking for a number: the mode is known to be on or off */
   function start() {
-    if (window.top !== window || !window.NSStore || !SUPPORT() || !NS.folderHere()) return;
+    if (window.top !== window || !window.NSStore || !SUPPORT() || !NS.folderHere()) { readyRes(); return; }
     NSStore.ready().then(function () { return Promise.all([NSStore.meta('sf'), kv.get('sfdir')]); }).then(function (r) {
-      if (!r[0] || !r[0].on || !r[1]) return;
-      On = true; dirH = r[1]; pageEngine();
+      if (!r[0] || !r[0].on || !r[1]) { readyRes(); return; }
+      On = true; dirH = r[1]; pageEngine(); readyRes();
       if (role() === 'staff') document.documentElement.classList.add('sf-staff');
       return eng.run().then(function () {
         /* the folder is read again now and then, and when the person comes back to this window */
-        setInterval(function () { if (!document.hidden && On) eng.run({ poll: true }); }, 20000);
+        (function tick() {   /* live: every 3 s while another computer is here, every 15 s alone, a heartbeat only (45 s) while this window is in the background */
+          var s = eng.status(), wait = document.hidden ? 45000 : s.live > 0 ? 3000 : 15000;
+          setTimeout(function () { if (!On) return tick(); eng.run({ poll: true, beatOnly: document.hidden }).then(tick, tick); }, wait);
+        })();
         document.addEventListener('visibilitychange', function () { if (!document.hidden && On) eng.run(); });
         document.addEventListener('ns-saved', function () { if (On) eng.soon(); });
         document.addEventListener('ns-autosave', function (ev) { if (On && ev.detail === 'chg') eng.soon(); });
         var f = function () { if (On && eng.status().state === 'ask') { /* the browser asks again only after a click */ } };
         document.addEventListener('pointerdown', function h() { if (On && eng.status().state === 'ask') { document.removeEventListener('pointerdown', h, true); allow(); } }, true);
       });
-    }).catch(function () {});
+    }).catch(function () { readyRes(); });
   }
   if (document.readyState === 'complete') setTimeout(start, 1800); else window.addEventListener('load', function () { setTimeout(start, 1800); });
 
-  NS.sf = { create: create, role: role, who: who, can: function (cap) { return C.can(role() || 'owner', cap); }, engine: function () { return eng; }, choose: choose, stop: stop };
+  NS.sf = { create: create, role: role, who: who, can: function (cap) { return C.can(role() || 'owner', cap); }, engine: function () { return eng; }, choose: choose, stop: stop, ready: function () { return Promise.race([readyP, new Promise(function (r) { setTimeout(r, 8000); })]); },
+    /* for the makers (through NSStore.sfClaim / sfRelease / sfEditing): the number of a new bill, and who is editing which bill */
+    claim: function (a) { return On && eng ? eng.claim(a) : Promise.resolve(null); }, release: function (owner) { return eng ? eng.release(owner) : Promise.resolve(); },
+    setEditing: function (owner, id, no) { return On && eng ? eng.setEditing(owner, id, no) : Promise.resolve(); }, editorOf: function (id) { return On && eng ? eng.editorOf(id) : null; } };
 })();
