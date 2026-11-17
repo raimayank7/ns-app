@@ -1,0 +1,22 @@
+/* India plan D: Donations and members (trust.js) and Warranty and service due (warranty.js). Colours come from the site's own variables. */
+.tr-t th[scope=row],.wr-t th[scope=row]{min-width:9rem}
+.tr-t td .btn.sm,.wr-t td .btn.sm{margin:2px 2px 2px 0}
+.tr-fy{display:inline-flex;gap:6px;align-items:center}
+.tr-fy select{min-height:40px}
+.tr-per{display:flex;flex-direction:column;gap:6px;margin:.3rem 0}
+.tr-p{display:flex;gap:8px;align-items:center;min-height:40px}
+.tr-p input{width:20px;height:20px}
+.tr-plan{align-items:end;border-bottom:1px solid var(--line,rgba(128,128,128,.25));padding-bottom:.4rem;margin-bottom:.4rem}
+.tr-dlg{max-width:min(96vw,720px);width:100%}
+.tr-dlg .dlg-b{max-height:75vh;overflow:auto}
+.tr-dlg textarea,.wr-tile{font:inherit}
+#wr-wa{max-width:min(96vw,560px);width:100%}
+#wr-wa textarea{width:100%}
+.wr-tile{cursor:pointer;text-align:start;border:1px solid var(--line,rgba(128,128,128,.25));min-height:44px}
+.wr-tile[aria-pressed=true]{outline:2px solid var(--accent,currentColor)}
+.wr-tile.warn b{color:#c0392b}
+.mono{font-family:ui-monospace,Consolas,monospace;overflow-wrap:anywhere}
+.tools-row select,.tools-row input[type=search]{min-height:40px}
+.tr-rc .small{font-size:.8em;margin:.4rem 0}
+@media print{.tr-rc .st-hd{display:flex;justify-content:space-between}}
+@media (max-width:620px){.tr-dlg{max-width:100vw;margin:0;border-radius:0}.wr-tiles{grid-template-columns:1fr 1fr}}

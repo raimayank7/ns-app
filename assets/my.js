@@ -21,7 +21,8 @@
     rabill: ['contractor-bill', 'nav.contractorbill'], fee: ['fee-receipt', 'nav.feereceipt'] };
   KITOF.visit = ['clinic', 'nav.clinic']; KITOF.svc = ['salon', 'nav.salon'];
   KITOF.jewel = ['jewellery', 'nav.jewellery']; KITOF.garment = ['garment', 'nav.garment'];   /* group C trade tools */
-  KITOF.mandi = ['mandi', 'nav.mandi']; KITOF.pump = ['petrol', 'nav.petrol'];   /* group E trade tools */
+  KITOF.dairy = ['dairy', 'nav.dairy']; KITOF.subs = ['subscribers', 'nav.subs'];   /* India plan B */
+  KITOF.mandi = ['mandi', 'nav.mandi']; KITOF.pump = ['petrol', 'nav.petrol']; KITOF.tsh = ['tripsheet', 'nav.tripsheet'];   /* group E trade tools */
   function toolUrl(site) { if (site === 'app') return APP; var x = TOOLS.filter(function (x) { return x[0] === site; })[0] || TOOLS[0]; return LOCAL ? 'http://localhost:' + x[4] + '/' : 'https://' + x[1] + '/'; }
   /* records made in the Nivesh Sahayak App (purchase bills, expenses, opening balances) open there */
   var APP = LOCAL ? 'http://localhost:8880/' : 'https://app.niveshsahayak.in/';
@@ -35,7 +36,8 @@
     ['job', '', 'JC', 'nav.jobcard', 4], ['hotel', '', 'HT', 'nav.hotel', 4], ['rentb', '', 'RM', 'nav.rentmgr', 4], ['rabill', '', 'RA', 'nav.contractorbill', 3], ['fee', '', 'FR', 'nav.feereceipt', 4]];
   PREFIXES.push(['visit', '', 'OPD', 'nav.clinic', 4], ['svc', '', 'SV', 'nav.salon', 4]);
   PREFIXES.push(['jewel', '', 'JW', 'nav.jewellery', 4], ['garment', '', 'GM', 'nav.garment', 4]);
-  PREFIXES.push(['mandi', '', 'MN', 'nav.mandi', 3], ['pump', '', 'SR', 'nav.petrol', 4]);
+  PREFIXES.push(['dairy', '', 'DY', 'nav.dairy', 3], ['subs', '', 'SUB', 'nav.subs', 3]);   /* India plan B */
+  PREFIXES.push(['mandi', '', 'MN', 'nav.mandi', 3], ['pump', '', 'SR', 'nav.petrol', 4], ['tsh', '', 'TS', 'nav.tripsheet', 4]);
   /* Settings: one small card per document, grouped: [group key, [[type, maker site, name key], ...]]; a card shows that type's PREFIXES rows */
   var DOCCARDS = [
     ['hub.grp.sell', [['quote', 'quotation', 'nav.quote'], ['proforma', 'proforma', 'Doc.proforma'], ['so', 'sales-order', 'Doc.so'], ['challan', 'challan', 'Doc.challan'],
@@ -45,7 +47,8 @@
     ['hub.grp.trade', [['pos', 'pos', 'nav.pos'], ['pharma', 'pharmacy', 'nav.pharmacy'], ['resto', 'restaurant', 'nav.restaurant'], ['lr', 'bilty', 'nav.bilty'], ['job', 'job-card', 'nav.jobcard'], ['hotel', 'hotel', 'nav.hotel'], ['rentb', 'rent', 'nav.rentmgr'],
       ['rabill', 'contractor-bill', 'nav.contractorbill'], ['fee', 'fee-receipt', 'nav.feereceipt'], ['visit', 'clinic', 'nav.clinic'], ['svc', 'salon', 'nav.salon']]]];
   DOCCARDS[DOCCARDS.length - 1][1].push(['jewel', 'jewellery', 'nav.jewellery'], ['garment', 'garment', 'nav.garment']);
-  DOCCARDS.filter(function (g) { return g[0] === 'hub.grp.trade'; })[0][1].push(['mandi', 'mandi', 'nav.mandi'], ['pump', 'petrol', 'nav.petrol']);
+  DOCCARDS.filter(function (g) { return g[0] === 'hub.grp.trade'; })[0][1].push(['dairy', 'dairy', 'nav.dairy'], ['subs', 'subscribers', 'nav.subs']);   /* India plan B */
+  DOCCARDS.filter(function (g) { return g[0] === 'hub.grp.trade'; })[0][1].push(['mandi', 'mandi', 'nav.mandi'], ['pump', 'petrol', 'nav.petrol'], ['tsh', 'tripsheet', 'nav.tripsheet']);
   function siteUrl(site) { return TOOLS.some(function (x) { return x[0] === site; }) ? toolUrl(site) : 'https://' + site + '.niveshsahayak.in/'; }
 
   /* field: [key, label key, kind, extra]; kinds: text, area, state, gstin, sel, num, img, unit, gst, ltr */
@@ -67,6 +70,8 @@
       /* Batch 1: price type and credit terms */
       ['ptype', 'b1.ptype', 'sel', { opts: [['retail', 'b1.pt_retail'], ['wholesale', 'b1.pt_whole']], hint: 'b1.h_ptype' }],
       ['climit', 'b1.climit', 'num', { hint: 'b1.h_climit' }], ['cdays', 'b1.cdays', 'num', { hint: 'b1.h_cdays' }],
+      /* India plan A: route / beat and scheme (distributors) */
+      ['route', 'rtb.route', 'text', { hint: 'rtb.h_route' }], ['scheme', 'rtb.scheme', 'text', { hint: 'rtb.h_scheme' }],
       /* compliance pack: MSME payables (size, Udyam number as typed by the supplier, days agreed in writing) */
       ['msme', 'cp.f_size', 'sel', { opts: [['', 'cp.sz_none'], ['micro', 'cp.sz_micro'], ['small', 'cp.sz_small'], ['medium', 'cp.sz_medium'], ['other', 'cp.sz_other']], hint: 'cp.h_size' }],
       ['udyam', 'cp.f_ud', 'ltr', { max: 22, upper: 1, ph: 'UDYAM-XX-00-0000000' }], ['agdays', 'cp.f_ag', 'num', { hint: 'cp.f_ag_h' }]
@@ -82,7 +87,7 @@
   var CSV = {
     biz: [['name', 'Name'], ['addr', 'Address'], ['city', 'City'], ['pin', 'PIN code'], ['state', 'State code'], ['gstin', 'GSTIN'], ['phone', 'Phone'], ['email', 'Email'], ['bankName', 'Bank'], ['bankAcc', 'Account no'], ['bankIfsc', 'IFSC'], ['bankBranch', 'Branch'], ['upi', 'UPI ID'], ['gst.legal', 'Legal name'], ['gst.trade', 'Trade name']],
     party: [['role', 'Type'], ['name', 'Name'], ['phone', 'Phone'], ['email', 'Email'], ['addr', 'Address'], ['city', 'City'], ['pin', 'PIN code'], ['state', 'State code'], ['gstin', 'GSTIN'], ['ship.addr', 'Ship-to address'], ['ship.state', 'Ship-to state code'], ['gst.legal', 'Legal name'], ['gst.trade', 'Trade name'],
-      ['ptype', 'Price type'], ['climit', 'Credit limit'], ['cdays', 'Credit days'], ['msme', 'MSME size'], ['udyam', 'Udyam no'], ['agdays', 'Agreed credit days'], ['group', 'Group']],
+      ['ptype', 'Price type'], ['climit', 'Credit limit'], ['cdays', 'Credit days'], ['route', 'Route / beat'], ['scheme', 'Scheme'], ['msme', 'MSME size'], ['udyam', 'Udyam no'], ['agdays', 'Agreed credit days'], ['group', 'Group']],
     item: [['desc', 'Name'], ['kind', 'Type'], ['cat', 'Group'], ['code', 'Item code'], ['hsn', 'HSN/SAC'], ['unit', 'Unit'], ['rate', 'Rate'], ['wrate', 'Wholesale rate'], ['mrp', 'MRP'], ['prate', 'Purchase price'], ['gst', 'GST %']]
   };
   var NAMEKEY = { biz: 'name', party: 'name', item: 'desc' };
@@ -131,6 +136,8 @@
     if (s === 'party' && r.ptype === 'wholesale') bits.push(esc(t('b1.pt_whole')));
     if (s === 'party' && NS.num(r.climit)) bits.push(esc(t('b1.climit')) + ' ' + NS.money(NS.num(r.climit)));
     if (s === 'party' && NS.num(r.cdays)) bits.push(esc(t('b1.ndays', { n: NS.num(r.cdays) })));
+    if (s === 'party' && r.route) bits.push(esc(t('rtb.route')) + ': ' + esc(r.route));
+    if (s === 'party' && r.scheme) bits.push(esc(t('rtb.scheme')) + ': ' + esc(r.scheme));
     if (r.sample) bits.push('<span class="b1-pill">' + esc(t('b1.sample')) + '</span>');
     return bits.filter(Boolean).join(' · ');
   }
@@ -222,6 +229,7 @@
       '<div class="tools-row"><label class="sr" for="my-q">' + esc(t('my.search')) + '</label><input id="my-q" type="search" placeholder="' + esc(t('my.ph')) + '">' +
       (s === 'doc' ? '' : '<label class="btn sm">' + esc(t('hub.imp')) + '<input type="file" accept=".csv,text/csv" data-imp hidden></label>') +
       (s === 'party' || s === 'item' ? '<button type="button" class="btn sm" data-xlimp data-ic="up">' + esc(t('xi.open')) + '</button>' : '') +
+      (s === 'party' || s === 'item' ? '<button type="button" class="btn sm" data-swimp data-ic="up">' + esc(t('sw.open')) + '</button>' : '') +
       '<button type="button" class="btn sm" data-exp>' + esc(t('hub.exp')) + '</button>' +
       (s === 'doc' ? '<button type="button" class="btn sm" data-xl>' + esc(t('b1.xl_reg')) + '</button>' : s === 'item' ? '<button type="button" class="btn sm" data-xl>' + esc(t('b1.xl_items')) + '</button>' : '') +
       (s === 'doc' ? '' : '<button type="button" class="link" data-tpl>' + esc(t('hub.tpl')) + '</button>') + '</div>' +
@@ -913,6 +921,7 @@
       if (e.target.closest('[data-exp]')) return exportCsv(cur);
       if (e.target.closest('[data-tpl]')) return exportCsv(cur, true);
       if (e.target.closest('[data-xlimp]')) return NS.xlImport && NS.xlImport.open();
+      if (e.target.closest('[data-swimp]')) return NS.swImport && NS.swImport.open();
       if (e.target.closest('[data-xl]')) return excel(cur);
       if (e.target.closest('[data-xllog]')) return NS.xlsx('edit-history-' + NS.today() + '.xlsx', [NS.reports.log(cache.log)]);
       if (e.target.closest('[data-binempty]')) { if (confirm(t('b1.binemptyc'))) Promise.all(cache.bin.map(function (b) { return NSStore.del('bin', b.id); })).then(function () { show('bin'); }); return; }
