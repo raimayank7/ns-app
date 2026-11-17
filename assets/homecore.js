@@ -190,7 +190,7 @@
     ['sell', ['billing', 'quotation', 'proforma', 'sales-order', 'challan', 'cash-memo', 'pos', 'restaurant', 'pharmacy', 'export-invoice', 'e-invoice', 'price-list', 'barcode']],
     ['buy', ['purchase', 'purchase-order', 'self-invoice', 'expenses', 'petty-cash', 'voucher']],
     ['money', ['khata', 'receipt', 'cheque', 'cash-book', 'bank-reco', 'credit-note', 'debit-note']],
-    ['gst', ['gstr1', 'gstr3b', 'gstr2b', 'cmp08', 'tds', 'gst-calendar', 'eway-bill', 'gstin', 'hsn', 'ifsc', 'pincode', 'distance']],
+    ['gst', ['gstr1', 'gstr3b', 'gstr2b', 'cmp08', 'tds', 'declaration', 'gst-calendar', 'eway-bill', 'gstin', 'hsn', 'ifsc', 'pincode', 'distance']],
     ['people', ['salary-slip', 'rent-receipt', 'fee-receipt']],
     ['stock', ['stock', 'bilty', 'job-card', 'contractor-bill']],
     ['books', ['profit-loss', 'tally', 'my']]];
