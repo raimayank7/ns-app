@@ -563,13 +563,14 @@
   };
 
   /* edit buttons in the app's own lists (recent, party statement) open these forms */
+  var prevMX = A.editX;   /* keep the editors other files set before this one (acctx, staff...) */
   A.editX = function (d) {
     if (d.type === 'jv') { jvForm(d); return true; }
     if (d.type === 'fa' && d.kind === 'sale') { var a = X.assets(A.data().doc, A.bizName()).filter(function (x) { return x.id === d.asset; })[0]; if (a) sellForm(a); return true; }
     if (d.type === 'fa') { faForm(d); return true; }
     if (d.type === 'stk' && d.kind === 'move') { moveForm(d); return true; }
     if (d.type === 'stk' && d.kind === 'make') { makeForm(d); return true; }
-    return false;
+    return prevMX ? prevMX(d) : false;
   };
 
   /* ---------- menu: the Batch 2 sections join the app's menu (not on door sites) ---------- */

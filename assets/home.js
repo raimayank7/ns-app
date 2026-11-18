@@ -126,12 +126,58 @@
     pick.forEach(function (x) { tl[x.id] = tag; try { new Notification(t('rm.title', { b: A.bizName() }), { body: lineText(x), tag: x.id, icon: '/icons/icon-192.png' }); } catch (e) {} });
     if (pick.length) LS.set('ns-home-told', JSON.stringify(tl));
   }
-  /* the number on the installed App's icon: how many things need me now (where the phone allows it) */
+  /* ---------- the notification centre (owner 2026-11-18): a bell in the header with the number of things that need me and have not
+     been looked at yet; it opens a list of everything My day knows, grouped, each line opening its screen. It replaces the number
+     Windows drew on the taskbar icon (it covered the logo), so the App icon carries no number any more. Seen = localStorage
+     ns-bell-seen { id: day } (a line comes back the next day while it still needs me). ---------- */
+  function seenMap() { try { return JSON.parse(LS.get('ns-bell-seen') || '{}') || {}; } catch (e) { return {}; } }
+  function lineId(x) { return x.id || (x.k || x.text || '') + ':' + (x.href || ''); }
+  function bellList() { try { return H.todayList(ctx()); } catch (e) { return []; } }
+  function unseen(list) { var sm = seenMap(), d = NS.today(); return list.filter(function (x) { return x.sev <= 1 && sm[lineId(x)] !== d; }); }
+  var bell = null, pnl = null;
+  function bellBtn() {
+    if (bell && bell.isConnected) return bell;
+    var nav = $('header.hd nav'); if (!nav) return null;
+    bell = NS.el('button', { type: 'button', 'class': 'btn sm desk-bell', 'aria-haspopup': 'dialog', 'aria-expanded': 'false', 'data-bell': '' });
+    bell.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="bell-n" hidden></span>';
+    var help = $('[data-help-open]', nav); nav.insertBefore(bell, help || nav.firstChild.nextSibling);
+    bell.addEventListener('click', function () { if (pnl && pnl.open) pnl.close(); else openBell(); });
+    return bell;
+  }
   function badge() {
-    try {
-      var n = H.todayList(ctx()).filter(function (x) { return x.sev <= 0; }).length;
-      if (navigator.setAppBadge) { if (n) navigator.setAppBadge(n); else navigator.clearAppBadge(); }
-    } catch (e) {}
+    try { if (navigator.clearAppBadge) navigator.clearAppBadge(); } catch (e) {}
+    var b = bellBtn(); if (!b) return;
+    var n = unseen(bellList()).length, c = $('.bell-n', b);
+    c.hidden = !n; c.textContent = n > 99 ? '99+' : String(n);
+    b.setAttribute('aria-label', t('bell') + (n ? ' (' + n + ')' : '')); b.title = b.getAttribute('aria-label');
+    if (pnl && pnl.open) fillBell();
+  }
+  function fillBell() {
+    var list = bellList(), un = unseen(list).map(lineId);
+    var body = list.length ? GROUPS.map(function (g) {
+      var xs = list.filter(function (x) { return (GROUPS.indexOf(x.group) >= 0 ? x.group : 'other') === g; });
+      return xs.length ? '<h3>' + esc(t('g.' + g)) + '</h3><ul class="hm-list">' + xs.map(function (x) { return lineHtml(x).replace('<li class="', '<li class="' + (un.indexOf(lineId(x)) >= 0 ? 'bell-new ' : '')); }).join('') + '</ul>' : '';
+    }).join('') : '<p class="soft">' + esc(t('bell_none')) + '</p>';
+    pnl.innerHTML = '<div class="bell-hd"><h2 id="bell-h">' + esc(t('bell')) + '</h2><button type="button" class="btn sm" data-bell-read' + (un.length ? '' : ' disabled') + '>' + esc(t('bell_read')) + '</button></div>' +
+      '<div class="bell-body">' + body + '</div><p class="bell-ft"><a class="btn sm primary" href="#day">' + esc(t('bell_day')) + '</a></p>';
+    $('[data-bell-read]', pnl).addEventListener('click', function () { markSeen(list); });
+  }
+  function markSeen(list) {
+    var sm = seenMap(), d = NS.today();
+    Object.keys(sm).forEach(function (k) { if (sm[k] !== d) delete sm[k]; });   /* keep only today's marks */
+    list.forEach(function (x) { sm[lineId(x)] = d; });
+    LS.set('ns-bell-seen', JSON.stringify(sm)); badge();
+  }
+  function openBell() {
+    if (!pnl) {
+      pnl = NS.el('dialog', { 'class': 'bell-pnl', 'aria-labelledby': 'bell-h' }); document.body.appendChild(pnl);
+      pnl.addEventListener('click', function (e) { if (e.target === pnl) pnl.close(); var a = e.target.closest && e.target.closest('a[href^="#"]'); if (a) pnl.close(); });
+      pnl.addEventListener('close', function () { if (bell) bell.setAttribute('aria-expanded', 'false'); });
+    }
+    fillBell();
+    var r = bell.getBoundingClientRect();
+    pnl.style.top = (r.bottom + 6) + 'px'; pnl.style.insetInlineEnd = Math.max(8, innerWidth - r.right) + 'px';
+    pnl.showModal(); bell.setAttribute('aria-expanded', 'true');
   }
   function icsGo(pane) {
     var c = ctx(), until = H.addDays(c.today, 60), rows = H.dueEntries(c.docs, c.biz, c.today, until, c.cdays, { recv: t('rm.recv'), pay: t('rm.pay') });
