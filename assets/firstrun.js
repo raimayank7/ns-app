@@ -1,8 +1,6 @@
-/* First-run setup and feature switches of the Nivesh Sahayak App (after app.js and the files that add its screens).
-   The FILTER (only the tools of the business's type) works in every browser tab: a business with a saved choice follows it, a business that only
-   has a type (biz.kind) follows that type's recommendation, a business with neither (or the sample business) shows everything. The first-run
-   SETUP asks only when the App runs as an installed app (display-mode standalone / window-controls-overlay, iPhone navigator.standalone;
-   tests: ?installed=1 remembers it for the tab, ?installed=0 forgets it). The door sites see no change.
+/* First-run setup and feature switches of the INSTALLED Nivesh Sahayak App (after app.js and the files that add its screens).
+   Only when the App runs as an installed app (display-mode standalone / window-controls-overlay, iPhone navigator.standalone;
+   tests: ?installed=1 remembers it for the tab, ?installed=0 forgets it). Browser visitors and the door sites see no change.
      setup      before first use, once per business: type of business, legal form (biz.btype, the same field as My data, fahub.js),
                 name, state, GST registration (biz.reg); optional address, GSTIN (GST portal fill, gstfetch.js), bank, UPI, logo.
                 A business already in the data home is filled in, so the user only confirms. biz.kind = the type of business.
@@ -15,62 +13,43 @@
 (function () {
   'use strict';
   /* ---------- what can be switched: group, [feature, name key, what it hides] ----------
-     sec = App screens (data-sec), form = quick-add forms (data-form), href = links inside a screen,
-     ic = tools and sites: 't-<site>' / 'd-<site>' (the same site under both names): its link in the side menu, the home screen's
-     "All tools by job" buttons, the footer's "More free tools" and (document makers) the New document choices.
-     Dashboard, Sales, Money in and out, Dues, Parties, My day and All tools are always on. */
+     sec = App screens (data-sec), form = quick-add forms (data-form), ic = side-menu tools (data-ic; d-<site> also leaves New document),
+     href = links inside a screen. Dashboard, Sales, Money in and out, Dues and Parties are always on. */
   var CAT = [
     ['sell', [['buy', 'app.buy', { sec: ['buy'], form: ['pbill', 'pret', 'exp'], ic: ['t-purchase', 't-expenses'] }],
       ['orders', 'fr.f_orders', { ic: ['d-proforma', 'd-sales-order', 'd-challan', 'd-purchase-order'] }],
-      ['repeat', 'app.repeat', { sec: ['repeat'] }], ['export', 'nav.exp', { ic: ['t-export-invoice'] }], ['share', 'nav.share', { ic: ['t-share'] }]]],
+      ['repeat', 'app.repeat', { sec: ['repeat'] }], ['export', 'nav.exp', { ic: ['t-export-invoice'] }]]],
     ['money', [['books', 'app.books', { sec: ['books'], ic: ['t-cash-book'] }], ['chq', 'app.chq', { sec: ['chq'], ic: ['t-cheque'] }],
-      ['bankreco', 'nav.bankreco', { sec: ['bimp'], ic: ['t-bank-reco'] }], ['khata', 'nav.khata', { ic: ['t-khata'] }],
-      ['msme', 'app.msme', { sec: ['msme', 'limits'] }], ['trust', 'tr.t', { sec: ['trust'] }]]],
-    ['stock', [['stock', 'nav.stock', { ic: ['t-stock', 't-price-list'] }], ['godown', 'app.b2gd', { sec: ['b2gd'] }], ['barcode', 'nav.barcode', { ic: ['t-barcode'] }],
-      ['warr', 'wr.t', { sec: ['warr'] }]]],
+      ['bankreco', 'nav.bankreco', { ic: ['t-bank-reco'] }], ['khata', 'nav.khata', { ic: ['t-khata'] }]]],
+    ['stock', [['stock', 'nav.stock', { ic: ['t-stock', 't-price-list'] }], ['godown', 'app.b2gd', { sec: ['b2gd'] }], ['barcode', 'nav.barcode', { ic: ['t-barcode'] }]]],
     ['mfg', [['make', 'app.b2make', { sec: ['b2make'] }], ['job', 'app.b2job', { sec: ['b2job'] }], ['mfgac', 'fm.t_mfg', { href: ['#fam/mfg'] }]]],
     ['acct', [['reports', 'app.reports', { sec: ['reports'] }], ['fin', 'app.fin', { sec: ['fin', 'capl'], ic: ['t-profit-loss'] }], ['jv', 'app.b2jv', { sec: ['b2jv'] }],
       ['fa', 'app.b2fa', { sec: ['b2fa'] }], ['profit', 'app.b2profit', { sec: ['b2profit'] }], ['year', 'app.b2year', { sec: ['b2year'] }],
-      ['grp', 'app.grp', { sec: ['grp'] }], ['tally', 'nav.tally', { ic: ['t-tally'] }], ['itx', 'app.itx', { sec: ['itx'] }]]],
+      ['grp', 'app.grp', { sec: ['grp'] }], ['tally', 'nav.tally', { ic: ['t-tally'] }]]],
     ['gst', [['gstr', 'fr.f_gstr', { ic: ['t-gstr1', 't-gstr3b', 't-gstr2b', 't-gst-calendar'] }], ['cmp08', 'nav.cmp08', { ic: ['t-cmp08'] }],
-      ['einv', 'fr.f_einv', { ic: ['t-e-invoice', 't-eway-bill'] }], ['tds', 'nav.tds', { ic: ['t-tds', 't-declaration'] }], ['gsttools', 'fr.f_gsttools', { ic: ['t-hsn', 't-gstin', 'd-self-invoice'] }]]],
+      ['einv', 'fr.f_einv', { ic: ['t-e-invoice', 't-eway-bill'] }], ['tds', 'nav.tds', { ic: ['t-tds'] }], ['gsttools', 'fr.f_gsttools', { ic: ['t-hsn', 't-gstin', 'd-self-invoice'] }]]],
     ['ind', [['pos', 'nav.pos', { ic: ['t-pos'] }], ['pharmacy', 'nav.pharmacy', { ic: ['t-pharmacy'] }], ['resto', 'nav.restaurant', { ic: ['t-restaurant'] }],
-      ['bilty', 'nav.bilty', { ic: ['t-bilty'] }], ['trips', 'nav.tripsheet', { ic: ['t-tripsheet'] }], ['rabill', 'fr.f_rabill', { ic: ['t-contractor-bill'] }],
-      ['fee', 'nav.feereceipt', { ic: ['t-fee-receipt'] }], ['fees', 'app.fees', { sec: ['fees'], ic: ['t-fees'] }], ['jobcard', 'nav.jobcard', { ic: ['t-job-card'] }],
-      ['hotel', 'nav.hotel', { ic: ['t-hotel'] }], ['rentmgr', 'nav.rentmgr', { ic: ['t-rent', 'd-rent-receipt'] }],
-      ['garage', 'nav.garage', { ic: ['t-garage'] }], ['amc', 'nav.amc', { ic: ['t-amc'] }], ['subs', 'nav.subs', { ic: ['t-subscribers'] }],
-      ['dairy', 'nav.dairy', { ic: ['t-dairy'] }], ['clinic', 'nav.clinic', { ic: ['t-clinic'] }], ['salon', 'nav.salon', { ic: ['t-salon'] }],
-      ['garment', 'nav.garment', { ic: ['t-garment'] }], ['jewellery', 'nav.jewellery', { ic: ['t-jewellery'] }], ['mandi', 'nav.mandi', { ic: ['t-mandi'] }],
-      ['petrol', 'nav.petrol', { ic: ['t-petrol'] }], ['marketplace', 'nav.marketplace', { ic: ['t-marketplace'] }]]],
-    ['staff', [['sman', 'app.b2sman', { sec: ['b2sman'] }], ['salary', 'nav.salary', { sec: ['stf'], ic: ['d-salary-slip'], href: ['#stf'] }]]],
-    ['learn', [['lrn', 'fr.f_lrn', { ic: ['t-calc', 't-file', 't-compare', 't-learn'] }], ['packs', 'pk.title', { sec: ['packs'] }], ['caview', 'nav.ca', { sec: ['cacom'], ic: ['t-ca'] }]]]
+      ['bilty', 'nav.bilty', { ic: ['t-bilty'] }], ['rabill', 'fr.f_rabill', { ic: ['t-contractor-bill'] }], ['fee', 'nav.feereceipt', { ic: ['t-fee-receipt'] }], ['jobcard', 'nav.jobcard', { ic: ['t-job-card'] }], ['hotel', 'nav.hotel', { ic: ['t-hotel'] }], ['rentmgr', 'nav.rentmgr', { ic: ['t-rent'] }],
+      ['garage', 'nav.garage', { ic: ['t-garage'] }], ['amc', 'nav.amc', { ic: ['t-amc'] }]]],
+    ['staff', [['sman', 'app.b2sman', { sec: ['b2sman'] }], ['salary', 'nav.salary', { ic: ['d-salary-slip'] }]]]
   ];
   var FEAT = {}; CAT.forEach(function (g) { g[1].forEach(function (f) { FEAT[f[0]] = f; }); });
 
   /* ---------- what each business gets ON at the start (owner's idea: only what the business needs) ---------- */
-  var KINDS = ['shop', 'whole', 'mfg', 'svc', 'resto', 'pharma', 'trans', 'contr', 'school', 'salon', 'clinic', 'dairy', 'hotel', 'rent', 'garage', 'jewel', 'garment', 'petrol', 'mandi', 'online', 'other'];
-  var BASE = ['buy', 'books', 'reports', 'itx', 'lrn', 'packs'];
+  var KINDS = ['shop', 'whole', 'mfg', 'svc', 'resto', 'pharma', 'trans', 'contr', 'school', 'salon', 'clinic', 'other'];
+  var BASE = ['buy', 'books', 'reports'];
   var REC = {
-    shop: ['stock', 'barcode', 'khata', 'chq', 'pos', 'share'],
-    whole: ['orders', 'stock', 'godown', 'chq', 'bankreco', 'grp', 'sman', 'einv', 'msme', 'share'],
-    mfg: ['orders', 'stock', 'godown', 'make', 'job', 'mfgac', 'fin', 'chq', 'bankreco', 'einv', 'salary', 'jv', 'tally', 'msme'],
-    svc: ['repeat', 'tds', 'bankreco', 'amc', 'subs', 'msme'],
+    shop: ['stock', 'barcode', 'khata', 'chq', 'pos'],
+    whole: ['orders', 'stock', 'godown', 'chq', 'bankreco', 'grp', 'sman', 'einv'],
+    mfg: ['orders', 'stock', 'godown', 'make', 'job', 'mfgac', 'fin', 'chq', 'bankreco', 'einv', 'salary', 'jv', 'tally'],
+    svc: ['repeat', 'tds', 'bankreco', 'amc'],
     resto: ['resto', 'stock'],
     pharma: ['pharmacy', 'stock', 'barcode', 'khata'],
-    trans: ['bilty', 'trips', 'chq', 'tds', 'bankreco'],
-    contr: ['rabill', 'orders', 'tds', 'chq', 'fa', 'msme'],
-    school: ['fee', 'fees', 'salary', 'repeat', 'trust'],
-    salon: ['salon', 'repeat', 'salary'],
-    clinic: ['clinic', 'repeat', 'salary'],
-    dairy: ['dairy', 'khata', 'stock', 'subs'],
-    hotel: ['hotel', 'resto', 'salary', 'repeat', 'stock'],
-    rent: ['rentmgr', 'repeat', 'tds'],
-    garage: ['garage', 'jobcard', 'amc', 'stock', 'salary'],
-    jewel: ['jewellery', 'stock', 'barcode', 'khata', 'chq'],
-    garment: ['garment', 'stock', 'barcode', 'pos', 'khata', 'share'],
-    petrol: ['petrol', 'stock', 'bankreco', 'salary', 'chq'],
-    mandi: ['mandi', 'stock', 'khata', 'chq', 'bankreco', 'salary'],
-    online: ['marketplace', 'stock', 'orders', 'bankreco', 'tds', 'barcode'],
+    trans: ['bilty', 'chq', 'tds', 'bankreco'],
+    contr: ['rabill', 'orders', 'tds', 'chq', 'fa'],
+    school: ['fee', 'salary', 'repeat'],
+    salon: ['repeat', 'salary'],
+    clinic: ['repeat', 'salary'],
     other: []
   };
   var FORMS = ['prop', 'firm', 'llp', 'co', 'npo'], REGS = ['regular', 'comp', 'unreg'];
@@ -80,7 +59,6 @@
     if (reg === 'regular' || reg === 'sez') { o.gstr = 1; o.gsttools = 1; } else { delete o.einv; if (reg === 'comp') o.cmp08 = 1; }
     if (btype && btype !== 'prop') { o.fin = 1; o.jv = 1; o.tally = 1; }   /* a firm, LLP, company or trust: final accounts (capital, appropriation, I&E), journal entries, its accountant's Tally */
     if (btype === 'co') { o.fa = 1; o.jv = 1; o.year = 1; }
-    if (btype === 'npo') o.trust = 1;
     return o;
   }
   NS.featMap = { CAT: CAT, KINDS: KINDS, rec: rec };   /* read only: the feature map for tests (scripts/test_firstrun.js) */
@@ -99,7 +77,7 @@
     } catch (e) {}
     return matchMedia('(display-mode: standalone), (display-mode: window-controls-overlay)').matches || navigator.standalone === true;
   }
-  var INST = installed();
+  if (!installed()) return;
 
   /* ---------- the data: current business, its switches ---------- */
   var SET = {}, BIZL = [], CUR = null, ENTRY = null, HIDESEL = '', FORMOFF = {};
@@ -111,8 +89,6 @@
     return Promise.all([NSStore.list('biz'), NSStore.meta('settings')]).then(function (r) {
       BIZL = r[0] || []; SET = r[1] || {}; CUR = pickBiz();
       ENTRY = CUR && CUR.id && SET.features && SET.features[CUR.id] || null;
-      /* no saved choice yet, but the business has its type (My data / an older setup): the type's recommendation, nothing saved until a switch is used */
-      if (!ENTRY && CUR && CUR.id && KINDS.indexOf(CUR.kind) >= 0) ENTRY = { kind: CUR.kind, sw: {}, derived: 1 };
     });
   }
   function isOn(f, e) {
@@ -135,11 +111,7 @@
       var h = FEAT[f][2];
       (h.sec || []).forEach(function (s) { off[s] = 1; sel.push('a[data-sec="' + s + '"]'); });
       (h.form || []).forEach(function (s) { FORMOFF[s] = 1; sel.push('.quick [data-form="' + s + '"]'); });
-      (h.ic || []).forEach(function (s) {
-        var site = s.slice(2);   /* the same site is 't-' in the side menu and 'd-' on the home screen's buttons: hide both, and its footer link */
-        sel.push('a[data-ic="t-' + site + '"]', 'a[data-ic="d-' + site + '"]', 'select[data-newdoc] option[value="' + site + '"]',
-          'footer a[href^="https://' + site + '.niveshsahayak.in/"]', 'footer li:has(>a[href^="https://' + site + '.niveshsahayak.in/"])');
-      });
+      (h.ic || []).forEach(function (s) { sel.push('#ns-side a[data-ic="' + s + '"]'); if (s.indexOf('d-') === 0) sel.push('select[data-newdoc] option[value="' + s.slice(2) + '"]'); });
       (h.href || []).forEach(function (s) { sel.push('[data-pane] a[href="' + s + '"]'); });
     });
     HIDESEL = sel.join(',');
@@ -150,8 +122,6 @@
     syncTab(off);
   }
   /* the search box (desk.js) leaves out what is hidden: a side-menu link (element) or a quick-add form (its name) */
-  /* is this feature on for the current business? (true when nothing filters: no business, sample data, unknown type) */
-  NS.featOn = function (f) { return !(ENTRY && !(CUR && CUR.sample)) || !FEAT[f] || isOn(f); };
   NS.featHidden = function (x) {
     if (typeof x === 'string') return !!FORMOFF[x];
     try { return !!(HIDESEL && x && x.matches && x.matches(HIDESEL)); } catch (e) { return false; }
@@ -375,7 +345,7 @@
 
   /* ---------- the Additional features screen ---------- */
   /* the installed App has no language menu at the top: the language is picked here */
-  function langCard() { return !INST ? '' : '<div class="card nsf-lang f"><label for="nsf-lang"><b>' + esc(NS.t('lang')) + '</b></label>' + NS.langSelect('nsf-lang') + '<small class="hint">' + esc(NS.t('hub.h.lang2')) + '</small></div>'; }
+  function langCard() { return '<div class="card nsf-lang f"><label for="nsf-lang"><b>' + esc(NS.t('lang')) + '</b></label>' + NS.langSelect('nsf-lang') + '<small class="hint">' + esc(NS.t('hub.h.lang2')) + '</small></div>'; }
   A.addSection('features', function () {
     if (!ENTRY) return '<h2>' + esc(T('menu')) + '</h2>' + langCard() + '<p>' + esc(T('first')) + '</p><p><button type="button" class="btn primary" data-nsf-setup>' + esc(T('title')) + '</button></p>';
     var R = rec(ENTRY.kind, CUR.reg, CUR.btype), on = {};
@@ -392,7 +362,6 @@
     if (!ENTRY) return;
     function store(sw, msg) {
       ENTRY = Object.assign({}, ENTRY, { sw: sw, at: Date.now() });
-      delete ENTRY.derived;
       apply();
       return saveEntry(CUR.id, ENTRY).then(function () { NS.toast(msg || T('saved')); }, function (x) { NS.toast(NS.t('nosave', { e: x.message }), 'bad'); });
     }
@@ -408,10 +377,8 @@
   var queue = Promise.resolve();
   function refresh(redraw) {
     queue = queue.then(load).then(function () {
-      var before = HIDESEL; menuLink(); apply();
-      /* the screen was drawn before the data home answered: its tool buttons are drawn again now that some are hidden */
-      if (HIDESEL !== before && /^#(tools|day)/.test(location.hash) && !(dlg && dlg.open)) A.show();
-      if (INST && !(CUR && CUR.sample) && (!CUR || !ENTRY || ENTRY.derived && !(SET.features && SET.features[CUR.id])) && !(dlg && dlg.open) && !laterSet() && !busy()) openSetup(true);
+      menuLink(); apply();
+      if (!(CUR && CUR.sample) && (!CUR || !ENTRY) && !(dlg && dlg.open) && !laterSet() && !busy()) openSetup(true);
       if (redraw) return A.show();
     }).catch(function () {});
     return queue;
