@@ -64,7 +64,11 @@
   var monthSel = '';
   function monthName(ym) { try { return new Intl.DateTimeFormat(document.documentElement.lang || 'en', { month: 'long', year: 'numeric' }).format(new Date(+ym.slice(0, 4), +ym.slice(5, 7) - 1, 1)); } catch (e) { return ym; } }
   function monthHtml() {
-    var c = ctx(), id = bizId(), ym = monthSel || H.monthDefault(c.today), tk = H.ticked(STATE, id, ym), pr = H.progress(STATE, id, ym), hint = H.monthHints(c, ym);
+    var c = ctx(), id = bizId(), ym = monthSel || H.monthDefault(c.today), tk = H.ticked(STATE, id, ym), hint = H.monthHints(c, ym);
+    /* steps that belong to a feature this business has switched off (Additional features) are left out, and out of the count */
+    var STEPF = { stock: 'stock', staff: 'salary', gst: 'gstr', tds: 'tds', review: 'fin' };
+    var steps = H.MONTHEND.filter(function (s) { return !STEPF[s[0]] || !NS.featOn || NS.featOn(STEPF[s[0]]); });
+    var pr = { done: steps.filter(function (x) { return tk[x[0]]; }).length, of: steps.length };
     var opts = ''; for (var i = 1; i <= 12; i++) { var m = H.addMonth(c.today.slice(0, 7), 1 - i); opts += '<option value="' + m + '"' + (m === ym ? ' selected' : '') + '>' + esc(monthName(m)) + '</option>'; }
     function hintOf(s) {
       var h = hint[s]; if (s === 'sales') return h.n ? t('mh.sales', { n: h.n, a: money(h.a) }) : t('mh.none');
@@ -78,7 +82,7 @@
     }
     return '<div class="card"><div class="hm-mh"><label>' + esc(t('month')) + ' <select data-hm-month>' + opts + '</select></label><b>' + esc(t('prog', { d: pr.done, n: pr.of })) + '</b></div>' +
       '<div class="hm-bar" role="progressbar" aria-valuemin="0" aria-valuemax="' + pr.of + '" aria-valuenow="' + pr.done + '"><i style="width:' + Math.round(pr.done / pr.of * 100) + '%"></i></div>' +
-      '<ol class="hm-steps">' + H.MONTHEND.map(function (s) {
+      '<ol class="hm-steps">' + steps.map(function (s) {
         var on = !!tk[s[0]], h = hintOf(s[0]);
         return '<li><label class="chk"><input type="checkbox" data-hm-tick="' + s[0] + '"' + (on ? ' checked' : '') + '> <b>' + esc(t(s[1])) + '</b></label><span class="soft">' + esc(t(s[1] + 'p')) + (h ? ' · ' + esc(h) : '') + '</span>' +
           '<a class="btn sm" href="' + esc(s[2]) + '">' + esc(t('open')) + '</a></li>';
@@ -189,7 +193,13 @@
       }).join('');
   }
   function toolsWire(pane) {
-    var f = $('[data-hm-find]', pane); if (!f) return;
+    /* tools hidden for this business (firstrun.js): a job with nothing left is dropped, and a note says where to turn them on */
+    var nHid = 0;
+    $$('[data-hm-site]', pane).forEach(function (a) { if (getComputedStyle(a).display === 'none') nHid++; });
+    $$('[data-hm-job]', pane).forEach(function (j) { if (!$$('[data-hm-site]', j).some(function (a) { return getComputedStyle(a).display !== 'none'; })) j.style.display = 'none'; });
+    var f = $('[data-hm-find]', pane);
+    if (nHid && f) f.parentNode.insertAdjacentHTML('afterend', '<p class="soft hm-hidnote">' + esc(NS.t('fr.hidnote')) + ' <a href="#features">' + esc(NS.t('fr.menu')) + '</a></p>');
+    if (!f) return;
     f.addEventListener('input', function () {
       var q = f.value.trim().toLowerCase();
       $$('[data-hm-site]', pane).forEach(function (a) { a.hidden = !!q && a.getAttribute('data-n').indexOf(q) < 0; });
