@@ -1,4 +1,4 @@
-/* Manufacturing extras in the Nivesh Sahayak App (Stock Step C), through NSApp like more.js. Logic lives in mfgcore.js (NSMfg).
+/* Manufacturing extras in NSBiz (Stock Step C), through NSApp like more.js. Logic lives in mfgcore.js (NSMfg).
      b2make  replaces more.js's Production screen: bill of materials versions (name + in use from), multi-level BOM
              (sub-parts made in the same entry or used from stock, loops refused), by-products and scrap in a production entry
      b2job   job work: sent to a job worker / received back (stock records 'jobout' / 'jobin'), goods still with job workers

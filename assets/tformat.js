@@ -1,4 +1,4 @@
-/* T format (horizontal) final accounts in the Nivesh Sahayak App (after finrep.js). finrep.js asks four hooks:
+/* T format (horizontal) final accounts in NSBiz (after finrep.js). finrep.js asks four hooks:
      A.finT(view, C)           screen body and money tiles of fin/pl and fin/bs when the T format is chosen (else null)
      A.finT(view, C, 'sheet')  the English printed sheet (print, PDF) in the T format (else null)
      A.finWire(pane, view)     the format switch "T format (horizontal)" / "Schedule III (vertical)" above the statement
@@ -36,7 +36,7 @@
         '<p>Gross profit = sales less (opening stock + purchases + direct expenses − closing stock). Closing stock valued at ' + valEn() + '.</p>'
       : bizHead(E.t_bs.toUpperCase(), 'As at ' + A.ldate(r[1])) + V.html(F.B, 'bs', { en: true });
     return '<div class="stsheet sh tf-sheet" dir="ltr" lang="en-IN" data-sheet>' + top +
-      '<p class="st-ft">Made with the Nivesh Sahayak App on ' + A.ldate(NS.today()) + ' from the saved records. Traditional (T) format. Not audited.</p></div>';
+      '<p class="st-ft">Made with NSBiz on ' + A.ldate(NS.today()) + ' from the saved records. Traditional (T) format. Not audited.</p></div>';
   }
 
   A.finT = function (view, C, what) {

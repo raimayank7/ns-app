@@ -1,4 +1,4 @@
-/* First-run setup and feature switches of the Nivesh Sahayak App (after app.js and the files that add its screens).
+/* First-run setup and feature switches of NSBiz (after app.js and the files that add its screens).
    The FILTER (only the tools of the business's type) works in every browser tab: a business with a saved choice follows it, a business that only
    has a type (biz.kind) follows that type's recommendation, a business with neither (or the sample business) shows everything. The first-run
    SETUP asks only when the App runs as an installed app (display-mode standalone / window-controls-overlay, iPhone navigator.standalone;
@@ -113,12 +113,20 @@
       ENTRY = CUR && CUR.id && SET.features && SET.features[CUR.id] || null;
       /* no saved choice yet, but the business has its type (My data / an older setup): the type's recommendation, nothing saved until a switch is used */
       if (!ENTRY && CUR && CUR.id && KINDS.indexOf(CUR.kind) >= 0) ENTRY = { kind: CUR.kind, sw: {}, derived: 1 };
+      /* owner 2026-11-18: the type picked in the setup filters at once, before the business details are saved (settings.pendKind) */
+      if (!ENTRY && !(CUR && CUR.sample) && KINDS.indexOf(SET.pendKind) >= 0) ENTRY = { kind: SET.pendKind, sw: {}, derived: 1 };
     });
   }
   function isOn(f, e) {
     e = e || ENTRY; if (!e) return true;
     if (e.sw && f in e.sw) return !!e.sw[f];
     return !!rec(e.kind, CUR && CUR.reg, CUR && CUR.btype)[f];
+  }
+  /* the type is kept the moment it is picked; until the business is saved it filters every screen (strict) */
+  function pend(k) {
+    NSStore.meta('settings').then(function (s) { s = s || {}; s.pendKind = k; SET = s; return NSStore.meta('settings', s); }).then(function () {
+      if (!CUR || !(SET.features && SET.features[CUR.id]) && KINDS.indexOf(CUR.kind) < 0) { ENTRY = { kind: k, sw: {}, derived: 1 }; apply(); }
+    }).catch(function () {});
   }
   function saveEntry(id, entry) {   /* read the newest settings first: My data and the App's year end write the same record */
     return NSStore.meta('settings').then(function (s) {
@@ -266,7 +274,7 @@
   }
   function read(e) {
     var el = e.target;
-    if (el.name === 'nsf-kind' && el.checked) { if (S.kind !== el.value) S.sw = null; S.kind = el.value; }
+    if (el.name === 'nsf-kind' && el.checked) { if (S.kind !== el.value) S.sw = null; S.kind = el.value; pend(S.kind); }
     else if (el.name === 'nsf-reg' && el.checked) { if (S.reg !== el.value) S.sw = null; S.reg = el.value; }
     else if (el.hasAttribute('data-sw')) { S.sw = S.sw || rec(S.kind, S.reg, S.btype); S.sw[el.getAttribute('data-sw')] = el.checked ? 1 : 0; }
     else if (el.id === 'nsf-logo' && e.type === 'change' && el.files[0]) shrink(el.files[0], 360).then(function (u) { S.logo = u; draw(); }, function () { NS.toast(T('nologo'), 'bad'); });
@@ -377,7 +385,7 @@
   /* the installed App has no language menu at the top: the language is picked here */
   function langCard() { return !INST ? '' : '<div class="card nsf-lang f"><label for="nsf-lang"><b>' + esc(NS.t('lang')) + '</b></label>' + NS.langSelect('nsf-lang') + '<small class="hint">' + esc(NS.t('hub.h.lang2')) + '</small></div>'; }
   A.addSection('features', function () {
-    if (!ENTRY) return '<h2>' + esc(T('menu')) + '</h2>' + langCard() + '<p>' + esc(T('first')) + '</p><p><button type="button" class="btn primary" data-nsf-setup>' + esc(T('title')) + '</button></p>';
+    if (!ENTRY || !CUR) return '<h2>' + esc(T('menu')) + '</h2>' + langCard() + '<p>' + esc(T('first')) + '</p><p><button type="button" class="btn primary" data-nsf-setup>' + esc(T('title')) + '</button></p>';
     var R = rec(ENTRY.kind, CUR.reg, CUR.btype), on = {};
     Object.keys(FEAT).forEach(function (f) { on[f] = isOn(f); });
     return '<div class="pane-hd"><h2><small class="soft">' + esc(T('settings')) + ' ›</small> ' + esc(T('menu')) + '</h2></div>' +
@@ -389,7 +397,7 @@
       '<p class="soft">' + esc(always()) + '</p><div class="nsf-set">' + swList(on, R) + '</div>';
   }, function (pane) {
     var b = $('[data-nsf-setup]', pane); if (b) b.addEventListener('click', function () { openSetup(!ENTRY); });
-    if (!ENTRY) return;
+    if (!ENTRY || !CUR) return;
     function store(sw, msg) {
       ENTRY = Object.assign({}, ENTRY, { sw: sw, at: Date.now() });
       delete ENTRY.derived;

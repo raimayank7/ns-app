@@ -24,7 +24,7 @@
   KITOF.dairy = ['dairy', 'nav.dairy']; KITOF.subs = ['subscribers', 'nav.subs'];   /* India plan B */
   KITOF.mandi = ['mandi', 'nav.mandi']; KITOF.pump = ['petrol', 'nav.petrol']; KITOF.tsh = ['tripsheet', 'nav.tripsheet'];   /* group E trade tools */
   function toolUrl(site) { if (site === 'app') return APP; var x = TOOLS.filter(function (x) { return x[0] === site; })[0] || TOOLS[0]; return LOCAL ? 'http://localhost:' + x[4] + '/' : 'https://' + x[1] + '/'; }
-  /* records made in the Nivesh Sahayak App (purchase bills, expenses, opening balances) open there */
+  /* records made in NSBiz (purchase bills, expenses, opening balances) open there */
   var APP = LOCAL ? 'http://localhost:8880/' : 'https://app.niveshsahayak.in/';
   var APPDOC = { pbill: ['Purchase bill', '#buy'], exp: ['Expense', '#buy'], ob: ['Opening balance', '#money'] };
   /* number prefixes of the other documents (Settings); quotation and credit note have two series each */
@@ -124,7 +124,7 @@
     if (s === 'doc') return NS.fmtDate(r.date) + ' · ' + esc(r.buyer && r.buyer.name || (r.type === 'exp' ? (function (c) { var k = 'app.ex_' + c, v = t(k); return v !== k ? v : c; })(r.cat || r.head || '') : t('h.nocust'))) + ' · <b>' + NS.money(r.total || 0) + '</b> · ' + esc(r.seller && r.seller.name || '') +
       (!r.type || r.type === 'invoice' || r.type === 'cashmemo' ? ' <span class="pill' + (r.status === 'paid' ? ' ok' : '') + '">' + esc(t(r.status === 'paid' ? 'h.paidp' : 'h.unpaidp')) + '</span>'
         : r.status ? ' <span class="pill' + (/^(acc|inv|sdone|prec|nadj|nref|nrecv|npaid)$/.test(r.status) ? ' ok' : '') + '">' + esc(t('qs.' + r.status)) + '</span>' : '') +
-      (APPDOC[r.type] ? ' <a href="' + APP + APPDOC[r.type][1] + '" target="_blank" rel="noopener">Nivesh Sahayak App ›</a>' :
+      (APPDOC[r.type] ? ' <a href="' + APP + APPDOC[r.type][1] + '" target="_blank" rel="noopener">NSBiz ›</a>' :
       KITOF[kitType(r)] ? ' <a href="' + siteUrl(KITOF[kitType(r)][0]) + '?open=' + encodeURIComponent(r.id) + '" target="_blank" rel="noopener">' + esc(t(KITOF[kitType(r)][1])) + ' ›</a>' :
       ' <a href="' + toolUrl(r.type === 'note' && r.kind === 'debit' ? 'debit-note' : SITEOF[r.type || 'invoice']) + '" target="_blank" rel="noopener">' + esc(t(TOOLS.filter(function (x) { return x[0] === (r.type === 'note' && r.kind === 'debit' ? 'debit-note' : SITEOF[r.type || 'invoice']); }).map(function (x) { return x[2]; })[0] || 'nav.billing')) + ' ›</a>');
     if (s === 'item') return [NS.itemGroup(r, G).id && '<span class="pill">' + esc(gPath('item', NS.itemGroup(r, G).id)) + '</span>', r.code && esc(r.code), r.hsn && 'HSN ' + esc(r.hsn), !(NS.num(r.rate) > 0) && NS.num(r.prate) > 0 && esc(t('prl.c.prate')) + ' ' + NS.money(NS.num(r.prate)), NS.num(r.rate) > 0 && NS.money(NS.num(r.rate)) + (r.unit ? ' / ' + esc(r.unit) : ''),

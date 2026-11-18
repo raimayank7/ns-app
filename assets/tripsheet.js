@@ -1,5 +1,5 @@
 /* tripsheet.niveshsahayak.in: trip sheets for a small taxi operator, travel agency or courier agent (India plan C).
-   Record type 'tsh' (mode taxi | travel | courier). The customer (or the sender of the parcels) is `buyer`, so the sheet reaches the Nivesh Sahayak App as a
+   Record type 'tsh' (mode taxi | travel | courier). The customer (or the sender of the parcels) is `buyer`, so the sheet reaches NSBiz as a
    sale to that party once it is saved (record() turns the lines into one or two bill lines). Own costs, commission and COD to hand over stay on the sheet.
    The sums are in engine/sheetcore.js (NSSheet). GST is only what the user types: this tool states no GST rate. */
 (function () {

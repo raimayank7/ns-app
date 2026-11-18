@@ -1,7 +1,7 @@
 /* garment.niveshsahayak.in: garment shop bill with size and colour variants. A product (Polo T-shirt) has sizes and colours; every
    size x colour is an item master ("Polo T-shirt - M / Blue") with its own stock, so the stock site, GSTR-1 and the App read it like
    any item. On the bill you tap a size/colour cell to add one; the cell shows the pieces in stock. Record type 'garment' (a sale in the
-   Nivesh Sahayak App). The pure logic is in garmentcore.js; stock comes from stockcore.js. GST is a typed field (5% up to Rs 2,500 a piece
+   NSBiz). The pure logic is in garmentcore.js; stock comes from stockcore.js. GST is a typed field (5% up to Rs 2,500 a piece
    and 18% above is only the suggestion). */
 (function () {
   'use strict';

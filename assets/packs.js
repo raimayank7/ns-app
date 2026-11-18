@@ -1,4 +1,4 @@
-/* Trade packs in the Nivesh Sahayak App (after packscore.js and firstrun.js): Settings › Trade packs (#packs).
+/* Trade packs in NSBiz (after packscore.js and firstrun.js): Settings › Trade packs (#packs).
    One tap starts a trade: items with HSN/SAC and GST rate, document defaults and number series, the App features it needs, and boxes on the home screen.
    Always shows first what it will add; never deletes or overwrites; can be removed again (only what it added and is still unchanged).
    Saved in meta 'packs' = { <business id>: { <pack id>: { at, items: [{id, sig}], sets: [{path, value}], feats: [feature], by } } }.

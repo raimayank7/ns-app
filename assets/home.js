@@ -1,4 +1,4 @@
-/* The owner's day in the Nivesh Sahayak App (after app.js; the figures come from homecore.js, node scripts/test_home.js).
+/* The owner's day in NSBiz (after app.js; the figures come from homecore.js, node scripts/test_home.js).
      #day            what needs me today (bills to chase and pay, cheques, low stock, repeating bills, GST and TDS dates, yesterday's sales)
      #day/month      the guided month-end checklist, ticks kept per business and month in the data home (meta 'monthend')
      #day/health     business health score with every figure explained

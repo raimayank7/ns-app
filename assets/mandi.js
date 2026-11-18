@@ -1,6 +1,6 @@
 /* mandi.niveshsahayak.in: settlement slips for a commission agent (arhtiya) in a grain or vegetable market.
    Record type 'mandi'. The farmer is kept in `buyer` (the party of the slip, so he comes back as a suggestion and his account shows in the
-   Nivesh Sahayak App), the buyer of the produce in `cust`. The sums are in mandicore.js (NSMandi); the books side is saved with the record
+   NSBiz), the buyer of the produce in `cust`. The sums are in mandicore.js (NSMandi); the books side is saved with the record
    as d.books (one journal entry: buyer owes, farmer is owed, commission is the agent's income, fee and charges are payable on). */
 (function () {
   'use strict';

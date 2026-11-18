@@ -1,4 +1,4 @@
-/* Compliance pack of the Nivesh Sahayak App (after home.js; the figures come from msmecore.js, node scripts/test_msme.js):
+/* Compliance pack of NSBiz (after home.js; the figures come from msmecore.js, node scripts/test_msme.js):
      #msme     MSME payables: bills owed to micro and small suppliers against the MSMED Act section 15 time limit (the income-tax deduction is at
                risk when they are paid late), the suppliers' size / Udyam number / agreed credit days, and the year-end (31 March) report to Excel or print
      #limits   limits helper: the business's own sales against the composition, e-invoice and e-way bill limits

@@ -1,4 +1,4 @@
-/* Batch 2 screens of the Nivesh Sahayak App (sections added through NSApp, like money.js):
+/* Batch 2 screens of NSBiz (sections added through NSApp, like money.js):
      b2jv     journal entries (adjustments between any accounts, parties included)
      b2fa     fixed assets register: add, sell, depreciation by the Companies Act Schedule II (posted as a journal entry) and the
               Income-tax block of assets (for the return only, never posted)

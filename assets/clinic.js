@@ -1,5 +1,5 @@
 /* clinic.niveshsahayak.in: a doctor's or clinic's day. Appointments, patient records, a prescription and the consultation bill on one
-   page. Record type 'visit' (the bill and prescription of one visit; it counts as a sale in the Nivesh Sahayak App when it has an
+   page. Record type 'visit' (the bill and prescription of one visit; it counts as a sale in NSBiz when it has an
    amount), 'appt' (an appointment) and 'pat' (what the bill does not hold about a patient). Everything stays on this device: the
    browser's own storage, the shared my.niveshsahayak.in data home that lives in the same browser, and the backup file you save.
    The site suggests no medicine, dose or diagnosis: the doctor types them. Screen text comes from NS.t; the print is English. */

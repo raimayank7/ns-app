@@ -1,6 +1,6 @@
 /* jewellery.niveshsahayak.in: jeweller's bill. Each ornament has metal, purity, gross / stone / net weight, wastage, rate per gram,
    making charges, stone value and an optional HUID; old gold or silver taken in exchange is set off against the bill; stock is kept
-   by weight of each metal and purity. Record type 'jewel' (a sale in the Nivesh Sahayak App). The pure logic is in jewelcore.js.
+   by weight of each metal and purity. Record type 'jewel' (a sale in NSBiz). The pure logic is in jewelcore.js.
    GST: the rates are typed fields (default 3% on jewellery, with making charges inside the value of the supply). */
 (function () {
   'use strict';

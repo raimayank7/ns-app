@@ -1,4 +1,4 @@
-/* More final accounts in the Nivesh Sahayak App (after finrep.js; the full App only). The sums are in facore.js (NSFA).
+/* More final accounts in NSBiz (after finrep.js; the full App only). The sums are in facore.js (NSFA).
      fam/mfg   manufacturing account and cost of goods sold, for a business with production entries; work in progress
                (typed, saved on the business: biz.fa.wip) also goes into the statements' opening and closing stock;
                which expenses are factory costs (biz.fa.direct) is ticked here
@@ -207,7 +207,7 @@
   /* ---------- the screen ---------- */
   function sheet(C, title, sub, body, note) {
     return '<div class="stsheet sh" dir="ltr" lang="en-IN" data-sheet>' + X.bizHead(title, sub) + body + (note ? '<p>' + esc(note) + '</p>' : '') +
-      '<p class="st-ft">Made with the Nivesh Sahayak App on ' + A.ldate(NS.today()) + ' from the saved records.</p></div>';
+      '<p class="st-ft">Made with NSBiz on ' + A.ldate(NS.today()) + ' from the saved records.</p></div>';
   }
   var TITLES = { mfg: 'MANUFACTURING ACCOUNT', firm: 'PROFIT AND LOSS APPROPRIATION ACCOUNT', rp: 'RECEIPTS AND PAYMENTS ACCOUNT' };
   function forEn(r) { return (view === 'rp' || view === 'firm' || view === 'mfg' ? 'For ' : '') + A.ldate(r[0]) + ' to ' + A.ldate(r[1]); }

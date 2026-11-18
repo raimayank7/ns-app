@@ -1,4 +1,4 @@
-/* Batch 1 sections of the Nivesh Sahayak App (after app.js and money.js):
+/* Batch 1 sections of NSBiz (after app.js and money.js):
      repeat    repeating bills: invoices saved with "Repeat this bill" (monthly or quarterly). The list shows the copies due up to today;
                nothing is made by itself, the user ticks the bills and taps "Make these bills" (each copy gets the next invoice number).
      reports   registers and reports as Excel files between two dates: sales and purchase registers, dues with credit limits,

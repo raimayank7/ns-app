@@ -1,6 +1,6 @@
 /* amc.niveshsahayak.in: repeating service contracts and subscriptions (annual maintenance contracts, monthly services, yearly renewals).
    A contract is a saved document of type 'amc'; every billing period becomes ONE ordinary invoice (made with a tap, never by itself) that
-   reaches the Nivesh Sahayak App's dues, GST and reports. The page lists on opening: invoices to make, renewals due, service visits due
+   reaches NSBiz's dues, GST and reports. The page lists on opening: invoices to make, renewals due, service visits due
    and unpaid contract invoices, each with a WhatsApp text. No server. The logic is in engine/amccore.js. */
 (function () {
   'use strict';

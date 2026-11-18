@@ -1,6 +1,6 @@
 /* subscribers.niveshsahayak.in: monthly subscribers of a cable, internet, tiffin, water-can or similar business.
    A subscriber is a saved document of type 'subs' (logic in subscore.js); every month becomes ONE ordinary invoice (made with a tap, never by itself,
-   pro-rata for a part month, less any discount and pauses) that reaches the Nivesh Sahayak App's dues, ageing, GST and reports. The page lists on
+   pro-rata for a part month, less any discount and pauses) that reaches NSBiz's dues, ageing, GST and reports. The page lists on
    opening: bills to make, who has not paid (with a WhatsApp reminder each) and every subscriber. No server. */
 (function () {
   'use strict';

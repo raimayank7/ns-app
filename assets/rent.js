@@ -1,6 +1,6 @@
 /* rent.niveshsahayak.in: rent management for landlords: units (shops, flats, rooms), tenants and agreements with end dates, monthly rent bills and receipts,
    a board of rent still to bill or collect, and the GST note (forward charge, reverse charge, none). Record type 'rentb' (logic in rentcore.js).
-   Units are item masters with runit:1. A bill counts as a sale in the Nivesh Sahayak App once it is printed as a bill (print 'bill'). */
+   Units are item masters with runit:1. A bill counts as a sale in NSBiz once it is printed as a bill (print 'bill'). */
 (function () {
   'use strict';
   var $ = NS.$, $$ = NS.$$, esc = NS.esc, num = NS.num, r2 = NS.r2, t = NS.t, R = NSRent;

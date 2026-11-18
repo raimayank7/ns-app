@@ -1,4 +1,4 @@
-/* NSAcct (Batch 2): accounting depth underneath the Nivesh Sahayak App. Pure functions; the page passes in the saved
+/* NSAcct (Batch 2): accounting depth underneath NSBiz. Pure functions; the page passes in the saved
    records and gets reports back. Nothing here stores anything, and nothing here changes what NSBooks posts.
      depreciation   fixed assets register (records 'fa', see books.js): book depreciation by the Companies Act, 2013,
                     Schedule II (useful life, residual value up to 5% of cost, straight line SLM or written down value WDV,

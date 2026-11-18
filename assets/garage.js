@@ -1,6 +1,6 @@
 /* garage.niveshsahayak.in: job cards and service bills for an auto garage or workshop, with the vehicle (registration, make, year, fuel,
    odometer), the service history of each vehicle and next-service reminders by date or km. Record type 'gjob' (like the job-card site's
-   'job'): it counts as a sale in the Nivesh Sahayak App once it is printed or saved as a service bill (print 'bill').
+   'job'): it counts as a sale in NSBiz once it is printed or saved as a service bill (print 'bill').
    Vehicles are not stored apart: a vehicle is every job card with the same registration number (engine/garagecore.js).
    Reminders need no server: the due list is worked out when the page opens and each row gives a WhatsApp message to send. */
 (function () {

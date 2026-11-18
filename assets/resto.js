@@ -1,5 +1,5 @@
 /* restaurant.niveshsahayak.in: restaurant bill and kitchen order ticket (KOT). Running tables are saved orders with status 'open';
-   settling one makes it a paid (or credit) bill. Record type 'resto' (a sale in the Nivesh Sahayak App once settled).
+   settling one makes it a paid (or credit) bill. Record type 'resto' (a sale in NSBiz once settled).
    GST on restaurant service is one rate for the whole bill: 5% without input tax credit for most restaurants, 18% in "specified
    premises" (hotels with a room tariff above Rs 7,500 a day), none under composition or without registration. */
 (function () {

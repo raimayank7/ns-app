@@ -3,7 +3,7 @@
    (litres each morning and evening, fat and SNF, a rate, the amount), customers are 'deliver' (litres a day, a rate, days skipped).
    The desk: today's entry for everyone on one screen, accounts with balances and WhatsApp reminders, and starting the next period for everyone.
    The passbook prints as the statement and carries its books side as d.books (purchases or sales and the party's account), so it reaches the
-   Nivesh Sahayak App's party ledger like a mandi slip does. Rates are always typed by the user. */
+   NSBiz's party ledger like a mandi slip does. Rates are always typed by the user. */
 (function () {
   'use strict';
   var $ = NS.$, $$ = NS.$$, esc = NS.esc, num = NS.num, r2 = NS.r2, t = NS.t, D = NSDairy;

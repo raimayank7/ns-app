@@ -1,6 +1,6 @@
 /* hotel.niveshsahayak.in: rooms, bookings, check-in and check-out, a diary of nights per room, and the bill with the room-rate GST slab.
    Record type 'hotel' (one record per stay: booking card first, the same record becomes the bill at check-out). Rooms are item masters with room:1
-   (logic in hotelcore.js). It counts as a sale in the Nivesh Sahayak App once it is printed as a bill (print 'bill', not cancelled). */
+   (logic in hotelcore.js). It counts as a sale in NSBiz once it is printed as a bill (print 'bill', not cancelled). */
 (function () {
   'use strict';
   var $ = NS.$, $$ = NS.$$, esc = NS.esc, num = NS.num, r2 = NS.r2, t = NS.t, H = NSHotel;

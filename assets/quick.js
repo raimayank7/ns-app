@@ -1,4 +1,4 @@
-/* Nivesh Sahayak App: speed habits.
+/* NSBiz: speed habits.
    Search everything (Ctrl K or /): parties, documents, items, menu screens and actions in one box.
    One-key shortcuts while not typing: N new invoice, R money received, P money paid, E expense, B purchase bill, 1-9 menu screens.
    The app opens on the screen used last, and offers "Install app" when the browser allows it. */

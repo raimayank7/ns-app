@@ -1,7 +1,7 @@
 /* NSSubs: the pure logic of subscribers.niveshsahayak.in (cable TV, internet, tiffin, water-can and other monthly subscribers).
    A subscriber is a saved document of type 'subs' (NOT a sale, not in the books): who, which plan, the monthly amount (before GST), the day the bill is dated,
    a discount, when the connection started and stopped, and pauses (holidays, tiffin off, connection suspended). Each month becomes ONE ordinary
-   invoice (type 'invoice') made with a tap, never by itself, so it reaches dues, ageing, GST and reports in the Nivesh Sahayak App like any bill.
+   invoice (type 'invoice') made with a tap, never by itself, so it reaches dues, ageing, GST and reports in NSBiz like any bill.
    The invoice carries the markers of the repeating-bill engine (recOf = the subscriber, recFor = 'yyyy-mm') and subOf / subFor of its own.
    Amount of a month = monthly amount x (days the service ran / days in the month), then the discount, rounded to paise.
      days the service ran = days from the start date to the stop date (both included), less the days inside a pause;

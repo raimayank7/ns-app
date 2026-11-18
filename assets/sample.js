@@ -1,4 +1,4 @@
-/* Nivesh Sahayak App: sample data, so a new visitor sees the app working before typing anything.
+/* NSBiz: sample data, so a new visitor sees the app working before typing anything.
    A made-up hardware shop in Ludhiana with customers, a supplier, items, bills of different ages, payments,
    a quotation, a purchase bill, expenses and opening balances. Every record carries sample: 1 and every name ends
    in "(sample)", so NSSample.remove() takes away exactly these records and nothing the user typed.

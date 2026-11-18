@@ -1,4 +1,4 @@
-/* Final accounts and capital / loan entries of the Nivesh Sahayak App (after more.js; the full App only):
+/* Final accounts and capital / loan entries of NSBiz (after more.js; the full App only):
      fin/tb   trial balance for a period: every account with its Debit or Credit balance (profit and loss accounts = the
               movement in the period, balance sheet accounts = the balance on the last day), grouped by Schedule III head,
               optionally each customer and supplier instead of the two totals; must agree
@@ -294,7 +294,7 @@
     var body = view === 'tb' ? tbGrid(V, true) + '<p>' + (V.sk ? 'Closing stock Rs ' + money(C.cs, false) + ' (' + valEn() + ') is not part of the trial balance: it is shown under inventories.' : 'Ledger balances only: opening stock and stock brought in are left out; their value is in profit or loss of earlier periods.') + (V.grp ? ' One line per group of accounts.' : '') + '</p>'
       : stTablePY(stLinesPY(C, pr), true, pr) + (view === 'pl' ? '<p>Gross profit (sales less the cost of goods sold): Rs ' + money(grossOf(C), false) + '. Closing stock valued at ' + valEn() + '.</p>' : '');
     return '<div class="stsheet sh" dir="ltr" lang="en-IN" data-sheet>' + bizHead(title, sub) + body +
-      '<p class="st-ft">Made with the Nivesh Sahayak App on ' + A.ldate(NS.today()) + ' from the saved records. Format based on Schedule III, Companies Act 2013.</p></div>';
+      '<p class="st-ft">Made with NSBiz on ' + A.ldate(NS.today()) + ' from the saved records. Format based on Schedule III, Companies Act 2013.</p></div>';
   }
 
   A.addSection('fin', function (arg) {

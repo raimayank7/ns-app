@@ -1,7 +1,7 @@
 /* salon.niveshsahayak.in: salons, parlours, gyms, yoga and dance classes, coaching and tuition. Bookings, a list of clients or members,
    the service bill, and memberships or prepaid packages that expire, with sessions used and renewals due. Record type 'svc' (a bill, or
    the sale of a membership or package: sell = 'plan'), 'appt' (a booking) and 'mem' (what the bill does not hold about a client).
-   A bill counts as a sale in the Nivesh Sahayak App. Screen text comes from NS.t; the print is English. */
+   A bill counts as a sale in NSBiz. Screen text comes from NS.t; the print is English. */
 (function () {
   'use strict';
   var $ = NS.$, esc = NS.esc, num = NS.num, r2 = NS.r2, t = NS.t, A = window.NSAppt;
