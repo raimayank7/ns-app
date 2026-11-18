@@ -58,8 +58,23 @@
   function del(id) {
     var d = A.data().doc.filter(function (x) { return x.id === id; })[0]; if (!d) return;
     if (closedMsg(d.date)) { NS.toast(closedMsg(d.date), 'bad'); return; }
-    if (!confirm(A.T('cdel', { x: A.enName(d) + ' ' + (d.no || '') }))) return;
-    NSStore.del('doc', id).then(function () { NS.toast(A.T('deleted')); A.show(); });
+    /* the App's own question box (the browser's confirm() is blocked in some windows, P3-10); deleting a fixed asset also
+       removes the depreciation entries that carry it, or the books keep a minus asset (P3-9). Other assets in those entries show
+       'not posted' again and are posted with one tap. */
+    var fk = d.type === 'fa' ? 'fa:' + key(d.name || 'Fixed asset') : '';
+    var deps = fk ? A.data().doc.filter(function (x) { return x.type === 'jv' && x.dep && (x.lines || []).some(function (l) { return l.a === fk; }); }) : [];
+    var msg = A.T('cdel', { x: A.enName(d) + ' ' + (d.no || d.name || '') }) + (deps.length ? ' ' + NS.t('b2.deldep', { n: deps.length }) : '');
+    (NS.ask ? NS.ask(msg) : Promise.resolve(window.confirm(msg))).then(function (yes) {
+      if (!yes) return;
+      /* only this asset's line leaves each depreciation entry (and the depreciation line goes down by it); an entry left with no asset goes */
+      return Promise.all([NSStore.del('doc', id)].concat(deps.map(function (x) {
+        var L = (x.lines || []).filter(function (l) { return l.a !== fk; }), out = (x.lines || []).filter(function (l) { return l.a === fk; }).reduce(function (t, l) { return t + num(l.cr) - num(l.dr); }, 0);
+        if (!L.some(function (l) { return /^fa:/.test(l.a); })) return NSStore.del('doc', x.id);
+        var dl = L.filter(function (l) { return l.a === 'exp:depreciation'; })[0];
+        if (dl) { var n = r2(num(dl.dr) - num(dl.cr) - out); dl.dr = n >= 0 ? n : 0; dl.cr = n < 0 ? -n : 0; }
+        var y = Object.assign({}, x, { lines: L }); y.total = jvTotal(y); return NSStore.put('doc', y);
+      }))).then(function () { NS.toast(A.T('deleted')); A.show(); });
+    });
   }
   function closedMsg(iso) { return X.isClosed(cfg().closed, A.bizName(), iso) ? T('closedmsg', { fy: X.fyOf(iso) }) : ''; }
   A.closedMsg = closedMsg;
@@ -125,10 +140,11 @@
   function jvForm(rec) {
     var r = rec || { date: today(), narr: '', lines: [{ t: 'party', nm: '', dr: '', cr: '' }, { t: 'cash', nm: '', dr: '', cr: '' }] };
     var L = JSON.parse(JSON.stringify(r.lines)).map(function (l) { if (!l.t) l.t = acctT(l); if (l.party) l.nm = l.party; return l; });
+    /* one row of the journal grid, like a ledger page: no., account, name, Dr, Cr (owner, 18 Nov 2026: the old form looked like a web form) */
     function lineHtml(l, i) {
-      return '<div class="jl" data-jl="' + i + '"><label class="lc"><span>' + esc(T('acct')) + '</span>' + sel('jl-t-' + i, l.t, ACC.map(function (a) { return [a, T('ac_' + a)]; })) + '</label>' +
-        '<label class="lc"' + (NAMED[l.t] ? '' : ' hidden') + '><span>' + esc(T(l.t === 'party' ? 'pname' : 'aname')) + '</span>' + inp('jl-n-' + i, l.nm || '', { list: l.t === 'party' ? 'b2-parties' : l.t === 'fa' ? 'b2-assets' : 'b2-heads-' + l.t }) + '</label>' +
-        '<label class="lc"><span>Dr</span>' + inp('jl-d-' + i, l.dr || '', { mode: 'decimal' }) + '</label><label class="lc"><span>Cr</span>' + inp('jl-c-' + i, l.cr || '', { mode: 'decimal' }) + '</label>' +
+      return '<div class="jg-r" data-jl="' + i + '"><span class="jg-no">' + (i + 1) + '</span><label class="jg-c"><span class="vh">' + esc(T('acct')) + '</span>' + sel('jl-t-' + i, l.t, ACC.map(function (a) { return [a, T('ac_' + a)]; })) + '</label>' +
+        (NAMED[l.t] ? '<label class="jg-c"><span class="vh">' + esc(T(l.t === 'party' ? 'pname' : 'aname')) + '</span>' + inp('jl-n-' + i, l.nm || '', { list: l.t === 'party' ? 'b2-parties' : l.t === 'fa' ? 'b2-assets' : 'b2-heads-' + l.t }) + '</label>' : '<span class="jg-c jg-na" aria-hidden="true">-</span>') +
+        '<label class="jg-c"><span class="vh">Dr</span>' + inp('jl-d-' + i, l.dr || '', { mode: 'decimal' }) + '</label><label class="jg-c"><span class="vh">Cr</span>' + inp('jl-c-' + i, l.cr || '', { mode: 'decimal' }) + '</label>' +
         (L.length > 2 ? '<button type="button" class="icon-btn rm" data-jrm="' + i + '" aria-label="' + esc(A.T('rmline')) + '">✕</button>' : '<span></span>') + '</div>';
     }
     var heads = {}; A.mine().forEach(function (d) { if (d.cat) heads[d.cat] = 1; (d.lines || []).forEach(function (l) { if (l.head) heads[l.head] = 1; if (l.t && l.nm && l.t !== 'party') (heads[l.t + '|' + l.nm] = 1); }); });
@@ -139,19 +155,20 @@
     }
     var assets = X.assets(A.data().doc, A.bizName()).map(function (a) { return a.name; });
     function draw() {
-      $('[data-jls]', form).innerHTML = L.map(lineHtml).join('');
+      $('[data-jls]', form).innerHTML = L.map(lineHtml).join(''); $$('[id^="jl-d-"],[id^="jl-c-"]', form).forEach(function (x) { x.placeholder = /-d-/.test(x.id) ? 'Dr' : 'Cr'; });
       $$('[data-jrm]', form).forEach(function (b) { b.addEventListener('click', function () { read(); L.splice(+b.getAttribute('data-jrm'), 1); draw(); }); });
       sum();
     }
     function read() { L.forEach(function (l, i) { l.t = val('jl-t-' + i); l.nm = val('jl-n-' + i); l.dr = val('jl-d-' + i); l.cr = val('jl-c-' + i); }); }
     function sum() {
       read(); var dr = r2(L.reduce(function (s, l) { return s + num(l.dr); }, 0)), cr = r2(L.reduce(function (s, l) { return s + num(l.cr); }, 0));
-      var e = $('[data-jsum]', form); e.textContent = 'Dr ' + money(dr) + ' · Cr ' + money(cr) + (dr !== cr ? ' · ' + T('diff', { a: money(Math.abs(dr - cr)) }) : '');
-      e.className = 'soft' + (dr !== cr ? ' bad' : '');
+      var e = $('[data-jsum]', form);
+      e.innerHTML = '<span></span><span class="jg-tl">' + esc(A.T('total') || 'Total') + '</span><span class="jg-df' + (dr !== cr ? ' bad' : '') + '">' + (dr !== cr ? esc(T('diff', { a: money(Math.abs(dr - cr)) })) : '') + '</span><b>' + money(dr) + '</b><b>' + money(cr) + '</b><span></span>';
     }
-    open(T(rec ? 'editjv' : 'newjv'), '<div class="fg">' + fld('jv-date', A.T('date'), inp('jv-date', r.date, { type: 'date', req: 1 })) + fld('jv-no', T('no'), inp('jv-no', r.no || nextNo('jv', 'JV', r.date), { mode: 'text' })) +
-      fld('jv-narr', T('narr'), inp('jv-narr', r.narr || ''), { wide: 1 }) + '</div>' +
-      '<fieldset><legend>' + esc(T('lines')) + '</legend><div data-jls></div><button type="button" class="btn sm" data-jadd>' + esc(A.T('addline')) + '</button> <p data-jsum aria-live="polite"></p></fieldset>' +
+    open(T(rec ? 'editjv' : 'newjv'), '<div class="fg jv-top">' + fld('jv-no', T('no'), inp('jv-no', r.no || nextNo('jv', 'JV', r.date), { mode: 'text' })) + fld('jv-date', A.T('date'), inp('jv-date', r.date, { type: 'date', req: 1 })) + '</div>' +
+      '<div class="jg" role="group" aria-label="' + esc(T('lines')) + '"><div class="jg-h" aria-hidden="true"><span>#</span><span>' + esc(T('acct')) + '</span><span>' + esc(T('aname')) + '</span><span>Dr</span><span>Cr</span><span></span></div>' +
+        '<div data-jls></div><div class="jg-add"><button type="button" class="btn sm" data-jadd>' + esc(A.T('addline')) + '</button></div><div class="jg-f" data-jsum aria-live="polite"></div></div>' +
+      '<div class="fg">' + fld('jv-narr', T('narr'), '<textarea id="jv-narr" rows="2" dir="auto">' + esc(r.narr || '') + '</textarea>', { wide: 1 }) + '</div>' +
       dl('b2-parties', partyNames()) + dl('b2-assets', assets) + ['exp', 'inc', 'loan', 'given', 'cap', 'drw'].map(function (t) { return dl('b2-heads-' + t, named(t)); }).join(''),
     function () {
       read();
@@ -172,7 +189,7 @@
       NSStore.put('doc', d).then(function () { dlg.close(); NS.toast(A.T('saved')); A.show(); });
     }, function () {
       draw();
-      form.addEventListener('change', function (e) { var m2 = /^jl-t-(\d+)$/.exec(e.target.id); if (m2) { read(); draw(); } else sum(); });
+      form.addEventListener('change', function (e) { var m2 = /^jl-t-(\d+)$/.exec(e.target.id); if (m2) { var id = e.target.id; read(); draw(); var x = $('#' + id, form); if (x) x.focus(); } else sum(); });
       form.addEventListener('input', function (e) { if (/^jl-[dc]-/.test(e.target.id)) sum(); });
       $('[data-jadd]', form).addEventListener('click', function () { read(); L.push({ t: 'exp', nm: '', dr: '', cr: '' }); draw(); });
     });
@@ -320,7 +337,7 @@
   }
 
   /* ---------- godowns and stock transfer ---------- */
-  function gdNames() { var o = {}; (cfg().godowns || []).forEach(function (g) { if (g) o[key(g)] = g; }); A.mine().forEach(function (d) { [d.gd, d.from, d.to].forEach(function (g) { if (g) o[key(g)] = o[key(g)] || g; }); }); return Object.keys(o).map(function (k) { return o[k]; }).filter(function (g) { return key(g) !== S.MAIN; }).sort(); }
+  function gdNames() { var o = {}; (cfg().godowns || []).forEach(function (g) { if (g) o[key(g)] = g; }); A.mine().forEach(function (d) { (d.type === 'stk' ? [d.gd, d.from, d.to] : [d.gd]).forEach(function (g) { if (g) o[key(g)] = o[key(g)] || g; }); }); return Object.keys(o).map(function (k) { return o[k]; }).filter(function (g) { return key(g) !== S.MAIN; }).sort(); }
   function gdLabel(g) { return g ? g : T('main'); }
   var gdView = '';
   A.addSection('b2gd', function () {
