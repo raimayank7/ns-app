@@ -26,7 +26,11 @@
   function toolUrl(site) { if (site === 'app') return APP; var x = TOOLS.filter(function (x) { return x[0] === site; })[0] || TOOLS[0]; return LOCAL ? 'http://localhost:' + x[4] + '/' : 'https://' + x[1] + '/'; }
   /* records made in NSBiz (purchase bills, expenses, opening balances) open there */
   var APP = LOCAL ? 'http://localhost:8880/' : 'https://app.niveshsahayak.in/';
-  var APPDOC = { pbill: ['Purchase bill', '#buy'], exp: ['Expense', '#buy'], ob: ['Opening balance', '#money'] };
+  var APPDOC = { pbill: ['Purchase bill', '#buy'], exp: ['Expense', '#buy'], ob: ['Opening balance', '#money'],
+    /* records made only in the App (F7-1: they showed raw codes and a billing link that cannot open them) */
+    jv: ['Journal entry', '#b2jv'], fa: ['Fixed asset', '#b2fa'], stk: ['Stock entry', '#b2gd'], contra: ['Cash and bank transfer', '#cash'], oinc: ['Other income', '#acx'],
+    taxpay: ['Tax payment', '#acx'], gstset: ['GST set-off', '#acx'], wo: ['Write off', '#dues'], pdd: ['Provision for doubtful debts', '#acx'], sadv: ['Staff advance', '#stf'],
+    loan: ['Loan', '#stf'], emi: ['Loan EMI', '#stf'], cap: ['Capital', '#capl'] };
   /* number prefixes of the other documents (Settings); quotation and credit note have two series each */
   var PREFIXES = [['quote', 'quote', 'QT', 'k.quote'], ['quote', 'estimate', 'EST', 'k.estimate'], ['proforma', '', 'PI', 'Doc.proforma'], ['so', '', 'SO', 'Doc.so'], ['challan', '', 'DC', 'Doc.challan'],
     ['po', '', 'PO', 'Doc.po'], ['self', '', 'SI', 'Doc.self'], ['note', 'credit', 'CN', 'k.credit'], ['note', 'creditp', 'PCN', 'k.creditp'], ['note', 'debit', 'DN', 'k.debit'], ['note', 'debitp', 'PDN', 'k.debitp'], ['cashmemo', '', 'CM', 'Doc.cashmemo'], ['receipt', '', 'RCT', 'Doc.receipt'],
@@ -123,7 +127,7 @@
   function sub(s, r) {
     if (s === 'doc') return NS.fmtDate(r.date) + ' · ' + esc(r.buyer && r.buyer.name || (r.type === 'exp' ? (function (c) { var k = 'app.ex_' + c, v = t(k); return v !== k ? v : c; })(r.cat || r.head || '') : t('h.nocust'))) + ' · <b>' + NS.money(r.total || 0) + '</b> · ' + esc(r.seller && r.seller.name || '') +
       (!r.type || r.type === 'invoice' || r.type === 'cashmemo' ? ' <span class="pill' + (r.status === 'paid' ? ' ok' : '') + '">' + esc(t(r.status === 'paid' ? 'h.paidp' : 'h.unpaidp')) + '</span>'
-        : r.status ? ' <span class="pill' + (/^(acc|inv|sdone|prec|nadj|nref|nrecv|npaid)$/.test(r.status) ? ' ok' : '') + '">' + esc(t('qs.' + r.status)) + '</span>' : '') +
+        : r.status ? ' <span class="pill' + (/^(acc|inv|sdone|prec|nadj|nref|nrecv|npaid|paid)$/.test(r.status) ? ' ok' : '') + '">' + esc(r.status === 'paid' ? t('h.paidp') : r.status === 'unpaid' ? t('h.unpaidp') : t('qs.' + r.status)) + '</span>' : '') +
       (APPDOC[r.type] ? ' <a href="' + APP + APPDOC[r.type][1] + '" target="_blank" rel="noopener">NSBiz ›</a>' :
       KITOF[kitType(r)] ? ' <a href="' + siteUrl(KITOF[kitType(r)][0]) + '?open=' + encodeURIComponent(r.id) + '" target="_blank" rel="noopener">' + esc(t(KITOF[kitType(r)][1])) + ' ›</a>' :
       ' <a href="' + toolUrl(r.type === 'note' && r.kind === 'debit' ? 'debit-note' : SITEOF[r.type || 'invoice']) + '" target="_blank" rel="noopener">' + esc(t(TOOLS.filter(function (x) { return x[0] === (r.type === 'note' && r.kind === 'debit' ? 'debit-note' : SITEOF[r.type || 'invoice']); }).map(function (x) { return x[2]; })[0] || 'nav.billing')) + ' ›</a>');
@@ -152,7 +156,7 @@
       b.setAttribute('aria-current', on ? 'page' : 'false');
       if (on && b.parentNode.scrollWidth > b.parentNode.clientWidth) b.parentNode.scrollLeft = b.offsetLeft - 40;
     });
-    if (location.hash.slice(1) !== sec) history.replaceState(null, '', sec === 'home' ? location.pathname : '#' + sec);
+    if (routed && location.hash.slice(1) !== sec) history.replaceState(null, '', sec === 'home' ? location.pathname : '#' + sec);   /* not before the first routing: an early redraw wiped #biz, #item... (F5-1) */
     secPick();
     return load().then(function () {
       counts();
@@ -897,6 +901,7 @@
   NS.hubCsv = { cols: CSV, stateCode: stateCode };
 
   /* ---------- start ---------- */
+  var routed = false;   /* true once the address (#biz, #item, #settings/gd...) has been opened */
   function init() {
     if (!$('#my-app')) return;
     /* #biz/new (App "Add my business") opens the section with its add form */
@@ -908,7 +913,7 @@
       if (a && SECS.indexOf(a[1]) >= 0) return show(a[1]).then(function () { history.replaceState(null, '', '#' + a[1]); setTimeout(function () { var el = document.getElementById('set-' + a[2]); if (!el) return; el.scrollIntoView({ block: 'start' }); var i = el.querySelector('textarea,input,select'); if (i) i.focus({ preventScroll: true }); }, 60); });
       return show(h || 'home');
     }
-    NSStore.ready().then(function () { return go(location.hash.slice(1)); });
+    NSStore.ready().then(function () { routed = true; return go(location.hash.slice(1)); });
     $$('[data-sec]').forEach(function (b) {
       b.addEventListener('click', function (e) { e.preventDefault(); show(b.getAttribute('data-sec'), true); });
     });
@@ -939,7 +944,13 @@
       if (e.target.closest('[data-edit]')) openForm(cur, id);
       else if (e.target.closest('[data-def]')) { S.defBiz = id; saveSettings().then(function () { NS.toast(t('hub.setsaved')); show('biz'); }); }
       else if (e.target.closest('[data-log]')) NS.showLog(id, t('b1.changesof', { no: $('.ttl', li).textContent }));
-      else if (e.target.closest('[data-restore]')) NSStore.restore(id).then(function () { NS.toast(t('b1.restored')); show('bin'); }, function (err) { NS.toast(err.message, 'bad'); });
+      else if (e.target.closest('[data-restore]')) {
+        /* F4-12: a deleted bill whose number has since been given to another bill of the same series and year is not brought back as a second copy */
+        var bn = cache.bin.filter(function (x) { return x.id === id; })[0], rr = bn && bn.store === 'doc' && bn.rec, lk = function (v) { return String(v || '').trim().toLowerCase(); };
+        var clash = rr && rr.no && cache.doc.filter(function (x) { return x.id !== rr.id && (x.type || 'invoice') === (rr.type || 'invoice') && lk(x.no) === lk(rr.no) && NS.fy(x.date) === NS.fy(rr.date) && lk(x.seller && x.seller.name) === lk(rr.seller && rr.seller.name); })[0];
+        if (clash) { NS.toast(t('b1.resdup', { no: rr.no }), 'bad'); return; }
+        NSStore.restore(id).then(function () { NS.toast(t('b1.restored')); show('bin'); }, function (err) { NS.toast(err.message, 'bad'); });
+      }
       else if (e.target.closest('[data-del]')) {
         /* a party with saved documents says so before it goes (round C); the site's own box, not the browser's confirm() */
         var nm = $('.ttl', li).textContent, kk = String(nm || '').trim().toLowerCase(), nd = cur === 'party' ? (cache.doc || []).filter(function (d) { return String((d.buyer || {}).name || '').trim().toLowerCase() === kk; }).length : 0;
@@ -955,8 +966,8 @@
     pane.addEventListener('input', function (e) { if (e.target.id === 'my-q') { q = e.target.value.trim().toLowerCase(); renderList(); } });
     pane.addEventListener('change', function (e) { if (e.target.id === 'my-gf') { gf = e.target.value; renderList(); return; } if (e.target.hasAttribute('data-imp') && e.target.files[0]) { importCsv(cur, e.target.files[0]); e.target.value = ''; } });
     NS.onRestore = function () { show(cur); };
-    document.addEventListener('ns-data', function () { show(cur); });
-    document.addEventListener('ns-lang', function () { show(cur); });
+    document.addEventListener('ns-data', function () { if (routed) show(cur); });
+    document.addEventListener('ns-lang', function () { if (routed) show(cur); });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

@@ -9,7 +9,7 @@
   function rrow() { return { rno: '', rtype: '', rate: '', gst: '' }; }
   function xrow() { return { desc: '', qty: 1, rate: '', gst: 18, hsn: '' }; }
   function kindFor(s) { return s.reg === 'comp' ? 'supply' : s.gstin && s.reg !== 'unreg' ? 'tax' : 'plain'; }
-  function sums(d) { var intra = !d.buyer.state || !d.seller.state || d.buyer.state === d.seller.state; return H.sums(d, d.kind === 'tax', intra); }
+  function sums(d) { return H.sums(d, d.kind === 'tax', true); }   /* accommodation: place of supply is the hotel, so CGST + SGST for every guest (IGST Act s.12(3), F6-7) */
   function mine(b) { return String(b.seller && b.seller.name || '').trim().toLowerCase() === String(K.doc().seller.name || '').trim().toLowerCase(); }
 
   /* ---------- rooms and stays from the shared data home ---------- */

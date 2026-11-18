@@ -121,7 +121,9 @@
       var p = sum(); if (!(p.paid > 0)) { NS.toast(T('s.v.amount'), 'bad'); return; }
       var st = r.st, pre = { studentId: st.id, buyer: { name: st.name, phone: st.phone || '' }, cls: st.cls || '', sec: st.sec || '', roll: st.roll || st.adm || '', guardian: st.guardian || '', session: S.session,
         mFrom: p.mFrom, mTo: p.mTo, lines: p.lines, conc: p.conc ? String(p.conc) : '', prev: '', paid: String(p.paid), mode: $('#fe-mode', d).value, pay: p.pay, gst: S.gst || 'ex' };
-      var url = A.siteHome ? A.siteHome('fee-receipt') : 'https://fee-receipt.niveshsahayak.in/';
+      var url = A.siteHome ? A.siteHome('fee-receipt') : '';
+      /* F6-10: on the fees site itself the App's site list is empty ('#'): go to the fee receipt maker by its own address */
+      if (!url || url === '#') url = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? location.protocol + '//' + location.hostname + ':8945/' : 'https://fee-receipt.niveshsahayak.in/';
       d.close();
       var href = url + '?pre=' + encodeURIComponent(JSON.stringify(pre));
       if (!A.openUrl(href)) location.href = href;

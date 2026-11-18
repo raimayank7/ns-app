@@ -76,6 +76,13 @@
       }))).then(function () { NS.toast(A.T('deleted')); A.show(); });
     });
   }
+  /* F2-1: an asset leaves the books at the value the books hold for it (cost less the depreciation actually posted); depreciation
+     not posted yet is part of the profit or loss on sale, so the asset never stays behind in the Trial Balance or Balance Sheet */
+  function faBook(a, date) {
+    var D = A.data().doc.filter(function (x) { return !(a.sale && x.id === a.sale.id) && !(x.type === 'fa' && x.kind === 'sale' && x.asset === a.id); });
+    var bk = B.book(D, A.bizName(), 'fa:' + key(a.name || 'Fixed asset'), '', date);
+    return bk && bk.rows.length ? r2(bk.close) : X.bookValueOn(a, date);
+  }
   function closedMsg(iso) { return X.isClosed(cfg().closed, A.bizName(), iso) ? T('closedmsg', { fy: X.fyOf(iso) }) : ''; }
   A.closedMsg = closedMsg;
 
@@ -272,7 +279,7 @@
       var date = val('fs-date'), amt = r2(num(val('fs-amt'))), mode = val('fs-mode'), party = val('fs-party');
       if (!need(date, A.T('date')) || !lockOk(date, a.sale) || date < a.date) return;
       if (mode === 'credit' && !need(party, T('buyer'))) return;
-      var d = Object.assign(a.sale ? JSON.parse(JSON.stringify(a.sale)) : { type: 'fa', kind: 'sale', app: 1 }, { asset: a.id, name: a.name, date: date, amount: amt, gstAmt: r2(num(val('fs-gst'))), mode: mode, buyer: { name: party }, bv: X.bookValueOn(a, date), seller: sellerCopy(), no: '' });
+      var d = Object.assign(a.sale ? JSON.parse(JSON.stringify(a.sale)) : { type: 'fa', kind: 'sale', app: 1 }, { asset: a.id, name: a.name, date: date, amount: amt, gstAmt: r2(num(val('fs-gst'))), mode: mode, buyer: { name: party }, bv: faBook(a, date), seller: sellerCopy(), no: '' });
       d.total = r2(amt + d.gstAmt);
       NSStore.put('doc', d).then(function () { dlg.close(); NS.toast(A.T('saved')); A.show(); });
     }, function () {

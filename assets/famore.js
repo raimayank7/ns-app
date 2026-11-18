@@ -94,7 +94,7 @@
     office: 'Office expenses', fuel: 'Fuel', bank: 'Bank charges', prof: 'Professional fees', ads: 'Advertising', misc: 'Miscellaneous' };
   function headName(h, C) {
     var row = C.rows.filter(function (x) { return x.k === h.k; })[0];
-    if (!h.px) return { loc: M('h_' + h.k), en: h.name };
+    if (!h.px) { var lk = M('h_' + h.k); return { loc: /^fm\.h_/.test(lk) ? h.name : lk, en: h.name }; }   /* a head without its own screen words shows its English name, never a raw code (F2-5) */
     if (h.px === 'exp' || h.px === 'inc') {
       if (row) return { loc: row.loc, en: row.en };
       if (h.px === 'exp' && EXEN[h.rest]) return { loc: NS.t('app.ex_' + h.rest), en: EXEN[h.rest] };

@@ -365,7 +365,11 @@
     }, function (x) { btn.disabled = false; NS.toast(NS.t('nosave', { e: x.message }), 'bad'); });
   }
   /* "Later": not again in this session (the next start of the App asks again); until then every feature stays on */
-  function later() { try { sessionStorage.setItem('ns-fr-later', '1'); } catch (e) {} firstRun = false; }
+  function later() {
+    try { sessionStorage.setItem('ns-fr-later', '1'); } catch (e) {} firstRun = false;
+    /* F7-2: a type picked and then left with Later must not keep filtering every business without a type */
+    NSStore.meta('settings').then(function (s) { if (!s || !s.pendKind) return; delete s.pendKind; SET = s; return NSStore.meta('settings', s); }).then(function () { return load(); }).then(function () { apply(); }, function () {});
+  }
   function laterSet() { try { return sessionStorage.getItem('ns-fr-later') === '1'; } catch (e) { return false; } }
   /* never over work in progress: a document open in the App's frame, or another box (an entry form) open */
   function busy() { return document.documentElement.classList.contains('app-frame-on') || !!document.querySelector('dialog[open]:not(.nsf-dlg)'); }
