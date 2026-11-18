@@ -18,6 +18,14 @@
     if (!/^https?:/.test(a.href) || new URL(a.href).origin === location.origin && a.getAttribute('href').charAt(0) === '#') return;
     if (NS.appGo(a.href)) e.preventDefault();
   });
+  /* Esc with no box open: back to the App screen it came from (drafts keep what was typed) */
+  window.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('dialog[open]') || !app()) return;
+    var a = document.activeElement; if (a && a.list && a.value) return;   /* a suggestion list may be open */
+    try { var b = window.parent.document.querySelector('[data-fback]'); if (b) { e.preventDefault(); b.click(); } } catch (er) {}
+  });
+  /* the bottom bar shows the keys */
+  (function keysHint() { var bar = document.querySelector('#tool .actions'); if (bar && app()) bar.setAttribute('data-keys', NS.t('app.vs_keys')); else if (!bar) setTimeout(keysHint, 300); })();
   /* keys that belong to the App window, not to the document */
   window.addEventListener('keydown', function (e) {
     var k = (e.key || '').toLowerCase(), P = window.parent;

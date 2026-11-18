@@ -32,7 +32,7 @@
     var b = biz();
     return '<div class="st-hd"><div><b>' + esc(b.name) + '</b>' + (b.gstin ? '<br>GSTIN ' + esc(b.gstin) : '') + '</div><div class="r"><b>' + esc(title) + '</b><br>' + esc(sub) + '</div></div>';
   }
-  function foot() { return '<p class="st-ft">Made with Nivesh Sahayak on ' + A.ldate(today()) + '.</p>'; }
+  function foot() { return NS.creditLine('st-ft'); }
   function dates() {
     var r = A.range();
     return '<div class="tools-row"><label>' + esc(A.T('from')) + ' <input type="date" data-stfrom value="' + r[0] + '"></label><label>' + esc(A.T('to')) + ' <input type="date" data-stto value="' + r[1] + '"></label></div>';

@@ -90,7 +90,7 @@
       (T.cashOver(d) ? '<p class="small">Note: under section 80G(5D), no deduction is allowed for a donation above Rs ' + T.CASH_LIMIT.toLocaleString('en-IN') + ' paid in cash.</p>' : '') +
       (d.notes ? '<p class="small">' + esc(d.notes) + '</p>' : '') +
       '<div class="vch-sign"><div></div><div></div><div>For ' + esc((S && S.name) || (A.biz() || {}).name || '') + '<small>Authorised signatory</small></div></div>' +
-      '<p class="st-ft">' + (!sub && S && S.reg80g ? 'This is a receipt. A Form 10BE certificate of donation, where it applies, is issued separately. ' : '') + 'Made with Nivesh Sahayak on ' + esc(ymd(today())) + '.</p></div>';
+      (!sub && S && S.reg80g ? '<p class="small">This is a receipt. A Form 10BE certificate of donation, where it applies, is issued separately.</p>' : '') + NS.creditLine('st-ft') + '</div>';
   }
 
   /* ---------- frame ---------- */
@@ -244,7 +244,7 @@
       '<table class="tbl st"><thead><tr><th>Period</th><th class="n">Due</th><th class="n">Paid</th><th class="n">Balance</th><th>Receipt</th></tr></thead><tbody>' +
       (L.rows.length ? L.rows.map(function (r) { return '<tr><td>' + esc(T.periodName(r.p)) + '</td><td class="n">' + money(r.amt, false) + '</td><td class="n">' + money(r.paid, false) + '</td><td class="n">' + (r.left > 0.004 ? '<b>' + money(r.left, false) + '</b>' : '—') + '</td><td>' + esc(r.rcpt.join(', ')) + '</td></tr>'; }).join('') : '<tr><td colspan="5">No dues yet.</td></tr>') +
       '</tbody><tfoot><tr><th>Total</th><td class="n">' + money(r2(L.rows.reduce(function (s, r) { return s + r.amt; }, 0)), false) + '</td><td class="n">' + money(r2(L.rows.reduce(function (s, r) { return s + r.paid; }, 0)), false) + '</td><td class="n"><b>' + money(L.due, false) + '</b></td><td></td></tr></tfoot></table>' +
-      (L.advance ? '<p class="small">Paid in advance for later periods: ' + money(L.advance) + '</p>' : '') + '<p class="st-ft">Made with Nivesh Sahayak on ' + esc(ymd(today())) + '.</p></div>';
+      (L.advance ? '<p class="small">Paid in advance for later periods: ' + money(L.advance) + '</p>' : '') + '' + NS.creditLine('st-ft') + '</div>';
   }
 
   /* ---------- donors ---------- */
@@ -265,7 +265,7 @@
       '<table class="tbl st"><thead><tr><th>Date</th><th>Receipt no.</th><th>Purpose / fund</th><th>Paid by</th><th class="n">Amount</th></tr></thead><tbody>' +
       St.list.map(function (d) { return '<tr><td>' + esc(ymd(d.date)) + '</td><td>' + esc(d.no) + '</td><td>' + esc([d.purpose, d.fund].filter(Boolean).join(' · ')) + '</td><td>' + esc(ENMODE[d.mode] || d.mode || '') + (d.ref ? ' · ' + esc(d.ref) : '') + '</td><td class="n">' + money(d.amount, false) + '</td></tr>'; }).join('') +
       '</tbody><tfoot><tr><th colspan="4">Total</th><td class="n"><b>' + money(St.total, false) + '</b></td></tr></tfoot></table>' + (S && S.reg80g && St.list.length ? '<p class="small">' + g80Line() + '</p>' : '') +
-      '<p class="small">This statement lists the receipts issued. It is not a Form 10BE certificate.</p><p class="st-ft">Made with Nivesh Sahayak on ' + esc(ymd(today())) + '.</p></div>';
+      '<p class="small">This statement lists the receipts issued. It is not a Form 10BE certificate.</p>' + NS.creditLine('st-ft') + '</div>';
   }
 
   /* ---------- set-up ---------- */

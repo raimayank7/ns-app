@@ -207,7 +207,7 @@
   /* ---------- the screen ---------- */
   function sheet(C, title, sub, body, note) {
     return '<div class="stsheet sh" dir="ltr" lang="en-IN" data-sheet>' + X.bizHead(title, sub) + body + (note ? '<p>' + esc(note) + '</p>' : '') +
-      '<p class="st-ft">Made with NSBiz on ' + A.ldate(NS.today()) + ' from the saved records.</p></div>';
+      '<p class="small">From the saved records.</p>' + NS.creditLine('st-ft') + '</div>';
   }
   var TITLES = { mfg: 'MANUFACTURING ACCOUNT', firm: 'PROFIT AND LOSS APPROPRIATION ACCOUNT', rp: 'RECEIPTS AND PAYMENTS ACCOUNT' };
   function forEn(r) { return (view === 'rp' || view === 'firm' || view === 'mfg' ? 'For ' : '') + A.ldate(r[0]) + ' to ' + A.ldate(r[1]); }

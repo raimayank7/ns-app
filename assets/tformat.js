@@ -36,7 +36,7 @@
         '<p>Gross profit = sales less (opening stock + purchases + direct expenses − closing stock). Closing stock valued at ' + valEn() + '.</p>'
       : bizHead(E.t_bs.toUpperCase(), 'As at ' + A.ldate(r[1])) + V.html(F.B, 'bs', { en: true });
     return '<div class="stsheet sh tf-sheet" dir="ltr" lang="en-IN" data-sheet>' + top +
-      '<p class="st-ft">Made with NSBiz on ' + A.ldate(NS.today()) + ' from the saved records. Traditional (T) format. Not audited.</p></div>';
+      '<p class="small">From the saved records. Traditional (T) format. Not audited.</p>' + NS.creditLine('st-ft') + '</div>';
   }
 
   A.finT = function (view, C, what) {

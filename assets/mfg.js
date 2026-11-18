@@ -33,7 +33,7 @@
   function gdNames() { var o = {}; ((A.cfg && A.cfg() || {}).godowns || []).forEach(function (g) { if (g) o[key(g)] = g; }); A.mine().forEach(function (d) { [d.gd, d.from, d.to].forEach(function (g) { if (g && !F.isJw(g)) o[key(g)] = o[key(g)] || g; }); }); return Object.keys(o).map(function (k) { return o[k]; }).filter(function (g) { return key(g) !== S.MAIN; }).sort(); }
   function gdOpts() { return [['', B2('main')]].concat(gdNames().map(function (g) { return [g, g]; })); }
   function head(title, sub) { var b = biz(); return '<div class="st-hd"><div><b>' + esc(b.name) + '</b>' + (b.gstin ? '<br>GSTIN ' + esc(b.gstin) : '') + '</div><div class="r"><b>' + esc(title) + '</b><br>' + esc(sub) + '</div></div>'; }
-  function foot() { return '<p class="st-ft">Made with Nivesh Sahayak on ' + A.ldate(today()) + '.</p>'; }
+  function foot() { return NS.creditLine('st-ft'); }
 
   /* ---------- dialog ---------- */
   var dlg, form, onSave;

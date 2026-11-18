@@ -139,7 +139,7 @@
     function cells(x) { return (V.det ? '<td class="n">' + c(x.od) + '</td><td class="n">' + c(x.oc) + '</td><td class="n">' + c(x.td) + '</td><td class="n">' + c(x.tc) + '</td>' : '') + '<td class="n">' + c(x.dr) + '</td><td class="n">' + c(x.cr) + '</td>'; }
     var body = V.rows.map(function (x) {
       var h = !V.grp && hg(x) !== g0 ? '<tr class="sec"><th colspan="' + n + '" class="l">' + esc(gName(hg(x), en)) + '</th></tr>' : ''; g0 = hg(x);
-      return h + '<tr><th scope="row" class="l' + (V.grp ? '' : ' sub') + '">' + esc(en ? x.en : x.loc) + '</th>' + cells(x) + '</tr>';
+      return h + '<tr><th scope="row" class="l' + (V.grp ? '' : ' sub') + '">' + (V.grp || !x.k || /^(trec|tpay)$/.test(x.k) ? esc(en ? x.en : x.loc) : '<a href="' + (x.k.indexOf('p:') === 0 ? '#st/' + encodeURIComponent(x.k.slice(2)) : '#acl/' + encodeURIComponent(x.k)) + '">' + esc(en ? x.en : x.loc) + '</a>') + '</th>' + cells(x) + '</tr>';
     }).join('');
     var tot = function (v) { return '<th class="n">' + money(v, false) + '</th>'; };
     var bad = [['dopen', 'od'], ['dtr', 'td'], ['diff', 'dr']].filter(function (d) { return (V.det || d[0] === 'diff') && Math.abs(Tt[d[0]]) >= 0.005; });
@@ -294,9 +294,24 @@
     var body = view === 'tb' ? tbGrid(V, true) + '<p>' + (V.sk ? 'Closing stock Rs ' + money(C.cs, false) + ' (' + valEn() + ') is not part of the trial balance: it is shown under inventories.' : 'Ledger balances only: opening stock and stock brought in are left out; their value is in profit or loss of earlier periods.') + (V.grp ? ' One line per group of accounts.' : '') + '</p>'
       : stTablePY(stLinesPY(C, pr), true, pr) + (view === 'pl' ? '<p>Gross profit (sales less the cost of goods sold): Rs ' + money(grossOf(C), false) + '. Closing stock valued at ' + valEn() + '.</p>' : '');
     return '<div class="stsheet sh" dir="ltr" lang="en-IN" data-sheet>' + bizHead(title, sub) + body +
-      '<p class="st-ft">Made with NSBiz on ' + A.ldate(NS.today()) + ' from the saved records. Format based on Schedule III, Companies Act 2013.</p></div>';
+      '<p class="small">From the saved records. Format based on Schedule III, Companies Act 2013.</p>' + NS.creditLine('st-ft') + '</div>';
   }
 
+  /* ---------- Chart of Accounts (Masters): every account in use under its group, with its balance at the end of the period;
+     an account opens its ledger (#acl), a party its party ledger ---------- */
+  A.addSection('coa', function () {
+    var C = calc(), keep = each; each = true; var rows = tbRows(C).map(function (x) { return tbName(x, C); }); each = keep;
+    var by = {}; rows.forEach(function (x) { (by[hg(x)] = by[hg(x)] || []).push(x); });
+    var link = function (x) { return x.k.indexOf('p:') === 0 ? '#st/' + encodeURIComponent(x.k.slice(2)) : '#acl/' + encodeURIComponent(x.k); };
+    var body = '<table class="tbl st lg-tbl coa-tbl"><thead><tr><th>Group / account</th><th class="n">Balance</th></tr></thead><tbody>' + P.ORDER.filter(function (g) { return by[g]; }).map(function (g) {
+      return '<tr class="sec"><th colspan="2" class="l">' + esc(gName(g, true)) + '</th></tr>' + by[g].map(function (x) {
+        var v = (x.dr || 0) - (x.cr || 0);
+        return '<tr><td class="sub"><a href="' + link(x) + '">' + esc(x.en || x.loc) + '</a></td><td class="n">' + money(Math.abs(v), false) + (v > 0.004 ? ' Dr' : v < -0.004 ? ' Cr' : '') + '</td></tr>';
+      }).join('');
+    }).join('') + '</tbody></table>';
+    return '<div class="pane-hd"><h2>' + esc(NS.t('app.cr_coa')) + '</h2></div><p class="soft">' + esc(NS.t('app.cr_h_coa', { d: A.ldate(C.r[1]) })) + '</p>' +
+      '<div class="quick"><button type="button" class="btn" data-print>' + esc(NS.t('app.print')) + '</button></div><div class="tbl-wrap"><div class="lg-print"><div class="stsheet sh lg-rep" data-sheet><div class="st-hd"><div><b>' + esc(A.bizName()) + '</b></div><div class="r"><b>Chart of Accounts</b><br>As at ' + esc(A.ldate(C.r[1])) + '</div></div>' + body + NS.creditLine('st-ft') + '</div></div></div>';
+  });
   A.addSection('fin', function (arg) {
     view = ['tb', 'pl', 'bs'].indexOf(arg) >= 0 ? arg : view;
     var C = calc(), F = C.F, rows = tbRows(C), Tt = P.totals(rows), ok = Math.abs(Tt.diff) < 0.005, bsOk = Math.abs(F.bs.diff) < 0.005;
