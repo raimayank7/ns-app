@@ -27,7 +27,40 @@
     var L = listOf(kind); if (!L.length) { NS.toast('Nothing saved yet: a new one opens'); A.openForm(kind); return; }
     A.openForm(kind, { rec: L[L.length - 1] }); setTimeout(function () { var f = $('#app-form .vt-find'); if (f) f.focus(); }, 300);
   };
-  function go(kind, rec) { NS.vsLeave(function () { A.openForm(kind, rec ? { rec: rec } : {}); }, dlg()); }
+  /* the next voucher replaces this one inside the same open screen: closing and opening again let the App show through
+     for a moment (owner 19 Nov: the glitch before Next or Back) */
+  function swap(fn, d) {
+    var run = function () { if (d) d.removeAttribute('data-dirty'); if (window.NSStore && NSStore.sfRelease) NSStore.sfRelease(); fn(); if (d) d.scrollTop = 0; };
+    if (!d || !d.open || !d.getAttribute('data-dirty')) { run(); return; }
+    NS.ask(NS.t('app.vs_leave'), { ok: NS.t('app.vs_discard'), no: NS.t('app.vs_stay'), danger: 1 }).then(function (y) { if (y) run(); });
+  }
+  /* Preview: the bill as it prints (the maker's own paper in a frame), from what is typed now; nothing is saved */
+  var pvDlg = null;
+  function preview() {
+    var d = A.formDoc && A.formDoc(), site = d && window.NSVDocs && NSVDocs.siteOf ? NSVDocs.siteOf(d) : '';
+    if (!d || !site) { NS.toast('Preview is for bills and documents that print', 'warn'); return; }
+    if (!pvDlg) {
+      pvDlg = NS.el('dialog', { 'class': 'vt-pv', 'aria-labelledby': 'vt-pv-h' });
+      pvDlg.innerHTML = '<div class="dlg-hd"><h2 id="vt-pv-h">Preview</h2><span class="soft">As it will print. Not saved yet.</span><button type="button" class="btn sm" data-pvx>Close</button></div><div class="vt-pvb"><p class="soft" data-pvw>Getting the preview ready…</p></div>';
+      document.body.appendChild(pvDlg);
+      pvDlg.addEventListener('click', function (e) { if (e.target.closest('[data-pvx]') || e.target === pvDlg) pvDlg.close(); });
+      pvDlg.addEventListener('close', function () { var f = $('iframe', pvDlg); if (f) f.remove(); });
+    }
+    var box = $('.vt-pvb', pvDlg), wait = $('[data-pvw]', pvDlg); wait.hidden = false;
+    var fr = document.createElement('iframe'); fr.title = 'Preview'; fr.className = 'vt-pvf'; fr.style.visibility = 'hidden';
+    fr.src = '/do/' + site + '/?pv=1'; box.appendChild(fr); pvDlg.showModal();
+    var tries = 0;
+    (function on() {
+      var w = null; try { w = fr.contentWindow; } catch (e) {}
+      if (!(w && w.NSDocOut && w.NSDocOut.show)) { if (++tries < 150 && fr.isConnected) setTimeout(on, 100); else if (fr.isConnected) wait.textContent = 'The preview could not be made. Save and use Print instead.'; return; }
+      var nodes = w.NSDocOut.show(d), doc = w.document, wrap = doc.createElement('div'); wrap.className = 'pv-only';
+      nodes.forEach(function (n) { wrap.appendChild(n.cloneNode(true)); });
+      var st = doc.createElement('style'); st.textContent = 'body>*:not(.pv-only){display:none!important}body{background:#e9edf2!important;margin:0;padding:16px}.pv-only{display:grid;gap:16px;justify-items:center}.pv-only .sh{box-shadow:0 2px 10px rgba(0,0,0,.18);background:#fff}';
+      doc.head.appendChild(st); doc.body.appendChild(wrap); fr.style.visibility = ''; wait.hidden = true;
+    })();
+  }
+  A.vtPreview = preview;
+  function go(kind, rec) { swap(function () { A.openForm(kind, rec ? { rec: rec } : {}); }, dlg()); }
   function dayName(v) { if (!/^\d{4}-\d{2}-\d{2}$/.test(v || '')) return ''; var p = v.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString('en-IN', { weekday: 'long' }); }
   function balText(b) { return !b ? 'Nil' : money(Math.abs(b)) + (b > 0 ? ' Dr (to receive)' : ' Cr (to pay)'); }
 
@@ -45,6 +78,9 @@
   A.formWire = function (kind, form, F) {
     if (prevWire) prevWire(kind, form, F);
     var box = dlg(); if (!box) return;
+    /* Preview next to Save on bills and documents that print */
+    var ft = $('.dlg-foot', form), sv = ft && $('button[type=submit]', ft);
+    if (sv && (kind === 'sale' || F.vd) && !$('[data-vtpv]', ft)) { var pb = NS.el('button', { type: 'button', 'class': 'btn', 'data-vtpv': '', 'data-ic': 'eye' }); pb.textContent = 'Preview'; pb.addEventListener('click', preview); sv.insertAdjacentElement('afterend', pb); }
     /* 7: the day name next to each date */
     $$('input[type=date]', form).forEach(function (inp) {
       var s = NS.el('small', { 'class': 'vt-day soft', 'aria-live': 'polite' }); inp.insertAdjacentElement('afterend', s);
@@ -86,7 +122,7 @@
       var w = b.getAttribute('data-vtnav');
       if (w === 'copy') {
         var c = JSON.parse(JSON.stringify(F.rec)); ['id', 'no', 'created', 'updated', 'status', 'paidBy', 'cancelled', 'irn', 'ewb', 'idate', 'vno'].forEach(function (x) { delete c[x]; }); c.date = NS.today();
-        NS.vsLeave(function () { A.openForm(kind, { draft: c }); NS.toast('A copy: check it and press Save'); }, dlg()); return;
+        swap(function () { A.openForm(kind, { draft: c }); NS.toast('A copy: check it and press Save'); }, dlg()); return;
       }
       var i = w === 'first' ? 0 : w === 'last' ? L.length - 1 : w === 'back' ? (at > L.length - 1 ? L.length - 1 : at - 1) : at + 1;
       if (L[i]) go(kind, L[i]);

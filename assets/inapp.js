@@ -8,6 +8,7 @@
   var site = (window.NS_CFG || {}).inApp; if (!site) return;
   function app() { try { return window.parent !== window && window.parent.NSApp; } catch (e) { return null; } }
   NS.inApp = site;
+  document.documentElement.classList.add('ns-soft');   /* one font and no screen fades, the same as the App around it (owner 19 Nov) */
   /* the App opens url on one of its screens; false when the App cannot (the caller then goes there itself) */
   NS.appGo = function (url) { var A = app(); try { return !!(A && A.openUrl && A.openUrl(new URL(url, location.href).href)); } catch (e) { return false; } };
   /* the address of another maker inside the App (used when the App is not there to ask) */

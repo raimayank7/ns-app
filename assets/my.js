@@ -202,7 +202,7 @@
       var pane = $('[data-pane]');
       pane.innerHTML = (NS.sample.has(cache) ? NS.sample.note() : '') + (GSEC[sec] ? groupsHtml(GSEC[sec]) : sec === 'home' ? homeHtml() : sec === 'settings' ? settingsHtml() : sec === 'backup' ? backupHtml() : sec === 'bin' ? binHtml() : sec === 'log' ? logHtml() : listHtml(sec));
       if (sec === 'home' && !cache.biz.length) wireWizard(pane);
-      if (sec === 'settings') { wireSettings(pane); wirePin(pane); }
+      if (sec === 'settings') { wireSettings(pane); wirePin(pane); setNav(pane); }
       if (sec === 'backup') wireBackup(pane);
       if (FORM[sec] || sec === 'doc') renderList();
       if (focus) { var h = $('h2', pane); if (h) { h.tabIndex = -1; h.focus(); } }
@@ -786,6 +786,38 @@
   }
 
 
+  /* the settings page as a list of groups (Tally F12 style): one group shown at a time, the choice remembered in this browser */
+  function setNav(pane) {
+    var form = $('form.set', pane); if (!form || $('.set-nav', pane)) return;
+    var cards = [].slice.call(pane.querySelectorAll('form.set > fieldset.card, :scope > .card, :scope > form.card, :scope > section.card, :scope > div.card'))
+      .filter(function (c) { return !c.classList.contains('set-biz') && !c.closest('.set-nav'); });
+    if (cards.length < 3) return;
+    var items = [];
+    cards.forEach(function (c, i) {
+      var lg = c.querySelector(':scope > legend, :scope > h3, :scope > h2, :scope > .dc-h b, :scope h3'), name = lg ? lg.textContent.replace(/\s+(On|Off|चालू|बंद)$/, '').trim() : 'More';
+      var subs = [].slice.call(c.querySelectorAll(':scope > h3.dc-sub')).filter(function (h) { return h.nextElementSibling && h.nextElementSibling.classList.contains('dcards'); });
+      if (subs.length > 1) subs.forEach(function (h, j) { items.push({ id: 'c' + i + 's' + j, card: c, sub: h, name: h.textContent.trim(), head: name }); });
+      else items.push({ id: 'c' + i, card: c, name: name });
+    });
+    var nav = NS.el('nav', { 'class': 'set-nav', 'aria-label': 'Settings' }), last = '';
+    nav.innerHTML = items.map(function (x) { var h = x.head && x.head !== last ? '<p class="set-nh">' + esc(x.head) + '</p>' : ''; last = x.head || ''; return h + '<button type="button" class="set-ni' + (x.head ? ' sub' : '') + '" data-setgo="' + x.id + '">' + esc(x.name) + '</button>'; }).join('');
+    var wrap = NS.el('div', { 'class': 'set-wrap' }), body = NS.el('div', { 'class': 'set-body' });
+    form.parentNode.insertBefore(wrap, form); wrap.appendChild(nav); wrap.appendChild(body); body.appendChild(form);
+    cards.forEach(function (c) { if (c.parentNode !== form) body.appendChild(c); });
+    var save = $('.sticky-save', form);
+    function pick(id) {
+      var x = items.filter(function (y) { return y.id === id; })[0] || items[0];
+      cards.forEach(function (c) { c.hidden = c !== x.card; });
+      if (x.sub) { var on = false; [].slice.call(x.card.children).forEach(function (e) { if (e.tagName === 'H3' && e.classList.contains('dc-sub')) on = e === x.sub; if (e.tagName === 'H3' && e.classList.contains('dc-sub') || e.classList.contains('dcards')) e.hidden = !on; }); }
+      else [].slice.call(x.card.children).forEach(function (e) { if (e.classList.contains('dcards') || e.tagName === 'H3' && e.classList.contains('dc-sub')) e.hidden = false; });
+      if (save) save.hidden = x.card.parentNode !== form;
+      [].slice.call(nav.querySelectorAll('[data-setgo]')).forEach(function (b) { var me = b.getAttribute('data-setgo') === x.id; b.classList.toggle('on', me); if (me) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current'); });
+      try { localStorage.setItem('ns-setpick', x.id); } catch (e) {}
+    }
+    nav.addEventListener('click', function (e) { var b = e.target.closest('[data-setgo]'); if (b) { pick(b.getAttribute('data-setgo')); body.scrollTop = 0; var top = wrap.getBoundingClientRect().top; if (top < 0) wrap.scrollIntoView({ block: 'start' }); } });
+    var k = ''; try { k = localStorage.getItem('ns-setpick') || ''; } catch (e) {}
+    pick(k);
+  }
   function wireSettings(pane) {
     var sb = $('[data-setbiz]', pane);
     var setDirty = false; pane.addEventListener('input', function (e) { if (e.target !== sb) setDirty = true; }); pane.addEventListener('submit', function () { setDirty = false; }, true); pane.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('button[type=submit],[data-save]')) setTimeout(function () { setDirty = false; }, 0); });
