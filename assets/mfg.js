@@ -81,7 +81,7 @@
     function vline(x, v, n) {
       return '<li><div class="ln"><b>' + esc(x.desc) + (n > 1 || v.name ? ' · ' + esc(v.name || T('v1')) : '') + '</b>' + (v.from ? ' <span class="soft">' + esc(T('inuse', { d: A.ldate(v.from) })) + '</span>' : '') +
         '<span class="soft">' + esc(B2('bomper', { n: qty(num(v.per) || 1), u: x.unit || '' })) + ': ' + (v.lines || []).map(function (l) { var sub = F.bomList(item(l.desc)).length; return esc(l.desc) + ' ' + qty(num(l.qty)) + (l.unit ? ' ' + esc(l.unit) : '') + (sub ? ' ⚙' : ''); }).join(', ') +
-        ((v.by || []).length ? ' · ' + esc(T('bylist')) + ': ' + v.by.map(function (b) { return esc(b.desc) + ' ' + qty(num(b.qty)); }).join(', ') : '') + '</span></div>' +
+        ((v.by || []).length ? ' · ' + esc(T('bylist')) + ': ' + v.by.map(function (b) { return esc(b.desc) + ' ' + qty(num(b.qty)) + (b.unit ? ' ' + esc(b.unit) : ''); }).join(', ') : '') + '</span></div>' +
         '<div class="acts"><button type="button" class="btn sm" data-mfmake="' + esc(x.desc) + '" data-ver="' + esc(v.name || '') + '">' + esc(B2('makeit')) + '</button><button type="button" class="btn sm" data-mfbom="' + esc(x.id) + '" data-ver="' + esc(v.name || '') + '">' + esc(A.T('edit')) + '</button></div></li>';
     }
     return '<div class="pane-hd"><h2>' + esc(B2('make')) + '</h2><div class="quick"><button type="button" class="btn primary" data-mf="make">+ ' + esc(B2('newmake')) + '</button><button type="button" class="btn" data-mf="bom">+ ' + esc(B2('newbom')) + '</button></div></div>' +
@@ -94,7 +94,7 @@
         var o = d.out || {};
         return '<li><div class="ln"><b>' + esc(o.desc) + ' × ' + qty(num(o.qty)) + '</b> <span class="soft">' + A.ldate(d.date) + ' · ' + esc(d.no || '') + (d.ver ? ' · ' + esc(d.ver) : '') + (d.gd ? ' · ' + esc(d.gd) : '') + '</span><span class="soft">' + esc(B2('costpu', { a: money(num(o.rate)) })) +
           ((d.subs || []).length ? ' · ' + esc(T('subsmade')) + ': ' + d.subs.map(function (s) { return esc(s.desc) + ' ' + qty(num(s.qty)); }).join(', ') : '') +
-          ((d.by || []).length ? ' · ' + esc(T('bylist')) + ': ' + d.by.map(function (b) { return esc(b.desc) + ' ' + qty(num(b.qty)); }).join(', ') : '') + '</span></div>' +
+          ((d.by || []).length ? ' · ' + esc(T('bylist')) + ': ' + d.by.map(function (b) { return esc(b.desc) + ' ' + qty(num(b.qty)) + (b.unit ? ' ' + esc(b.unit) : ''); }).join(', ') : '') + '</span></div>' +
           '<div class="acts"><button type="button" class="btn sm" data-mfmk="' + d.id + '">' + esc(A.T('edit')) + '</button><button type="button" class="btn sm" data-mfdel="' + d.id + '">' + esc(A.T('del')) + '</button></div></li>'; }).join('') + '</ul>' : '<p class="soft">' + esc(B2('nomade')) + '</p>') + '</div>';
   }, wire);
 
@@ -149,7 +149,7 @@
       /* typing in "One batch makes" replaces the 1 shown there (round C: typing 10 gave 110) */
       var pe = $('#bm-per', form); if (pe) { pe.addEventListener('focus', function () { setTimeout(function () { pe.select(); }, 0); }); pe.addEventListener('mouseup', function (e) { e.preventDefault(); }, { once: true }); }
       var vd = $('[data-vdel]', form);
-      if (vd) vd.addEventListener('click', function () { if (!confirm(T('vdelq', { n: cur.name || T('v1') }))) return; NSStore.put('item', F.dropVersion(r, cur.name, today())).then(function () { dlg.close(); A.show(); }); });
+      if (vd) vd.addEventListener('click', function () { if (!NS.okSync(T('vdelq', { n: cur.name || T('v1') }))) return; NSStore.put('item', F.dropVersion(r, cur.name, today())).then(function () { dlg.close(); A.show(); }); });
     });
   }
 
@@ -221,7 +221,7 @@
       var date = val('mk-date'), nm = val('mk-item'), q = num(val('mk-qty')), raw = L.filter(function (l) { return l.desc && num(l.qty) > 0; });
       if (!need(date, A.T('date')) || !need(nm, B2('fin')) || !need(q > 0, B2('mkqty')) || !need(raw.length, B2('rawused')) || !lockOk(date, rec)) return;
       var c = cost(); if (c.t.tooBig) { NS.toast(T('bybig'), 'bad'); return; }
-      if (c.short.length && !confirm(B2('shortq', { l: c.short.join(', ') }))) return;
+      if (c.short.length && !NS.okSync(B2('shortq', { l: c.short.join(', ') }))) return;
       var mm = item(nm), by = Y.filter(function (b) { return b.desc && num(b.qty) > 0; });
       var d = Object.assign(rec ? JSON.parse(JSON.stringify(rec)) : { type: 'stk', kind: 'make', app: 1 }, { date: date, no: val('mk-no'), gd: val('mk-gd'), extra: r2(num(val('mk-extra'))), seller: sellerCopy(), ver: val('mk-ver') || '',
         out: { desc: nm, qty: q, unit: mm && mm.unit || '', rate: c.t.per, batch: val('mk-batch'), exp: val('mk-exp') }, lines: raw.map(function (l) { return { desc: l.desc, qty: num(l.qty), unit: l.unit }; }),

@@ -53,6 +53,35 @@
   DOCCARDS[DOCCARDS.length - 1][1].push(['jewel', 'jewellery', 'nav.jewellery'], ['garment', 'garment', 'nav.garment']);
   DOCCARDS.filter(function (g) { return g[0] === 'hub.grp.trade'; })[0][1].push(['dairy', 'dairy', 'nav.dairy'], ['subs', 'subscribers', 'nav.subs']);   /* India plan B */
   DOCCARDS.filter(function (g) { return g[0] === 'hub.grp.trade'; })[0][1].push(['mandi', 'mandi', 'nav.mandi'], ['pump', 'petrol', 'nav.petrol'], ['tsh', 'tripsheet', 'nav.tripsheet']);
+  /* ERP A-6 / C-11 on the document cards: each series row folds out its numbering (settings.series[<type>|<type>.<kind>]), each card its
+     printing defaults (settings.vt[<type>|<type>.<kind>]); only values that differ from what the type gives by itself are kept */
+  var INVX = ['invoice', '', 'INV', 'Doc.invoice'], INVD = ['invoice', 'billing', 'Doc.invoice'];   /* the invoice block at the top of Settings */
+  var NXOUT = { invoice: 1, cashmemo: 1, exp: 1, self: 1, 'note.credit': 1, 'note.debit': 1 };
+  function serKey(x) { return x[1] ? x[0] + '.' + x[1] : x[0]; }
+  function serDef(S, x) { var k = serKey(x), keep = JSON.parse(JSON.stringify(S || {})); if (keep.series) delete keep.series[k]; return NS.seriesOf(keep, x[0], x[1], '', { def: x[2], width: x[4] || null, fy: x[4] ? true : null }); }
+  function selH(name, v, opts) { return '<select data-sx="' + name + '">' + opts.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (String(o[0]) === String(v) ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select>'; }
+  function serHtml(S, x, lite) {
+    var s = NS.seriesOf(S, x[0], x[1], '', { def: x[2], width: x[4] || null, fy: x[4] ? true : null }), out = NXOUT[serKey(x)], L = function (k, h) { return '<label class="dc-f"><span>' + esc(t('ms.' + k)) + '</span>' + h + '</label>'; };
+    return '<details class="dc-more" data-ser="' + esc(serKey(x)) + '"><summary>' + esc(t('ms.vt_num')) + '</summary>' +
+      L('vt_meth', selH('method', s.method, [['auto', t('ms.vt_m_auto')], ['fixed', t('ms.vt_m_fixed')], ['manual', t('ms.vt_m_manual')]])) +
+      L('vt_sfx', '<input data-sx="suffix" dir="ltr" maxlength="6" value="' + esc(s.suffix) + '">') + L('vt_start', '<input data-sx="start" inputmode="numeric" dir="ltr" value="' + s.start + '">') +
+      (lite ? '' : L('vt_width', selH('width', s.width, [1, 2, 3, 4, 5, 6].map(function (n) { return [n, n]; })))) +
+      L('vt_rst', selH('restart', s.restart, [['year', t('ms.vt_r_year')], ['month', t('ms.vt_r_month')], ['never', t('ms.vt_r_never')]])) +
+      L('vt_dup', selH('dup', out ? 'block' : s.dup, out ? [['block', t('ms.vt_d_block')]] : [['block', t('ms.vt_d_block')], ['warn', t('ms.vt_d_warn')]])) +
+      (lite ? '' : '<label class="chk"><input type="checkbox" data-sx="fy"' + (s.fy ? ' checked' : '') + '> ' + esc(t('ms.vt_fy')) + '</label>') + '</details>';
+  }
+  function vtKeyOf(d) { return d[3] ? d[0] + '.' + d[3] : d[0]; }
+  function vtcHtml(S, d, lite) {
+    var v = (S.vt || {})[vtKeyOf(d)] || {}, L = function (lbl, h) { return '<label class="dc-f"><span>' + esc(lbl) + '</span>' + h + '</label>'; };
+    return '<details class="dc-more" data-vtc="' + esc(vtKeyOf(d)) + '"' + (Object.keys(v).length ? ' open' : '') + '><summary>' + esc(t('ms.vt_print')) + '</summary>' +
+      L(t('ms.vt_copies'), selH('copies', v.copies || '', [['', t('ms.vt_tool')], [1, 1], [2, 2], [3, 3]])) +
+      L(t('ms.vt_paper'), selH('paper', v.paper || '', [['', t('ms.vt_tool')], ['a4', 'A4'], ['a5', 'A5'], ['th80', '80 mm'], ['th58', '58 mm']])) +
+      L(t('l.design'), selH('design', v.design || '', [['', t('ms.vt_tool')]].concat(NS.DESIGNS.map(function (k) { return [k, t('ds.' + k)]; })))) +
+      (lite ? '' : L(t('l.notes'), '<input data-sx="notes" dir="auto" value="' + esc(v.notes || '') + '">') + L(t('ms.vt_terms'), '<input data-sx="terms" dir="auto" value="' + esc(v.terms || '') + '">')) +
+      '<label class="chk"><input type="checkbox" data-sx="printAfter"' + (v.printAfter ? ' checked' : '') + '> ' + esc(t('ms.vt_pafter')) + '</label>' +
+      '<label class="chk"><input type="checkbox" data-sx="shareAfter"' + (v.shareAfter ? ' checked' : '') + '> ' + esc(t('ms.vt_safter')) + '</label><small class="hint">' + esc(t('ms.vt_printh')) + '</small></details>';
+  }
+  function readSx(box) { var o = {}; $$('[data-sx]', box).forEach(function (e) { o[e.getAttribute('data-sx')] = e.type === 'checkbox' ? e.checked : e.value.trim(); }); return o; }
   function siteUrl(site) { return TOOLS.some(function (x) { return x[0] === site; }) ? toolUrl(site) : 'https://' + site + '.niveshsahayak.in/'; }
 
   /* field: [key, label key, kind, extra]; kinds: text, area, state, gstin, sel, num, img, unit, gst, ltr */
@@ -61,7 +90,7 @@
       ['name', 'l.bname', 'text', { req: 1, wide: 1 }], ['addr', 'l.addr', 'area', { wide: 1 }], ['city', 'l.city', 'text'], ['pin', 'l.pin', 'ltr', { mode: 'numeric', max: 6 }], ['state', 'l.state', 'state'], ['gstin', 'l.gstin', 'gstin'],
       ['reg', 'hub.reg', 'sel', { opts: [['regular', 'hub.rg.regular'], ['comp', 'hub.rg.comp'], ['unreg', 'hub.rg.unreg'], ['sez', 'hub.rg.sez']] }],
       ['aato', 'ei.aato', 'sel', { opts: [['', 'ei.a.none'], ['lt5', 'ei.a.lt5'], ['5to10', 'ei.a.5to10'], ['10p', 'ei.a.10p']] }],
-      ['phone', 'l.phone', 'ltr', { mode: 'tel' }], ['email', 'l.email', 'ltr', { type: 'email' }],
+      ['phone', 'l.phone', 'ltr', { mode: 'tel' }], ['email', 'l.email', 'ltr', { type: 'email' }], ['tan', 'hub.tan', 'ltr', { max: 10, upper: 1 }],   /* ERP round 2: TAN for TDS certificates and returns */
       ['bankName', 'l.bank', 'text'], ['bankAcc', 'l.acc', 'ltr', { mode: 'numeric' }], ['bankIfsc', 'l.ifsc', 'ltr', { max: 11, upper: 1 }], ['bankBranch', 'l.branch', 'text'],
       ['upi', 'l.upi', 'ltr', { wide: 1, ph: 'name@bank' }], ['logo', 'l.logo', 'img', { max: 360 }], ['sign', 'l.sign', 'img', { max: 420 }]
     ],
@@ -78,13 +107,21 @@
       ['route', 'rtb.route', 'text', { hint: 'rtb.h_route' }], ['scheme', 'rtb.scheme', 'text', { hint: 'rtb.h_scheme' }],
       /* compliance pack: MSME payables (size, Udyam number as typed by the supplier, days agreed in writing) */
       ['msme', 'cp.f_size', 'sel', { opts: [['', 'cp.sz_none'], ['micro', 'cp.sz_micro'], ['small', 'cp.sz_small'], ['medium', 'cp.sz_medium'], ['other', 'cp.sz_other']], hint: 'cp.h_size' }],
-      ['udyam', 'cp.f_ud', 'ltr', { max: 22, upper: 1, ph: 'UDYAM-XX-00-0000000' }], ['agdays', 'cp.f_ag', 'num', { hint: 'cp.f_ag_h' }]
+      ['udyam', 'cp.f_ud', 'ltr', { max: 22, upper: 1, ph: 'UDYAM-XX-00-0000000' }], ['agdays', 'cp.f_ag', 'num', { hint: 'cp.f_ag_h' }],
+      /* ERP round 1 (r1-gst S-2): GST registration type and PAN (gstcore.js partyReg; empty = worked out from the GSTIN) */
+      ['reg', 'ms.reg', 'sel', { opts: [['', 'ms.reg_auto'], ['regular', 'ms.reg_regular'], ['comp', 'ms.reg_comp'], ['unreg', 'ms.reg_unreg'], ['sez', 'ms.reg_sez'], ['uin', 'ms.reg_uin'], ['overseas', 'ms.reg_overseas'], ['eco', 'ms.reg_eco']] }],
+      ['pan', 'ms.pan', 'ltr', { max: 10, upper: 1 }]
     ],
     item: [
       ['desc', 'hub.f.iname', 'text', { req: 1, wide: 1 }], ['kind', 'l.type', 'sel', { opts: [['goods', 'hub.k.goods'], ['service', 'hub.k.service']] }],
       ['group', 'grp.group', 'igroup', { hint: 'grp.h_igroup' }], ['biz', 'pb.usedby', 'usedby', { hint: 'pb.usedbyh' }],
       ['code', 'hub.f.code', 'ltr'], ['hsn', 'l.hsn', 'ltr', { mode: 'numeric', max: 8 }], ['unit', 'l.unit', 'unit'],
-      ['rate', 'b1.retail', 'num', { hint: 'b1.h_retail' }], ['wrate', 'b1.whole', 'num'], ['mrp', 'b1.mrp', 'num'], ['prate', 'b1.prate', 'num'], ['gst', 'l.gst', 'gst']
+      ['rate', 'b1.retail', 'num', { hint: 'b1.h_retail' }], ['wrate', 'b1.whole', 'num'], ['mrp', 'b1.mrp', 'num'], ['prate', 'b1.prate', 'num'], ['gst', 'l.gst', 'gst'],
+      /* ERP Round 2 (r2-billwise, A-9): the item's own sales / purchase ledger in the accounts; empty = Sales / Purchases */
+      ['sl', 'bw.isl', 'text', { hint: 'bw.islh' }], ['pl', 'bw.ipl', 'text'],
+      /* ERP round 1 (r1-gst S-1, S-5): taxability and input tax credit; dated rate changes are made in the App's Masters */
+      ['tax.kind', 'ms.tk', 'sel', { opts: [['taxable', 'ms.tk_taxable'], ['nil', 'ms.tk_nil'], ['exempt', 'ms.tk_exempt'], ['nongst', 'ms.tk_nongst']] }],
+      ['tax.itc', 'ms.itc', 'sel', { opts: [['ok', 'ms.itc_ok'], ['blocked', 'ms.itc_blocked'], ['ineligible', 'ms.itc_inel']], hint: 'ms.itch' }]
     ]
   };
   /* CSV columns (English headers, so a file works in any language) */
@@ -92,7 +129,7 @@
     biz: [['name', 'Name'], ['addr', 'Address'], ['city', 'City'], ['pin', 'PIN code'], ['state', 'State code'], ['gstin', 'GSTIN'], ['phone', 'Phone'], ['email', 'Email'], ['bankName', 'Bank'], ['bankAcc', 'Account no'], ['bankIfsc', 'IFSC'], ['bankBranch', 'Branch'], ['upi', 'UPI ID'], ['gst.legal', 'Legal name'], ['gst.trade', 'Trade name']],
     party: [['role', 'Type'], ['name', 'Name'], ['phone', 'Phone'], ['email', 'Email'], ['addr', 'Address'], ['city', 'City'], ['pin', 'PIN code'], ['state', 'State code'], ['gstin', 'GSTIN'], ['ship.addr', 'Ship-to address'], ['ship.state', 'Ship-to state code'], ['gst.legal', 'Legal name'], ['gst.trade', 'Trade name'],
       ['ptype', 'Price type'], ['climit', 'Credit limit'], ['cdays', 'Credit days'], ['route', 'Route / beat'], ['scheme', 'Scheme'], ['msme', 'MSME size'], ['udyam', 'Udyam no'], ['agdays', 'Agreed credit days'], ['group', 'Group']],
-    item: [['desc', 'Name'], ['kind', 'Type'], ['cat', 'Group'], ['code', 'Item code'], ['hsn', 'HSN/SAC'], ['unit', 'Unit'], ['rate', 'Rate'], ['wrate', 'Wholesale rate'], ['mrp', 'MRP'], ['prate', 'Purchase price'], ['gst', 'GST %']]
+    item: [['desc', 'Name'], ['kind', 'Type'], ['cat', 'Group'], ['code', 'Item code'], ['hsn', 'HSN/SAC'], ['unit', 'Unit'], ['rate', 'Rate'], ['wrate', 'Wholesale rate'], ['mrp', 'MRP'], ['prate', 'Purchase price'], ['gst', 'GST %'], ['sl', 'Sales ledger'], ['pl', 'Purchase ledger']]
   };
   var NAMEKEY = { biz: 'name', party: 'name', item: 'desc' };
   var SECS = ['home', 'biz', 'party', 'pgroups', 'item', 'igroups', 'doc', 'settings', 'backup', 'bin', 'log'];
@@ -330,6 +367,8 @@
     if (g && NS.gstFetchButton) NS.gstFetchButton(g, function (d) {
       ['name', 'addr', 'city', 'pin', 'state'].forEach(function (k) { var el = f.elements[k]; if (el && d[k]) el.value = d[k]; });
       if (s === 'biz' && d.reg && f.elements.reg) f.elements.reg.value = d.reg;
+      var cs = String(d.constitution || ''), bt = /limited liability|\bllp\b/i.test(cs) ? 'llp' : /partnership/i.test(cs) ? 'firm' : /company|limited/i.test(cs) ? 'co' : /trust|society|association|club/i.test(cs) ? 'npo' : /propriet/i.test(cs) ? 'prop' : '';
+      if (s === 'biz' && bt && f.elements.fmbtype) { f.elements.fmbtype.value = bt; f.elements.fmbtype.dispatchEvent(new Event('change', { bubbles: true })); }   /* F7-4 */
       if (s === 'party' && d.reg) r.reg = d.reg;
       r.gst = { legal: d.legal || '', trade: d.trade || '', status: d.status || '', type: d.type || '', since: d.since || '', checked: d.checked };
       gstHint();
@@ -357,6 +396,12 @@
         set(r, x[0], v);
       });
       if (s === 'item') { if (r.gst !== '') r.gst = +r.gst; }
+      if (s === 'item' && window.NSGst && r.tax) {   /* r1-gst: a rate changed here on an item with dated rates applies from today; defaults are not stored */
+        if (r.tax.kind === 'taxable') delete r.tax.kind; if (r.tax.itc === 'ok') delete r.tax.itc;
+        if (r.gst !== '' && NSGst.hist(r).some(function (h) { return h.from; }) && NSGst.itemRate(r, NS.today()).rate !== r.gst) Object.assign(r, NSGst.addRate(r, NS.today(), r.gst, NS.today()));
+        if (!Object.keys(r.tax).length) delete r.tax;
+      }
+      if (s === 'party' && r.pan && !/^[A-Z]{5}\d{4}[A-Z]$/.test(r.pan)) { NS.toast(NS.t('ms.panbad'), 'bad'); return; }
       if (r.group === '+') r.group = '';
       if (!r.biz) delete r.biz;
       if (s === 'item') { if (r.group) r.cat = gName('item', r.group); else { delete r.group; r.cat = ''; } }
@@ -552,7 +597,7 @@
     f.onsubmit = function (e) {
       e.preventDefault();
       var to = f.elements.into.value, toG = gGet(kind, to), recs = members(kind, id);
-      if (!toG || !confirm(t('grp.c_merge', { n: recs.length, a: g.name, b: toG.name }))) return;
+      if (!toG || !NS.okSync(t('grp.c_merge', { n: recs.length, a: g.name, b: toG.name }))) return;
       recs.reduce(function (p, r) {
         return p.then(function () {
           r.group = to;
@@ -568,7 +613,7 @@
   function delGroup(kind, id) {
     var g = gGet(kind, id); if (!g || g.builtin) return;
     if (members(kind, id).length || gKids(kind, id).length) { NS.toast(t('grp.notempty', { name: g.name }), 'bad'); return; }
-    if (!confirm(t('grp.c_del', { name: g.name }))) return;
+    if (!NS.okSync(t('grp.c_del', { name: g.name }))) return;
     editGroups(function (m) { m[kind] = m[kind].filter(function (y) { return y.id !== id; }); })
       .then(function () { NS.toast(t('grp.deleted')); return show(cur); }, function (err) { NS.toast(err.message, 'bad'); });
   }
@@ -627,8 +672,13 @@
   function logHtml() {
     var rows = cache.log.slice().sort(function (a, b) { return b.at - a.at; });
     return '<div class="pane-hd"><h2>' + esc(t('b1.hist')) + '</h2>' + (rows.length ? '<button type="button" class="btn sm" data-xllog>' + esc(t('b1.xl')) + '</button>' : '') + '</div>' +
-      '<p class="soft">' + esc(t('b1.logp')) + '</p><p class="soft">' + esc(t('b1.logrule')) + '</p>' + NS.logHtml(rows.slice(0, 300), true) +
-      (rows.length > 300 ? '<p class="soft">' + esc(t('b1.logmore', { n: rows.length })) + '</p>' : '');
+      '<p class="soft">' + esc(t('b1.logp')) + '</p><p class="soft">' + esc(t('b1.logrule')) + '</p>' +
+      (NS.logView ? '<div data-au-view></div>' + logLater(rows) : NS.logHtml(rows.slice(0, 300), true) + (rows.length > 300 ? '<p class="soft">' + esc(t('b1.logmore', { n: rows.length })) + '</p>' : ''));
+  }
+  /* filters and "Check edit history" (extras.js NS.logView), filled once the pane is on the page (ERP Round 1, A-1 / C-18) */
+  function logLater(rows) {
+    setTimeout(function () { var el = document.querySelector('[data-au-view]'); if (el) NS.logView(el, rows, S.lockBefore || '', true); }, 0);
+    return '';
   }
   function excel(s) {
     if (s === 'item') return NS.xlsx('items-and-prices-' + NS.today() + '.xlsx', [NS.reports.items(cache.item)]);
@@ -637,7 +687,7 @@
   }
 
   /* ---------- settings ---------- */
-  function saveSettings() {
+  function saveSettings(why) {
     var o = JSON.parse(JSON.stringify(S));
     Object.keys(o).forEach(function (k) { if (k.charAt(0) === '_') delete o[k]; });
     /* years closed in the App (Batch 2) and its feature switches are changed there only: keep the newest */
@@ -646,7 +696,7 @@
       fresh = fresh || {}; NS.cfgSplit(fresh, cache.biz);
       NS.cfgSave(fresh, SB, o);   /* business keys under this business, the rest shared */
       RAW = fresh; S.closed = fresh.closed; S.features = fresh.features;
-      return NSStore.meta('settings', fresh);
+      return NSStore.meta('settings', fresh, { why: typeof why === 'string' ? why : '' });   /* lock moves are logged with their reason (A-4) */
     });
   }
   function settingsHtml() {
@@ -665,9 +715,10 @@
       '<fieldset class="card"><legend>' + esc(t('hub.g.inv')) + '</legend><p class="dc-top"><a class="dc-open" href="' + siteUrl('billing') + '" target="_blank" rel="noopener">' + esc(t('hub.openmk')) + ' ›</a></p>' +
         '<h3 class="dc-sub">' + esc(t('hub.g.num')) + '</h3><div class="fg">' +
         '<div class="f"><label for="st-pre">' + esc(t('hub.prefix')) + '</label><input id="st-pre" name="prefix" dir="ltr" maxlength="8" value="' + esc(c.prefix != null ? c.prefix : 'INV') + '" autocapitalize="characters"></div>' +
-        '<div class="f"><label for="st-dig">' + esc(t('hub.digits')) + '</label><select id="st-dig" name="digits">' + [1, 2, 3, 4, 5, 6].map(function (d) { return '<option' + sel(d, c.digits || 3) + '>' + d + '</option>'; }).join('') + '</select></div>' +
-        '<div class="f wide"><label class="chk"><input type="checkbox" name="fy"' + (c.fy === false ? '' : ' checked') + '> ' + esc(t('hub.fy')) + '</label></div>' +
+        '<div class="f"><label for="st-dig">' + esc(t('hub.digits')) + '</label><select id="st-dig" name="digits">' + [1, 2, 3, 4, 5, 6].map(function (d) { return '<option' + sel(d, NS.seriesOf(S, 'invoice', '', '', { def: 'INV' }).width) + '>' + d + '</option>'; }).join('') + '</select></div>' +
+        '<div class="f wide"><label class="chk"><input type="checkbox" name="fy"' + (NS.seriesOf(S, 'invoice', '', '', { def: 'INV' }).fy ? ' checked' : '') + '> ' + esc(t('hub.fy')) + '</label></div>' +
         '<div class="f wide"><span class="lbl">' + esc(t('hub.next')) + '</span><b class="mono preview-no" data-no-pv></b><small class="hint">' + esc(t('hub.h.num')) + '</small></div>' +
+        '<div class="f wide dc-inv">' + serHtml(S, INVX, 1) + vtcHtml(S, INVD, 1) + '</div>' +   /* ERP A-6 / C-11 for the invoice */
       '</div>' +
         '<h3 class="dc-sub">' + esc(t('hub.g.new')) + '</h3><div class="fg">' +
         '<div class="f"><label for="st-kind">' + esc(t('l.type')) + '</label><select id="st-kind" name="kind">' + ['tax', 'supply', 'plain'].map(function (k) { return '<option value="' + k + '"' + sel(k, c.kind || 'tax') + '>' + esc(t('k.' + k)) + '</option>'; }).join('') + '</select></div>' +
@@ -685,11 +736,12 @@
           return '<div class="dcard"><div class="dc-h"><b>' + esc(t(d[2])) + '</b><a class="dc-open" href="' + siteUrl(d[1]) + '" target="_blank" rel="noopener">' + esc(t('hub.openmk')) + ' ›</a></div>' + rows.map(function (x) {
             var v = x[1] ? (c2.prefixes || {})[x[1]] : c2.prefix, id = 'st-p-' + x[0] + (x[1] ? '-' + x[1] : '');
             return '<div class="dc-row"><label for="' + id + '">' + esc(rows.length > 1 ? t(x[3]) : t('hub.pfx')) + '</label><input id="' + id + '" data-pre="' + x[0] + '|' + x[1] + '"' + (x[4] ? ' data-fix="' + x[4] + '"' : '') + ' dir="ltr" maxlength="8" autocapitalize="characters" value="' + esc(v != null ? v : x[2]) + '">' +
-              '<small class="dc-next">' + esc(t('hub.nextno')) + ' <b class="mono" data-pre-pv></b></small></div>'; }).join('') + '</div>'; }).join('') + '</div>'; }).join('') +
+              '<small class="dc-next">' + esc(t('hub.nextno')) + ' <b class="mono" data-pre-pv></b></small>' + serHtml(S, x) + '</div>'; }).join('') + vtcHtml(S, d) + '</div>'; }).join('') + '</div>'; }).join('') +
       '</fieldset>' +
       '<fieldset class="card"><legend>' + esc(t('b1.g_safe')) + '</legend><div class="fg">' +
         '<div class="f"><label for="st-who">' + esc(t('b1.who')) + '</label><input id="st-who" name="who" dir="auto" maxlength="40" value="' + esc(S._who) + '"><small class="hint">' + esc(t('b1.h_who')) + '</small></div>' +
         '<div class="f"><label for="st-lock">' + esc(t('b1.lock')) + '</label><input id="st-lock" name="lockBefore" type="date" value="' + esc(S.lockBefore || '') + '"><small class="hint">' + esc(t('b1.h_lock')) + '</small></div>' +
+        '<div class="f"><label class="chk"><input type="checkbox" name="allowDel"' + (S.allowDel ? ' checked' : '') + '> ' + esc(t('au.allowdel')) + '</label><small class="hint">' + esc(t('au.allowdelh')) + '</small></div>' +
       '</div></fieldset>' +
       '<div class="btns sticky-save"><button type="submit" class="btn primary">' + esc(t('hub.saveset')) + '</button><button type="button" class="btn" data-reset>' + esc(t('hub.reset')) + '</button></div></form>' + pinHtml() +
       hubExt('settings', S);
@@ -734,19 +786,23 @@
 
   function wireSettings(pane) {
     var sb = $('[data-setbiz]', pane);
-    if (sb) sb.addEventListener('change', function () { SB = sb.value; show('settings'); });   /* settings of another business */
+    var setDirty = false; pane.addEventListener('input', function (e) { if (e.target !== sb) setDirty = true; }); pane.addEventListener('submit', function () { setDirty = false; }, true); pane.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('button[type=submit],[data-save]')) setTimeout(function () { setDirty = false; }, 0); });
+    if (sb) sb.addEventListener('change', function () { var prev = SB, go = function () { SB = sb.value; show('settings'); }; if (!setDirty) return go(); NS.ask(t('pb.unsaved')).then(function (y) { if (y) go(); else sb.value = prev; }); });   /* settings of another business; unsaved changes ask first (F7-5) */
     hubExt('wireSettings', pane, S, saveSettings);
     var f = $('[data-set]', pane), acc = (S.invoice && S.invoice.accent) || ACCENTS[0];
     function pv() {
       var fy = NS.fy(NS.today()), short = fy.slice(2, 4) + '-' + fy.slice(5), pre = f.elements.prefix.value.trim().toUpperCase().replace(/[^A-Z0-9\/\-]/g, '');
       f.elements.prefix.value = pre;
-      $('[data-no-pv]', f).textContent = (pre ? pre + '/' : '') + (f.elements.fy.checked ? short + '/' : '') + String(1).padStart(+f.elements.digits.value, '0');
+      var ix = readSx($('[data-ser="invoice"]', f)), isfx = String(ix.suffix || '').toUpperCase().replace(/[^A-Z0-9\/\-]/g, '');
+      $('[data-no-pv]', f).textContent = ix.method === 'manual' ? t('ms.vt_manual') : (pre ? pre + '/' : '') + (f.elements.fy.checked ? short + '/' : '') + (ix.restart === 'month' ? NS.today().slice(5, 7) + '/' : '') + String(Math.max(1, +ix.start || 1)).padStart(+f.elements.digits.value, '0') + isfx;
       $$('[data-pre]', f).forEach(function (inp) {
-        var p2 = inp.value.trim().toUpperCase().replace(/[^A-Z0-9\/\-]/g, ''), fix = +inp.getAttribute('data-fix');
-        $('[data-pre-pv]', inp.parentNode).textContent = (p2 ? p2 + '/' : '') + (fix || f.elements.fy.checked ? short + '/' : '') + String(1).padStart(fix || +f.elements.digits.value, '0');
+        var p2 = inp.value.trim().toUpperCase().replace(/[^A-Z0-9\/\-]/g, ''), fix = +inp.getAttribute('data-fix'), sb = $('[data-ser]', inp.parentNode), x = sb ? readSx(sb) : {};
+        var w = +x.width || fix || +f.elements.digits.value, sfx = String(x.suffix || '').toUpperCase().replace(/[^A-Z0-9\/\-]/g, ''), withFy = sb ? x.fy : (fix || f.elements.fy.checked);
+        $('[data-pre-pv]', inp.parentNode).textContent = x.method === 'manual' ? t('ms.vt_manual') : (p2 ? p2 + '/' : '') + (withFy ? short + '/' : '') + (x.restart === 'month' ? NS.today().slice(5, 7) + '/' : '') + String(Math.max(1, +x.start || 1)).padStart(w, '0') + sfx;
       });
     }
     $$('[data-pre]', f).forEach(function (inp) { inp.addEventListener('input', pv); });
+    $$('[data-ser] [data-sx]', f).forEach(function (e) { e.addEventListener('input', pv); e.addEventListener('change', pv); });
     ['prefix', 'digits', 'fy'].forEach(function (n) { f.elements[n].addEventListener('input', pv); f.elements[n].addEventListener('change', pv); });
     pv();
     $$('[data-acc]', f).forEach(function (b) {
@@ -757,8 +813,14 @@
       var E = f.elements;
       S.defBiz = E.defBiz.value || '';
       S.remindDays = +E.remindDays.value;
-      if (E.lockBefore.value !== (S.lockBefore || '') && !confirm(E.lockBefore.value ? t('b1.lockc', { d: NS.fmtDate(E.lockBefore.value) }) : t('b1.unlockc'))) return;
+      /* moving the lock earlier or clearing it opens old entries: PIN (when set) and a reason, logged (A-4, C-18) */
+      var oldLk = S.lockBefore || '', newLk = E.lockBefore.value || '', earlier = oldLk && (!newLk || newLk < oldLk);
+      if (newLk !== oldLk && !earlier && !NS.okSync(newLk ? t('b1.lockc', { d: NS.fmtDate(newLk) }) : t('b1.unlockc'))) return;
+      (earlier || !!S.allowDel !== !!(E.allowDel && E.allowDel.checked) && E.allowDel.checked ? NS.guard({ title: t(earlier ? 'au.lockt' : 'au.allowdel'), msg: earlier ? t('au.lockp') : t('au.allowdelh'), why: 'need' }) : Promise.resolve({ why: '' })).then(function (g) { saveSet(E, g.why); }, function () {});
+    });
+    function saveSet(E, why) {
       S.lockBefore = E.lockBefore.value || '';
+      S.allowDel = !!(E.allowDel && E.allowDel.checked);
       NSStore.meta('who', E.who.value.trim());
       S.invoice = { prefix: E.prefix.value.trim(), digits: +E.digits.value, fy: E.fy.checked, kind: E.kind.value, gst: +E.gst.value, unit: E.unit.value.trim() || 'Nos',
         round: E.round.checked, accent: acc, notes: E.notes.value.trim(), terms: E.terms.value.trim() };
@@ -766,11 +828,26 @@
         var k = inp.getAttribute('data-pre').split('|'), v = inp.value.trim().toUpperCase().replace(/[^A-Z0-9\/\-]/g, ''), c2 = S[k[0]] = S[k[0]] || {};
         if (k[1]) { c2.prefixes = c2.prefixes || {}; c2.prefixes[k[1]] = v; } else c2.prefix = v;
       });
-      saveSettings().then(function () { NS.toast(t('hub.setsaved')); counts(); });
-    });
+      /* numbering of each series and printing of each card (A-6, C-11) */
+      S.series = S.series || {}; S.vt = S.vt || {};
+      $$('[data-ser]', f).forEach(function (b) {
+        var k = b.getAttribute('data-ser'), x = k === 'invoice' ? INVX : PREFIXES.filter(function (p) { return serKey(p) === k; })[0]; if (!x) return;
+        var r = readSx(b), d00 = serDef(S, x); if (r.width == null) r.width = d00.width; if (r.fy == null) r.fy = d00.fy;
+        var nx = { method: r.method, suffix: String(r.suffix || '').toUpperCase().replace(/[^A-Z0-9\/\-]/g, '').slice(0, 6), fy: !!r.fy, width: +r.width, start: Math.max(1, Math.floor(+r.start || 1)), restart: r.restart, dup: r.dup };
+        var d0 = serDef(S, x), o = {}; Object.keys(nx).forEach(function (q) { if (nx[q] !== d0[q]) o[q] = nx[q]; });
+        if (Object.keys(o).length) S.series[k] = o; else delete S.series[k];
+      });
+      $$('[data-vtc]', f).forEach(function (b) {
+        var k = b.getAttribute('data-vtc'), r = readSx(b), o = {}, old = (S.vt || {})[k] || {};
+        Object.keys(old).forEach(function (q) { if (!(q in r)) o[q] = old[q]; });
+        if (r.copies) o.copies = +r.copies; ['paper', 'design', 'notes', 'terms'].forEach(function (q) { if (r[q]) o[q] = r[q]; }); if (r.printAfter) o.printAfter = true; if (r.shareAfter) o.shareAfter = true;
+        if (Object.keys(o).length) S.vt[k] = o; else delete S.vt[k];
+      });
+      saveSettings(why).then(function () { NS.toast(t('hub.setsaved')); counts(); });
+    }
     $('[data-reset]', f).addEventListener('click', function () {
-      if (!confirm(t('hub.c.reset'))) return;
-      delete S.invoice; PREFIXES.forEach(function (x) { delete S[x[0]]; }); S.remindDays = 7;
+      if (!NS.okSync(t('hub.c.reset'))) return;
+      delete S.invoice; PREFIXES.forEach(function (x) { delete S[x[0]]; }); delete S.series; delete S.vt; S.remindDays = 7;
       saveSettings().then(function () { NS.toast(t('hub.setsaved')); show('settings'); });
     });
   }
@@ -793,12 +870,11 @@
     }).catch(function () {});
     (NS.hubBackupExt || []).forEach(function (f) { try { f(pane); } catch (e) {} });   /* locked backup, Drive sync, send to accountant (safe.js) */
     $('[data-wipe]', pane).addEventListener('click', function () {
-      if (!confirm(t('my.wipe.c1'))) return;
+      if (!NS.okSync(t('my.wipe.c1'))) return;
       if (prompt(t('my.wipe.c2')) !== 'DELETE') return;
-      Promise.all(['biz', 'party', 'item', 'doc'].map(function (s) {
-        return NSStore.list(s).then(function (rows) { return Promise.all(rows.map(function (r) { return NSStore.del(s, r.id, { hard: true }); })); });
-      })).then(function () { return NSStore.list('bin'); }).then(function (rows) { return Promise.all(rows.map(function (r) { return NSStore.del('bin', r.id); })); })
-        .then(function () { NS.toast(t('my.wiped')); show('backup'); }, function (err) { NS.toast(err.message, 'bad'); });
+      /* PIN when set, a reason; the edit history and earlier versions stay (A-1, C-18) */
+      NS.guard({ title: t('au.wipet'), msg: t('au.wipep'), why: 'ask', danger: 1 }).then(function (g) { return NSStore.wipe(g.why); })
+        .then(function () { NS.toast(t('my.wiped')); show('backup'); }, function (err) { if (!err.quiet) NS.toast(err.message, 'bad'); });
     });
   }
 
@@ -817,13 +893,16 @@
       });
       return download('documents-' + NS.today() + '.csv', [hd].concat(rows).map(function (r) { return r.map(csvCell).join(','); }).join('\r\n'));
     }
-    var cols = CSV[s], lines = [cols.map(function (c) { return c[1]; })];
+    var cols = csvCols(s), lines = [cols.map(function (c) { return c[1]; })];
     if (blankOnly) lines.push(cols.map(function (c) { return { role: 'customer', kind: 'goods', unit: 'Nos', gst: '18', state: '03' }[c[0]] || ''; }));
     else cache[s].forEach(function (r) { lines.push(cols.map(function (c) { return csvGet(s, r, c[0]); })); });
     download((blankOnly ? 'template-' : '') + { biz: 'businesses', party: 'customers-suppliers', item: 'items-services' }[s] + (blankOnly ? '' : '-' + NS.today()) + '.csv', lines.map(function (r) { return r.map(csvCell).join(','); }).join('\r\n'));
   }
   /* group columns hold the group's name (built-ins in English, so the file reads back in any language) */
+  /* the party / item custom fields as extra columns named by their label (ERP Round 2, cfields.js) */
+  function csvCols(s) { return CSV[s].concat(window.NSCF && (s === 'party' || s === 'item') ? NSCF.defs(NSCF.list(), s, 'head', '', true).map(function (f) { return ['cf.' + f.id, f.label]; }) : []); }
   function csvGet(s, r, k) {
+    if (k.indexOf('cf.') === 0 && window.NSCF) { var cfd = NSCF.get(k.slice(3)); return cfd ? NSCF.fmt(cfd, r.cf && r.cf[cfd.id]) : ''; }
     if (s === 'party' && k === 'group') { var pg = NS.partyGroup(r, G); return pg.id === 'debtors' ? 'Customers' : pg.id === 'creditors' ? 'Suppliers' : pg.name; }
     if (s === 'item' && k === 'cat') return NS.itemGroup(r, G).name || r.cat || '';
     return get(r, k);
@@ -853,7 +932,7 @@
     file.text().then(function (txt) {
       var rows = parseCsv(txt);
       if (rows.length < 2) throw new Error(t('hub.imp.empty'));
-      var cols = CSV[s], head = rows[0].map(function (h) { return key(h).replace(/[^a-z0-9%]/g, ''); });
+      var cols = csvCols(s), head = rows[0].map(function (h) { return key(h).replace(/[^a-z0-9%]/g, ''); });
       var idx = cols.map(function (c) { var n = key(c[1]).replace(/[^a-z0-9%]/g, ''), alt = key(c[0]).replace(/[^a-z0-9]/g, ''); var i = head.indexOf(n); if (i < 0) i = head.indexOf(alt); if (i < 0 && c[0] === 'cat') i = head.indexOf('category'); return i; });
       var nameCol = cols.map(function (c) { return c[0]; }).indexOf(NAMEKEY[s]);
       if (idx[nameCol] < 0) throw new Error(t('hub.imp.nohead', { col: cols[nameCol][1] }));
@@ -874,6 +953,7 @@
         if (r.udyam) { var uz = udyamFmt(r.udyam); if (uz) r.udyam = uz; else delete r.udyam; }
         if (r.agdays !== undefined && r.agdays !== '') r.agdays = Math.max(0, Math.min(45, Math.floor(+r.agdays || 0))); else delete r.agdays;
         if (r.gst != null) r.gst = NS.num(String(r.gst).replace('%', ''));
+        if (r.cf && window.NSCF) { var cf0 = r.cf; r.cf = {}; Object.keys(cf0).forEach(function (id) { var cfd = NSCF.get(id); if (cfd) NSCF.setCf(r, cfd, cf0[id]); }); if (!r.cf || !Object.keys(r.cf).length) delete r.cf; }   /* custom field columns, typed values */
         var have = byName[nm];
         if (s === 'party' && r.group) {
           var role = r.role || (have && have.role) || 'customer';
@@ -881,11 +961,11 @@
           if (r.group === (role === 'supplier' ? 'creditors' : 'debtors')) { r.group = ''; if (have) delete have.group; delete r.group; }
         }
         if (s === 'item' && r.cat) { r.group = gFromCsv('item', r.cat, '', made); r.cat = gList('item').concat(made).filter(function (g) { return g.id === r.group; })[0].name; }
-        if (have) { Object.keys(r).forEach(function (k) { if (k === 'ship') have.ship = Object.assign(have.ship || {}, r.ship); else have[k] = r[k]; }); puts.push(have); upd++; }
+        if (have) { Object.keys(r).forEach(function (k) { if (k === 'ship' || k === 'cf') have[k] = Object.assign(have[k] || {}, r[k]); else have[k] = r[k]; }); puts.push(have); upd++; }
         else { if (s === 'party' && !r.role) r.role = 'customer'; if (s === 'item' && !r.kind) r.kind = 'goods'; byName[nm] = r; puts.push(r); add++; }
       });
       /* say what will happen before anything is saved, like the Excel import does (round C) */
-      var q = t('hub.imp.ask', { a: add, u: upd });
+      var q = t('hub.imp.ask', { a: add, u: upd }) + (bad.length ? ' ' + t('hub.imp.bad', { rows: bad.slice(0, 8).join(', ') + (bad.length > 8 ? '…' : '') }) : '');   /* F7-6 */
       return (NS.ask ? NS.ask(q) : Promise.resolve(confirm(q))).then(function (ok) {
         if (!ok) { load(); return show(s); }
         var gp = made.length ? editGroups(function (m) { made.forEach(function (g) { m[s].push(g); }); }) : Promise.resolve();
@@ -929,7 +1009,13 @@
       if (e.target.closest('[data-swimp]')) return NS.swImport && NS.swImport.open();
       if (e.target.closest('[data-xl]')) return excel(cur);
       if (e.target.closest('[data-xllog]')) return NS.xlsx('edit-history-' + NS.today() + '.xlsx', [NS.reports.log(cache.log)]);
-      if (e.target.closest('[data-binempty]')) { if (confirm(t('b1.binemptyc'))) Promise.all(cache.bin.map(function (b) { return NSStore.del('bin', b.id); })).then(function () { show('bin'); }); return; }
+      if (e.target.closest('[data-binempty]')) {   /* PIN when set, logged (C-18) */
+        if (NS.okSync(t('b1.binemptyc'))) NS.guard({ title: t('au.bint'), msg: t('au.binp'), why: 'ask', danger: 1 }).then(function (g) {
+          var n = cache.bin.length;
+          return Promise.all(cache.bin.map(function (b) { return NSStore.del('bin', b.id); })).then(function () { return NSStore.note('binempty', { n: n, why: g.why || undefined }); });
+        }).then(function () { show('bin'); }, function () {});
+        return;
+      }
       if (e.target.closest('[data-gadd]')) return groupForm(GSEC[cur]);
       var gl = e.target.closest('li[data-gid]');
       if (gl) {
@@ -954,6 +1040,8 @@
       else if (e.target.closest('[data-del]')) {
         /* a party with saved documents says so before it goes (round C); the site's own box, not the browser's confirm() */
         var nm = $('.ttl', li).textContent, kk = String(nm || '').trim().toLowerCase(), nd = cur === 'party' ? (cache.doc || []).filter(function (d) { return String((d.buyer || {}).name || '').trim().toLowerCase() === kk; }).length : 0;
+        if (cur === 'item') nd = (cache.doc || []).filter(function (d) { return (d.items || []).concat(d.lines || []).some(function (l) { return l && String(l.desc || '').trim().toLowerCase() === kk; }); }).length;
+        if (nd && (cur === 'party' || cur === 'item')) { NS.toast(t('ms.inuse', { n: nd }), 'bad'); return; }   /* used in vouchers: alter it, never delete (as in an accounting program) */
         var msg = nd ? t('b1.cdelp', { x: nm, n: nd }) : t('b1.cdel', { x: nm });
         (NS.ask ? NS.ask(msg, { danger: true }) : Promise.resolve(confirm(msg))).then(function (ok) {
           if (!ok) return;

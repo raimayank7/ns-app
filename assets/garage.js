@@ -108,6 +108,7 @@
   }
 
   K = NS.kit({
+    acctLines: true,   /* ERP C-9: particulars and value only when the business keeps no items */
     type: 'gjob', prefix: 'GJ', digits: 4, paper: 'a5', papers: ['a5', 'a4', 'th80'], copies: 2, copyLabels: ['Customer copy', 'Workshop copy'],
     name: function (d) { return d.print === 'bill' ? 'Service Bill' : 'Job Card'; },
     blank: function () { return { print: 'card', jstat: 'recd', reg: '', make: '', model: '', year: '', fuel: 'petrol', odo: '', acc: '', cond: '', complaint: '', est: '', promise: '', tech: '', svc: false, intMonths: '', intKm: '', nextDate: '', nextKm: '', kind: 'plain', adv: '', status2: 'unpaid', payMode: 'cash', terms: 'Estimate is approximate; we will call before extra work. Vehicles not collected within 30 days of the ready message are at the owner’s risk.', items: [row('lab')] }; },

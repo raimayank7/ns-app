@@ -34,7 +34,7 @@
   function gstDates() {
     if (!NS.gstcal || !NS.gstcal.upcoming) return [];
     var b = A.biz() || {}, p = Object.assign({ gst: 'monthly', state: '03', tds: false, adv: false, annual: true, g7: false, g8: false }, GP && GP.own ? GP : {});
-    if (!(GP && GP.own)) { if (b.state) p.state = String(b.state).slice(0, 2); p.gst = b.reg === 'comp' ? 'comp' : b.reg === 'unreg' ? 'none' : (GP && GP.gst) || 'monthly'; }
+    if (!(GP && GP.own)) { if (b.state) p.state = String(b.state).slice(0, 2); p.gst = b.reg === 'comp' ? 'comp' : b.reg === 'unreg' || !b.gstin ? 'none' : (GP && GP.gst) || 'monthly'; }   /* no GSTIN: no return dates (F1-15) */
     return NS.gstcal.upcoming(p, 10);
   }
   function lineText(x) {
@@ -45,7 +45,8 @@
     return t('l.' + x.k, v);
   }
   function lineHtml(x) {
-    var href = x.href || '#day', cls = 'hm-l s' + (x.dot != null ? x.dot : x.sev);
+    var href = x.href || '#day', cls = 'hm-l s' + (x.dot != null ? x.dot : x.sev), ms = /^https:\/\/([a-z0-9-]+)\.niveshsahayak\.in\/$/.exec(href);
+    if (ms && A.siteHome) href = A.siteHome(ms[1]) || href;   /* inside the App, not the live site in a new page (F1-4) */
     return '<li class="' + cls + '"><a href="' + esc(href) + '"><span class="hm-dot" aria-hidden="true"></span><span>' + esc(lineText(x)) + '</span></a></li>';
   }
   var GROUPS = ['money', 'tax', 'stock', 'sales', 'people', 'other'];

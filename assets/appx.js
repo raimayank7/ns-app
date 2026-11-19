@@ -39,10 +39,10 @@
       var pick = $$('[data-mk]', pane).filter(function (c) { return c.checked; }).map(function (c) { return list[+c.getAttribute('data-mk')]; });
       if (!pick.length) return;
       go.disabled = true;
-      var all = A.data().doc.slice(), made = 0;
+      var all = A.data().doc.slice(), made = 0, skip = 0;
       pick.reduce(function (p, x) {
-        return p.then(function () { return NS.recurringMake(x, all, A.cfg()).then(function (d) { all.push(d); made++; }); });
-      }, Promise.resolve()).then(function () { NS.toast(tt('rep_made', { n: made })); A.show(); }, function (err) { NS.toast(NS.t('nosave', { e: err.message }), 'bad'); A.show(); });
+        return p.then(function () { return NS.recurringMake(x, all, A.cfg()).then(function (d) { all.push(d); made++; }, function (e) { if (e && e.message === 'cancel') skip++; else throw e; }); });   /* A-15: a bill the credit check stopped (or the user said no) is left out, the rest are made */
+      }, Promise.resolve()).then(function () { NS.toast(tt('rep_made', { n: made }) + (skip ? ' ' + NS.t('bw.rep_skip', { n: skip }) : ''), skip ? 'warn' : ''); A.show(); }, function (err) { NS.toast(NS.t('nosave', { e: err.message }), 'bad'); A.show(); });
     });
     $$('[data-rstop]', pane).forEach(function (b) {
       b.addEventListener('click', function () {

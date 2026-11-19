@@ -65,7 +65,7 @@
   }
   /* the invoice record of one period, ready for NSStore.put('doc', ...): one service line, GST as on the contract, due after `days` */
   function makeInvoice(c, p, today, no) {
-    var d = String(c.title || 'Maintenance contract').trim(), when = p.from + ' to ' + p.to, cd = Math.round(n(c.credit));
+    var d = String(c.title || 'Maintenance contract').trim(), when = fd(p.from) + ' to ' + fd(p.to), cd = Math.round(n(c.credit));
     return { type: 'invoice', kind: c.kind || 'tax', no: no || '', deliv: '', orig: { no: '', date: '' }, reason: 'ret', tr: { veh: '', tname: '', lr: '' },
       paper: c.paper || 'a4', design: c.design || 'classic', copies: 1, date: today, due: cd > 0 ? addDays(today, cd) : '', pos: '', rc: false, recv: '', ref: 'AMC ' + (c.no || ''),
       seller: JSON.parse(JSON.stringify(c.seller || {})), buyer: JSON.parse(JSON.stringify(c.buyer || {})), ship: null, einv: null, irn: null,
@@ -153,6 +153,7 @@
     return [['Period', 'From', 'To', 'Bill on', 'Taxable', 'GST', 'Total', 'Invoice']].concat(periods(c).map(function (p) { return [p.k, p.from, p.to, p.bill, p.taxable, p.tax, p.total, have[p.k] ? have[p.k].no : p.k <= Math.round(n(c.billed0)) ? 'before' : '']; }));
   }
 
+  function fd(s) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || ''); return m ? m[3] + '-' + 'JanFebMarAprMayJunJulAugSepOctNovDec'.substr((+m[2] - 1) * 3, 3) + '-' + m[1] : s || ''; }   /* 01-Oct-2026, not 2026-10-01 (F6-15) */
   var API = { gstOf: gstOf, key: key, STEP: STEP, endOf: endOf, fits: fits, periods: periods, value: value, invoiced: invoiced, invoicesDue: invoicesDue, makeInvoice: makeInvoice, renewalsDue: renewalsDue, renew: renew,
     visitPlan: visitPlan, visitsDue: visitsDue, unpaid: unpaid, summary: summary, renewText: renewText, dueText: dueText, visitText: visitText, wa: wa, csv: csv, contractRows: contractRows, scheduleRows: scheduleRows,
     addDays: addDays, addMonths: addMonths, days: days, term: term, mine: mine };

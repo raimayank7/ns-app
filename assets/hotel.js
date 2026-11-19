@@ -48,7 +48,7 @@
     if (a === 'edit') { var x = ROOMS.filter(function (r) { return r.id === id; })[0]; if (!x) return; editRoom = id; $('#ht-rn').value = x.rno; $('#ht-rt').value = x.rtype || ''; $('#ht-rr').value = x.rate || x.price || ''; $('#ht-rc').value = x.cap || ''; $('#ht-rl').textContent = t('ht.editroom'); $('#ht-rn').focus(); }
     else if (a === 'csv') download(H.csv(H.roomRows(ROOMS)), 'Rooms');
     else if (a === 'clear') { editRoom = null; roomsDialog(); }
-    else if (a === 'del') { var r = ROOMS.filter(function (q) { return q.id === id; })[0]; if (r && confirm(t('ht.delroom', { n: r.rno }))) NSStore.del('item', id).then(function () { roomsDialog(); }, function (e) { NS.toast(e.message, 'bad'); }); }
+    else if (a === 'del') { var r = ROOMS.filter(function (q) { return q.id === id; })[0]; if (r && NS.okSync(t('ht.delroom', { n: r.rno }))) NSStore.del('item', id).then(function () { roomsDialog(); }, function (e) { NS.toast(e.message, 'bad'); }); }
     else if (a === 'save') {
       var c = H.cleanRoom({ rno: $('#ht-rn').value, rtype: $('#ht-rt').value, rate: $('#ht-rr').value, cap: $('#ht-rc').value });
       if (!c) { NS.toast(t('ht.v.room'), 'bad'); return; }

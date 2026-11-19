@@ -77,7 +77,7 @@
     });
   }
   function loadMenu() {
-    return NSStore.list('item').then(function (l) { ALL = NS.forBiz(l, K.doc().seller); MENU = CC.menuOf(ALL); cafeDraw(); }, function () { MENU = MENU || []; cafeDraw(); });
+    return NSStore.list('item').then(function (l) { ALL = NS.active(NS.forBiz(l, K.doc().seller)); MENU = CC.menuOf(ALL); cafeDraw(); }, function () { MENU = MENU || []; cafeDraw(); });
   }
   function putTap(m) { var d = K.doc(); CC.tap(d.items, m, row); sync(d); K.refill(); }
   function saveDish(c, editId, andBill) {
@@ -105,7 +105,7 @@
     else if (a === 'import') {
       var im = CC.importable(ALL);
       if (!im.length) { NS.toast(t('cf.noimp'), 'bad'); return; }
-      if (!confirm(t('cf.cimp', { n: im.length }))) return;
+      if (!NS.okSync(t('cf.cimp', { n: im.length }))) return;
       Promise.all(im.map(function (x) { return NSStore.put('item', Object.assign({}, x, { menu: 1 })); })).then(function () { NS.toast(t('cf.imported', { n: im.length })); return loadMenu(); });
     }
   }

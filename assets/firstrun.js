@@ -23,10 +23,10 @@
     ['sell', [['buy', 'app.buy', { sec: ['buy'], form: ['pbill', 'pret', 'exp'], ic: ['t-purchase', 't-expenses'] }],
       ['orders', 'fr.f_orders', { ic: ['d-proforma', 'd-sales-order', 'd-challan', 'd-purchase-order'] }],
       ['repeat', 'app.repeat', { sec: ['repeat'] }], ['export', 'nav.exp', { ic: ['t-export-invoice'] }], ['share', 'nav.share', { ic: ['t-share'] }]]],
-    ['money', [['books', 'app.books', { sec: ['books'], ic: ['t-cash-book'] }], ['chq', 'app.chq', { sec: ['chq'], ic: ['t-cheque'] }],
+    ['money', [['billwise', 'cf.f_bw', {}], ['books', 'app.books', { sec: ['books'], ic: ['t-cash-book'] }], ['chq', 'app.chq', { sec: ['chq'], ic: ['t-cheque'] }],
       ['bankreco', 'nav.bankreco', { sec: ['bimp'], ic: ['t-bank-reco'] }], ['khata', 'nav.khata', { ic: ['t-khata'] }],
       ['msme', 'app.msme', { sec: ['msme', 'limits'] }], ['trust', 'tr.t', { sec: ['trust'] }]]],
-    ['stock', [['stock', 'nav.stock', { ic: ['t-stock', 't-price-list'] }], ['godown', 'app.b2gd', { sec: ['b2gd'] }], ['barcode', 'nav.barcode', { ic: ['t-barcode'] }],
+    ['stock', [['inv', 'cf.f_inv', {}], ['stock', 'nav.stock', { ic: ['t-stock', 't-price-list'] }], ['godown', 'app.b2gd', { sec: ['b2gd'] }], ['batch', 'cf.f_batch', {}], ['barcode', 'nav.barcode', { ic: ['t-barcode'] }],
       ['warr', 'wr.t', { sec: ['warr'] }]]],
     ['mfg', [['make', 'app.b2make', { sec: ['b2make'] }], ['job', 'app.b2job', { sec: ['b2job'] }], ['mfgac', 'fm.t_mfg', { href: ['#fam/mfg'] }]]],
     ['acct', [['reports', 'app.reports', { sec: ['reports'] }], ['fin', 'app.fin', { sec: ['fin', 'capl'], ic: ['t-profit-loss'] }], ['jv', 'app.b2jv', { sec: ['b2jv'] }],
@@ -49,7 +49,7 @@
 
   /* ---------- what each business gets ON at the start (owner's idea: only what the business needs) ---------- */
   var KINDS = ['shop', 'whole', 'mfg', 'svc', 'resto', 'pharma', 'trans', 'contr', 'school', 'salon', 'clinic', 'dairy', 'hotel', 'rent', 'garage', 'jewel', 'garment', 'petrol', 'mandi', 'online', 'other'];
-  var BASE = ['buy', 'books', 'reports', 'itx', 'lrn', 'packs'];
+  var BASE = ['buy', 'books', 'reports', 'itx', 'lrn', 'packs', 'inv', 'batch', 'billwise'];   /* batch, billwise: on for everyone, they only change entry screens (ERP C-9) */   /* inv: items with quantity in vouchers (ERP C-9; off = accounting mode) */
   var REC = {
     shop: ['stock', 'barcode', 'khata', 'chq', 'pos', 'share'],
     whole: ['orders', 'stock', 'godown', 'chq', 'bankreco', 'grp', 'sman', 'einv', 'msme', 'share'],
@@ -169,7 +169,10 @@
   function syncTab(off) {
     if (off) lastOff = off;
     var tb = $('.tabbar'), hub = $('.hub-nav'); if (!tb || !hub) return;
-    var want = $$('a[data-sec]', hub).filter(function (a) { var s = a.getAttribute('data-sec'); return !lastOff[s] && s !== 'features'; }).slice(0, 4);
+    var on = $$('a[data-sec]', hub).filter(function (a) { var s = a.getAttribute('data-sec'); return !lastOff[s] && s !== 'features'; }), want = [];
+    /* everyday screens first (the side menu is A to Z now, so menu order would give My day, Donations, Godowns), then the rest in menu order */
+    ['home', 'sales', 'money', 'dues', 'parties', 'day'].forEach(function (k) { var x = on.filter(function (a) { return a.getAttribute('data-sec') === k; })[0]; if (x && want.length < 4) want.push(x); });
+    on.forEach(function (a) { if (want.length < 4 && want.indexOf(a) < 0) want.push(a); });
     var have = $$('a[data-sec]', tb).map(function (a) { return a.getAttribute('data-sec'); }).join(' ');
     if (have === want.map(function (a) { return a.getAttribute('data-sec'); }).join(' ')) return;
     $$('a[data-sec]', tb).forEach(function (a) { a.remove(); });
@@ -186,7 +189,7 @@
     var nav = $('.hub-nav'); if (!nav) return;
     var a = $('a[data-sec="features"]', nav);
     if (!a) { a = NS.el('a', { href: '#features', 'data-sec': 'features', 'data-ic': 'set' }, '<span></span>'); nav.appendChild(a); }
-    $('span', a).textContent = T('menu'); a.title = T('menu');
+    var sp = $('span', a); if (sp && !sp.hasAttribute('data-erp')) { sp.textContent = T('menu'); a.title = T('menu'); }   /* the App menu's accounting name stays (desk.js) */
   }
 
   /* ---------- the setup ---------- */

@@ -128,7 +128,7 @@
       var rec = editing === 'new' ? { type: 'appt', site: site, seller: { name: biz() }, status: 'booked' } : editing;
       Object.assign(rec, v);
       var probe = A.conflicts(data.appts.filter(function (a) { return !a.site || a.site === site; }), rec);
-      if (probe.length && !confirm(t('ap.clash', { n: probe[0].buyer.name || '', t: A.clock(probe[0].time) }) + '\n\n' + t('ap.clashq'))) return;
+      if (probe.length && !NS.okSync(t('ap.clash', { n: probe[0].buyer.name || '', t: A.clock(probe[0].time) }) + '\n\n' + t('ap.clashq'))) return;
       NSStore.put('doc', rec).then(function () { date = rec.date; editing = null; NS.toast(t('ap.saved')); return refresh(); }, function (e) { NS.toast(t('nosave', { e: e.message }), 'bad'); });
     }
     function setStatus(id, st) { var a = data.appts.filter(function (x) { return x.id === id; })[0]; if (!a) return Promise.resolve(); a.status = st; return NSStore.put('doc', a); }
@@ -242,7 +242,7 @@
       if (g('data-ap-slot')) { $('#ap-time', dlg).value = g('data-ap-slot'); return slots(); }
       if (g('data-ap-edit')) { editing = data.appts.filter(function (a) { return a.id === g('data-ap-edit'); })[0] || null; return draw(); }
       if (g('data-ap-st')) { var a = data.appts.filter(function (x) { return x.id === g('data-ap-st'); })[0]; if (a) setStatus(a.id, a.status === 'cancelled' || a.status === 'noshow' ? 'booked' : A.nextStatus(a.status)).then(draw); return; }
-      if (g('data-ap-x')) { var c = data.appts.filter(function (x) { return x.id === g('data-ap-x'); })[0]; if (!c) return; if (c.status === 'cancelled') { if (confirm(t('b1.cdel', { x: c.buyer.name }))) NSStore.del('doc', c.id).then(refresh); return; } return setStatus(c.id, 'cancelled').then(draw); }
+      if (g('data-ap-x')) { var c = data.appts.filter(function (x) { return x.id === g('data-ap-x'); })[0]; if (!c) return; if (c.status === 'cancelled') { if (NS.okSync(t('b1.cdel', { x: c.buyer.name }))) NSStore.del('doc', c.id).then(refresh); return; } return setStatus(c.id, 'cancelled').then(draw); }
       if (g('data-ap-bill')) { var ap = data.appts.filter(function (x) { return x.id === g('data-ap-bill'); })[0]; if (ap) { var pp = findPerson(ap.buyer.name, ap.buyer.phone); dlg.close(); cfg.onBill({ name: ap.buyer.name, phone: ap.buyer.phone, person: pp, appt: ap }); } return; }
       if (b.hasAttribute('data-ap-rem')) { var tm = rowsOf(date); $('#ap-rem', dlg).innerHTML = '<ul class="ap-list">' + A.reminders(tm).map(function (a) { return '<li><div class="ap-main"><b>' + esc(a.buyer.name) + '</b> <small>' + esc(A.clock(a.time) || '') + '</small></div><div class="ap-acts"><a class="btn sm" target="_blank" rel="noopener" href="' + A.waLink(a.buyer.phone, cfg.remindText(a, NS.fmtDate(a.date))) + '">' + esc(t('ap.wa')) + '</a></div></li>'; }).join('') + '</ul>'; return; }
       if (b.hasAttribute('data-ap-csv')) { var all = data.appts.filter(function (a) { return !a.site || a.site === site; }).sort(function (x, y) { return (x.date + (x.time || '')).localeCompare(y.date + (y.time || '')); });
@@ -250,7 +250,7 @@
       /* people */
       if (b.hasAttribute('data-ap-pnew')) { editing = 'new'; return draw(); }
       if (b.hasAttribute('data-ap-psave')) return savePerson();
-      if (b.hasAttribute('data-ap-pdel')) { if (editing && editing.id && confirm(t('b1.cdel', { x: editing.buyer.name }))) NSStore.del('doc', editing.id).then(function () { editing = null; return refresh(); }); return; }
+      if (b.hasAttribute('data-ap-pdel')) { if (editing && editing.id && NS.okSync(t('b1.cdel', { x: editing.buyer.name }))) NSStore.del('doc', editing.id).then(function () { editing = null; return refresh(); }); return; }
       if (g('data-ap-pedit')) { editing = personById(g('data-ap-pedit')); return draw(); }
       if (g('data-ap-hist')) { openHist[g('data-ap-hist')] = !openHist[g('data-ap-hist')]; return draw(); }
       if (g('data-ap-open')) { var id = g('data-ap-open'); dlg.close(); return NSStore.get('doc', id).then(function (r) { if (r) K.openDoc(r, false); }); }

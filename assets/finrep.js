@@ -59,7 +59,7 @@
       else if (x.k === 'opening') { o.loc = NS.t('fx.l_opening'); o.en = x.name; }
       else if (x.k === 'gst') { o.loc = L(x.dr ? 'l_gstin' : 'l_gstout'); o.en = x.name; }
       else if (x.k === 'res-earlier') { o.loc = L(x.cr ? 'l_earlierp' : 'l_earlierl'); o.en = x.name; }
-      else if (LBL[x.k]) { o.loc = L('l_' + LBL[x.k]); o.en = x.name; }
+      else if (LBL[x.k] && !(x.k === 'bank' && x.name !== 'Bank')) { o.loc = L('l_' + LBL[x.k]); o.en = x.name; }   /* several banks: the default bank shows its own name */
       else if (x.k === 'pdd') { o.loc = NS.t('wo.l_pdd'); o.en = x.name; }   /* provision for doubtful debts (WP-3) */
       else if (x.k.indexOf('given:') === 0) { o.loc = T('ty_given') + ': ' + nm; o.en = 'Loan given: ' + nm; }
       else if (PFX.test(x.k)) { o.loc = o.en = nm; }
@@ -117,6 +117,7 @@
     return o;
   }
   function tbView(C) {
+    try { Object.assign(tbp, JSON.parse(localStorage.getItem(TBK) || '{}') || {}); each = tbp.lv === 'ledger'; } catch (e) {}   /* C-13: the style may arrive from the data home after this file loaded */
     var det = tbp.st === 'detail', rows;
     if (det) rows = P.tbDetail(A.data().doc, A.data().item, A.bizName(), C.r[0], C.r[1], { map: headMap(), each: each }).rows;
     else rows = tbRows(C);
@@ -138,8 +139,8 @@
       : '<tr><th class="l">' + esc(en ? 'Account' : L('acct')) + '</th><th class="n">' + esc(en ? 'Debit (Rs)' : L('dr')) + '</th><th class="n">' + esc(en ? 'Credit (Rs)' : L('cr')) + '</th></tr>';
     function cells(x) { return (V.det ? '<td class="n">' + c(x.od) + '</td><td class="n">' + c(x.oc) + '</td><td class="n">' + c(x.td) + '</td><td class="n">' + c(x.tc) + '</td>' : '') + '<td class="n">' + c(x.dr) + '</td><td class="n">' + c(x.cr) + '</td>'; }
     var body = V.rows.map(function (x) {
-      var h = !V.grp && hg(x) !== g0 ? '<tr class="sec"><th colspan="' + n + '" class="l">' + esc(gName(hg(x), en)) + '</th></tr>' : ''; g0 = hg(x);
-      return h + '<tr><th scope="row" class="l' + (V.grp ? '' : ' sub') + '">' + (V.grp || !x.k || /^(trec|tpay)$/.test(x.k) ? esc(en ? x.en : x.loc) : '<a href="' + (x.k.indexOf('p:') === 0 ? '#st/' + encodeURIComponent(x.k.slice(2)) : '#acl/' + encodeURIComponent(x.k)) + '">' + esc(en ? x.en : x.loc) + '</a>') + '</th>' + cells(x) + '</tr>';
+      var h = !V.grp && hg(x) !== g0 ? '<tr class="sec"><th colspan="' + n + '" class="l">' + (en ? esc(gName(hg(x), en)) : '<a href="#gsum/' + hg(x) + '">' + esc(gName(hg(x), en)) + '</a>') + '</th></tr>' : ''; g0 = hg(x);
+      return h + '<tr><th scope="row" class="l' + (V.grp ? '' : ' sub') + '">' + (!en && (V.grp || /^(trec|tpay)$/.test(x.k || '')) && x.g ? '<a href="#gsum/' + (x.grp ? x.g : hg(x)) + '">' + esc(x.loc) + '</a>' : V.grp || !x.k || /^(trec|tpay)$/.test(x.k) ? esc(en ? x.en : x.loc) : '<a href="' + (x.k.indexOf('p:') === 0 ? '#st/' + encodeURIComponent(x.k.slice(2)) : '#acl/' + encodeURIComponent(x.k)) + '">' + esc(en ? x.en : x.loc) + '</a>') + '</th>' + cells(x) + '</tr>';
     }).join('');
     var tot = function (v) { return '<th class="n">' + money(v, false) + '</th>'; };
     var bad = [['dopen', 'od'], ['dtr', 'td'], ['diff', 'dr']].filter(function (d) { return (V.det || d[0] === 'diff') && Math.abs(Tt[d[0]]) >= 0.005; });
@@ -192,7 +193,7 @@
     return '<table class="tbl fr-st fr-py"><thead><tr><th class="l">' + esc(en ? 'Particulars' : NS.t('sb.part')) + '</th><th class="n">' + esc(en ? 'Current year (Rs)' : S('cy')) + '</th><th class="n">' + esc(en ? 'Previous year (Rs)' : S('py')) + '</th></tr></thead><tbody>' +
       lines.map(function (x) {
         if (x.c === 'sec') return '<tr class="sec"><th colspan="3" class="l">' + esc(en ? x.en : x.loc) + '</th></tr>';
-        return '<tr class="' + x.c + '"><th scope="row" class="l' + (x.c === 'sub' ? ' sub' : '') + '">' + esc(en ? x.en : x.loc) + '</th><td class="n">' + w(x.v, x.nil) + '</td><td class="n">' + (x.nopy ? dash : w(x.pv, x.pv === 0 && x.c === 'sub' && !x.py)) + '</td></tr>';
+        return '<tr class="' + x.c + '"><th scope="row" class="l' + (x.c === 'sub' ? ' sub' : '') + '">' + lk(x, en) + '</th><td class="n">' + w(x.v, x.nil) + '</td><td class="n">' + (x.nopy ? dash : w(x.pv, x.pv === 0 && x.c === 'sub' && !x.py)) + '</td></tr>';
       }).join('') + '</tbody></table>' +
       '<p class="soft">' + esc(pr.bs ? (en ? (pr.has ? 'Previous year: as at ' + A.ldate(pr.r[1]) + ', the last year end.' : 'Previous year (as at ' + A.ldate(pr.r[1]) + '): no records, shown as —.')
           : NS.t(pr.has ? 'fx.pybs' : 'fx.pybsnone', { b: iso(A.ldate(pr.r[1])) }))
@@ -202,10 +203,19 @@
   function stLinesPY(C, pr) { return withPrev(view === 'pl' ? plLines(C) : bsLines(C), pr.C ? (view === 'pl' ? plLines(pr.C) : bsLines(pr.C)) : null); }
 
   /* ---------- statements as lists of lines: { loc, en, v, c (class) } ---------- */
-  function ln(loc, en, v, c) { return { loc: loc, en: en, v: v, c: c || '' }; }
+  function ln(loc, en, v, c, h) { return { loc: loc, en: en, v: v, c: c || '', h: h || '' }; }
+  /* ERP review R-2: where a line of a statement opens (a head: its group summary; an account: its ledger) */
+  function hrefOf(k) {
+    if (!k || /^(opening|res-earlier|osk|cap-stock|cs)$/.test(k)) return '';
+    if (k === 'trec') return '#dlist'; if (k === 'tpay') return '#clist';
+    if (k === 'gst') return '#gsum/oca';
+    if (k.indexOf('p:') === 0) return '#st/' + encodeURIComponent(k.slice(2));
+    return '#acl/' + encodeURIComponent(k);
+  }
   function head(g, v, C, always) {
-    var R = C.rows.filter(function (x) { return x.g === g; }), out = [ln(L('g_' + g), EN_H[g], v, 'b')];
-    if (R.length > 1 || always && R.length) R.forEach(function (x) { out.push(ln(x.loc, x.en, amt(x), 'sub')); });
+    var R = C.rows.filter(function (x) { return x.g === g; }), out = [ln(L('g_' + g), EN_H[g], v, 'b', R.length ? '#gsum/' + g : '')];
+    if (R.length > 1 || always && R.length) R.forEach(function (x) { out.push(ln(x.loc, x.en, amt(x), 'sub', hrefOf(x.k))); });
+    else if (R.length === 1 && hrefOf(R[0].k)) out[0].h = hrefOf(R[0].k);   /* one account under the head: straight to its ledger */
     return out;
   }
   function plLines(C) {
@@ -214,7 +224,7 @@
     o.push(ln(L('income'), 'Total income', p.income, 'tot'), ln(L('expenses'), 'Expenses', null, 'sec'));
     if (p.mat) o = o.concat(head('mat', p.mat, C));
     o = o.concat(head('pur', p.pur, C));
-    o.push(ln(L('chg'), 'Changes in inventories (opening stock less closing stock)', p.chg, 'b'), ln(L('l_osk'), 'Opening stock', C.os, 'sub'), ln(L('lesscs'), 'Less: closing stock', C.cs, 'sub'));
+    o.push(ln(L('chg'), 'Changes in inventories (opening stock less closing stock)', p.chg, 'b', '#do/stock/'), ln(L('l_osk'), 'Opening stock', C.os, 'sub', '#do/stock/'), ln(L('lesscs'), 'Less: closing stock', C.cs, 'sub', '#do/stock/'));
     ['emp', 'fin', 'dep', 'oth'].forEach(function (g) { if (p[g] || g === 'oth') o = o.concat(head(g, p[g], C, g === 'oth' || g === 'emp')); });
     o.push(ln(L('totexp'), 'Total expenses', p.exp, 'tot'), ln(L('pbt'), 'Profit before tax', p.pbt, 'tot'));
     if (p.tax) o = o.concat(head('tax', p.tax, C));
@@ -222,7 +232,7 @@
     return A.finHook ? A.finHook('pl', o, C) : o;   /* famore.js: words of a trust / society */
   }
   function subs(C, g, neg) {
-    return P.gstNet(C.rows).filter(function (x) { return x.g === g; }).map(function (x) { return x.k === 'gst' ? ln(L(x.dr ? 'l_gstin' : 'l_gstout'), x.name, neg ? -amt(x) : amt(x), 'sub') : ln(x.loc, x.en, neg ? -amt(x) : amt(x), 'sub'); });
+    return P.gstNet(C.rows).filter(function (x) { return x.g === g; }).map(function (x) { return x.k === 'gst' ? ln(L(x.dr ? 'l_gstin' : 'l_gstout'), x.name, neg ? -amt(x) : amt(x), 'sub', '#gsum/' + (x.dr ? 'oca' : 'ocl')) : ln(x.loc, x.en, neg ? -amt(x) : amt(x), 'sub', hrefOf(x.k)); });
   }
   function bsLines(C) {
     var S = C.F.bs, p = C.F.pl, o = [ln(L('el'), 'Equity and liabilities', null, 'sec')];
@@ -230,15 +240,15 @@
     o = o.concat(subs(C, 'cap'));
     if (S.drw) o = o.concat(C.rows.filter(function (x) { return x.g === 'drw'; }).map(function (x) { return ln(L('lessdrw') + (x.k.indexOf('drw:') === 0 && key(x.loc) !== 'drawings' ? ' (' + x.loc + ')' : ''), 'Less: drawings' + (x.k.indexOf('drw:') === 0 && key(x.en) !== 'drawings' ? ' (' + x.en + ')' : ''), -amt(x), 'sub'); }));
     o = o.concat(subs(C, 'res'));
-    o.push(ln(L(p.profit < 0 ? 'loss' : 'profit'), p.profit < 0 ? 'Loss for the period' : 'Profit for the period', p.profit, 'sub'));
+    o.push(ln(L(p.profit < 0 ? 'loss' : 'profit'), p.profit < 0 ? 'Loss for the period' : 'Profit for the period', p.profit, 'sub', '#fin/pl'));
     if (S.ncl) o = o.concat([ln(L('ncl'), 'Non-current liabilities', S.ncl, 'b')], subs(C, 'ltb'));
     o.push(ln(L('cl'), 'Current liabilities', S.cl, 'b'));
     if (S.stb) o = o.concat(subs(C, 'stb'));
-    o.push(ln(L('g_tpay'), 'Trade payables', S.tpay, 'sub'));
+    o.push(ln(L('g_tpay'), 'Trade payables', S.tpay, 'sub', '#clist'));
     o = o.concat(subs(C, 'ocl'));
     o.push(ln(L('total'), 'Total', S.el, 'tot'), ln(L('assets'), 'Assets', null, 'sec'));
     if (S.nca) o = o.concat([ln(L('nca'), 'Non-current assets', S.nca, 'b')], subs(C, 'ppe'), subs(C, 'ninv'));
-    o.push(ln(L('ca'), 'Current assets', S.ca, 'b'), ln(L('inv'), 'Inventories (closing stock at ' + valEn() + ')', S.inv, 'sub'), ln(L('g_trec'), 'Trade receivables', S.trec, 'sub'));
+    o.push(ln(L('ca'), 'Current assets', S.ca, 'b'), ln(L('inv'), 'Inventories (closing stock at ' + valEn() + ')', S.inv, 'sub', '#do/stock/'), ln(L('g_trec'), 'Trade receivables', S.trec, 'sub', '#dlist'));
     var pdr = C.rows.filter(function (x) { return x.k === 'pdd'; })[0];   /* WP-3: trade receivables shown less the provision for doubtful debts */
     if (pdr && amt(pdr)) o.push(ln(NS.t('wo.l_gross'), 'Trade receivables before provision', r2(S.trec - amt(pdr)), 'sub'), ln(NS.t('wo.l_pdd'), 'Less: provision for doubtful debts', amt(pdr), 'sub'));
     o = o.concat(subs(C, 'cash'), subs(C, 'oca'));
@@ -249,6 +259,7 @@
 
   /* ---------- screens ---------- */
   function presets(today) {
+    if (NS.periodPresets) return NS.periodPresets(today);   /* one list for every report (R-3) */
     var fs = A.fyStart(today), fy = +fs.slice(0, 4);
     return { fy: [fs, today], lfy: [(fy - 1) + '-04-01', fy + '-03-31'], month: [today.slice(0, 8) + '01', today] };
   }
@@ -264,11 +275,13 @@
   /* a date inside right-to-left text keeps its own order (Unicode isolate) */
   function iso(t) { return '⁦' + t + '⁩'; }
   function mv(v) { return v == null ? '' : money(v, false); }
+  /* a statement line's name; on screen a link to what makes it up (R-2) */
+  function lk(x, en) { return !en && x.h && !x.nil ? '<a href="' + x.h + '">' + esc(x.loc) + '</a>' : esc(en ? x.en : x.loc); }
   function stTable(lines, en) {
     return '<table class="tbl fr-st"><thead><tr><th class="l">' + esc(en ? 'Particulars' : NS.t('sb.part')) + '</th><th class="n">' + esc(en ? 'Amount (Rs)' : L('amt')) + '</th></tr></thead><tbody>' +
       lines.map(function (x) {
         if (x.c === 'sec') return '<tr class="sec"><th colspan="2" class="l">' + esc(en ? x.en : x.loc) + '</th></tr>';
-        return '<tr class="' + x.c + '"><th scope="row" class="l' + (x.c === 'sub' ? ' sub' : '') + '">' + esc(en ? x.en : x.loc) + '</th><td class="n">' + mv(x.v) + '</td></tr>';
+        return '<tr class="' + x.c + '"><th scope="row" class="l' + (x.c === 'sub' ? ' sub' : '') + '">' + lk(x, en) + '</th><td class="n">' + mv(x.v) + '</td></tr>';
       }).join('') + '</tbody></table>';
   }
   function tbTable(rows, Tt, en) {
@@ -285,7 +298,7 @@
     return '<div class="st-hd"><div><b>' + esc(A.bizName()) + '</b>' + (Z.gstin ? '<br>GSTIN ' + esc(Z.gstin) : '') + '</div><div class="r"><b>' + esc(title) + '</b><br>' + esc(sub) + '</div></div>';
   }
   function sheet(C, rows) {
-    var TS = A.finT && A.finT(view, C, 'sheet'); if (TS) return TS;   /* T format (tformat.js) */
+    var TS = A.finT && A.finT(view, C, 'sheet'); if (TS) return A.finHook ? A.finHook('tsheet', TS, view) : TS;   /* T format (tformat.js) */
     var r = C.r, title = { tb: 'TRIAL BALANCE', pl: 'STATEMENT OF PROFIT AND LOSS', bs: 'BALANCE SHEET' }[view];
     if (A.finHook) title = A.finHook('title', title, view);
     var sub = view === 'bs' ? 'As at ' + A.ldate(r[1]) : view === 'tb' ? 'As at ' + A.ldate(r[1]) + ' (period ' + A.ldate(r[0]) + ' to ' + A.ldate(r[1]) + ')' : 'For ' + A.ldate(r[0]) + ' to ' + A.ldate(r[1]);
@@ -325,7 +338,7 @@
     var warn = '';
     if (!ok) warn += '<p class="note bad">' + esc(L('w_diff', { x: money(Math.abs(Tt.diff)), s: L(Tt.diff > 0 ? 'dr' : 'cr') })) + '</p>';
     else if (view === 'bs' && !bsOk) warn += '<p class="note bad">' + esc(T('bsdiff', { x: money(Math.abs(F.bs.diff)) })) + '</p>';
-    C.rows.forEach(function (x) { if ((x.k === 'cash' || x.k === 'bank') && x.cr) warn += '<p class="note">' + esc(T('neg', { a: x.loc })) + '</p>'; });
+    C.rows.forEach(function (x) { if ((x.k === 'cash' || /^bank(:|$)/.test(x.k)) && x.cr) warn += '<p class="note">' + esc(T('neg', { a: x.loc })) + '</p>'; });
     return '<div class="pane-hd"><h2>' + esc(tl(view)) + '</h2><div class="quick no-print"><button type="button" class="btn" data-print>' + esc(A.T('print')) + '</button><button type="button" class="btn" data-frpdf>' + esc(A.T('pdf')) + '</button><button type="button" class="btn" data-frxl>' + esc(A.T('lg_xl')) + '</button></div></div>' +
       '<p class="soft">' + esc(T('finh')) + '</p>' + tabs() + period() + (A.finHook ? A.finHook('links', view, C) : '') +
       '<div class="tiles">' + tiles.map(function (x) { return '<div class="tile' + (x[0] === 'k_loss' ? ' neg' : '') + '"><span>' + esc(x[2] ? L(x[0]) : T(x[0])) + '</span><b>' + x[1] + '</b></div>'; }).join('') +
@@ -426,7 +439,7 @@
       (kind === 'loanin' ? f('fr-term', T('f_term'), '<select id="fr-term"><option value="loan"' + (r.lt !== 'od' ? ' selected' : '') + '>' + esc(T('term_l')) + '</option><option value="od"' + (r.lt === 'od' ? ' selected' : '') + '>' + esc(T('term_s')) + '</option></select>') : '') +
       f('fr-amt', T(kind === 'loanout' ? 'f_prin' : kind === 'givenin' ? 'f_prinr' : 'f_amt'), inp('fr-amt', r.amt || '', { mode: 1 })) +
       (pick ? f('fr-int', T('f_int'), inp('fr-int', r.int || '', { mode: 1 }), T(kind === 'loanout' ? 'f_inth' : 'f_inth2')) : '') +
-      f('fr-mode', T(kind === 'capin' || kind === 'loanin' || kind === 'givenin' ? 'f_modein' : 'f_modeout'), '<select id="fr-mode">' + ['cash', 'bank', 'upi', 'cheque'].map(function (m) { return '<option value="' + m + '"' + (m === r.mode ? ' selected' : '') + '>' + esc(A.T('m_' + m)) + '</option>'; }).join('') + '</select>') +
+      f('fr-mode', T(kind === 'capin' || kind === 'loanin' || kind === 'givenin' ? 'f_modein' : 'f_modeout'), '<select id="fr-mode">' + ['cash', 'bank', 'upi', 'cheque'].map(function (m) { return '<option value="' + m + '"' + (m === r.mode ? ' selected' : '') + '>' + esc(A.T('m_' + m)) + '</option>'; }).join('') + '</select>') + (A.bankFld ? A.bankFld('fr-bank', r.bacct, 'fr-mode') : '') +
       '<div class="f wide"><label for="fr-narr">' + esc(T('f_narr')) + '</label>' + inp('fr-narr', r.narr || '') + '</div></div><p class="note" data-frwarn hidden aria-live="polite"></p>';
     $('#fr-dlg-t', dlg).textContent = kName(kind);
     form.innerHTML = html + '<div class="dlg-foot btns"><button type="submit" class="btn primary">' + esc(A.T('save')) + '</button><button type="button" class="btn" data-cancel>' + esc(A.T('cancel')) + '</button></div>';
@@ -437,6 +450,7 @@
       w.hidden = !on; w.textContent = on ? T('cashwarn') : '';
     }
     form.oninput = warn; form.onchange = warn; warn();
+    if (A.bankWire) A.bankWire(form);   /* several banks: which bank the money came into / went out of */
     form.onsubmit = function (e) {
       e.preventDefault();
       var date = val('fr-date'), amt = r2(num(val('fr-amt'))), int = pick ? r2(num(val('fr-int'))) : 0, mode = val('fr-mode'), money2 = B.moneyAcct(mode), name = pick ? '' : val('fr-nm');
@@ -456,9 +470,10 @@
         return;
       }
       delete form.dataset.ok;
-      var lines = P.capLoanLines(kind, { name: name, amt: amt, int: int, mode: money2, lk: lk, lt: val('fr-term') });
+      var bacct = A.bankVal ? A.bankVal(form, 'fr-bank') : '', lines = P.capLoanLines(kind, { name: name, amt: amt, int: int, mode: money2, bank: bacct, lk: lk, lt: val('fr-term') });
       var seller = JSON.parse(JSON.stringify(A.biz() || {})); delete seller.id; delete seller.created; delete seller.updated;
       var d = Object.assign(rec ? JSON.parse(JSON.stringify(rec)) : { type: 'jv', app: 1, cl: kind }, { date: date, no: rec && rec.no || nextNo(date), narr: val('fr-narr'), nm: name, amt: amt, int: int, mode: mode, lk: lk, lt: kind === 'loanin' ? val('fr-term') : '', seller: seller, lines: lines });
+      if (bacct) d.bacct = bacct; else delete d.bacct;
       d.total = r2(lines.reduce(function (s, l) { return s + l.dr; }, 0));
       NSStore.put('doc', d).then(function () { dlg.close(); NS.toast(A.T('saved')); A.show(); });
     };
@@ -470,7 +485,79 @@
   A.editX = function (d) { if (d && d.type === 'jv' && d.cl && KINDS.indexOf(d.cl) >= 0) { clForm(d.cl, d); return true; } return prevEdit ? prevEdit(d) : false; };
 
   /* for famore.js (manufacturing account, partnership firm, trust / society): the same figures and drawing helpers */
-  A.fin = { calc: calc, plLines: plLines, bsLines: bsLines, stTable: stTable, bizHead: bizHead, period: period, presets: presets, iso: iso, fileName: fileName, valEn: valEn, mv: mv };
+  A.fin = { calc: calc, plLines: plLines, bsLines: bsLines, stTable: stTable, bizHead: bizHead, period: period, presets: presets, iso: iso, fileName: fileName, valEn: valEn, mv: mv, hrefOf: hrefOf };
+
+  /* ---------- Group summary and group vouchers of an account head (ERP review R-6, Tally's Group Summary / Group Vouchers):
+     gsum/<head>  every account of a Schedule III head with opening, debit, credit and closing; an account opens its ledger
+     gvch/<head>  every entry of those accounts in the period, in date order; the eye opens the voucher ---------- */
+  function gRows(g) {
+    var r = A.range(), C = calc(), keep = each; each = true;
+    var rows = P.tbDetail(A.data().doc, A.data().item, A.bizName(), r[0], r[1], { map: headMap(), each: true }).rows.filter(function (x) { return hg(x) === g && x.k; }).map(function (x) { return tbName(x, C); });
+    each = keep;
+    return { C: C, r: r, rows: rows.sort(function (a, b) { return String(a.loc).localeCompare(String(b.loc)); }) };
+  }
+  function gTitle(g, en) { return gName(g, en) || g; }
+  function dcv(v) { return money(Math.abs(v), false) + (v > 0.004 ? ' Dr' : v < -0.004 ? ' Cr' : ''); }
+  function gsumData(g) {
+    var G = gRows(g), T0 = { o: 0, dr: 0, cr: 0, c: 0 };
+    var rows = G.rows.map(function (x) { var o = r2((x.od || 0) - (x.oc || 0)), c = r2((x.dr || 0) - (x.cr || 0)); T0.o += o; T0.dr += x.td || 0; T0.cr += x.tc || 0; T0.c += c; return { k: x.k, loc: x.loc, en: x.en, o: o, td: r2(x.td || 0), tc: r2(x.tc || 0), c: c }; });
+    return { r: G.r, rows: rows, T: { o: r2(T0.o), dr: r2(T0.dr), cr: r2(T0.cr), c: r2(T0.c) } };
+  }
+  A.addSection('gsum', function (arg) {
+    var g = (arg || 'oth').split(/[\/?]/)[0], S = gsumData(g), r = S.r;
+    var body = '<table class="tbl st lg-tbl gs-tbl"><thead><tr><th>Account</th><th class="n">Opening</th><th class="n">Debit</th><th class="n">Credit</th><th class="n">Closing</th></tr></thead><tbody>' +
+      (S.rows.length ? S.rows.map(function (x) { var h = hrefOf(x.k); return '<tr data-k="' + esc(x.k) + '"><td>' + (h ? '<a href="' + h + '">' + esc(x.loc) + '</a>' : esc(x.loc)) + '</td><td class="n">' + dcv(x.o) + '</td><td class="n">' + (x.td ? money(x.td, false) : '') + '</td><td class="n">' + (x.tc ? money(x.tc, false) : '') + '</td><td class="n"><b>' + dcv(x.c) + '</b></td></tr>'; }).join('')
+        : '<tr><td colspan="5" class="soft">' + esc(T('none')) + '</td></tr>') +
+      '</tbody><tfoot><tr><th>Total (' + S.rows.length + ')</th><th class="n">' + dcv(S.T.o) + '</th><th class="n">' + money(S.T.dr, false) + '</th><th class="n">' + money(S.T.cr, false) + '</th><th class="n">' + dcv(S.T.c) + '</th></tr></tfoot></table>';
+    return '<div class="pane-hd"><h2>' + esc(NS.t('rp.gsum')) + ': ' + esc(gTitle(g)) + '</h2></div>' +
+      '<p class="cr-drill"><a href="#fin/tb">' + esc(tl('tb')) + '</a> › <b>' + esc(gTitle(g)) + '</b> · <a href="#gvch/' + g + '">' + esc(NS.t('rp.gvch')) + ' ›</a></p>' +
+      period() + '<p class="soft">' + esc(NS.t('rp.gsumh')) + '</p>' +
+      '<div class="quick no-print"><button type="button" class="btn" data-print>' + esc(A.T('print')) + '</button><button type="button" class="btn" data-gspdf>' + esc(A.T('pdf')) + '</button><button type="button" class="btn" data-gsxl>' + esc(A.T('lg_xl')) + '</button></div>' +
+      '<div class="tbl-wrap"><div class="lg-print"><div class="stsheet sh lg-rep" dir="ltr" data-sheet>' + bizHead('GROUP SUMMARY: ' + gTitle(g, true).toUpperCase(), A.ldate(r[0]) + ' to ' + A.ldate(r[1])) + body + NS.creditLine('st-ft') + '</div></div></div>';
+  }, function (pane, arg) {
+    var g = (arg || 'oth').split(/[\/?]/)[0], s = $('[data-frpre]', pane);
+    if (s) s.addEventListener('change', function () { var p = presets(NS.today())[s.value]; if (p) { A.range(p[0], p[1]); A.show(); } });
+    var pb = $('[data-gspdf]', pane); if (pb) pb.addEventListener('click', function () { var n = $('.lg-print > .stsheet', pane).cloneNode(true); n.classList.add('lg-paper'); NS.sharePdf([n], fileName(A.bizName()) + '-group-summary-' + g, 'a4', NS.t('rp.gsum'), ''); });
+    var xb = $('[data-gsxl]', pane); if (xb) xb.addEventListener('click', function () {
+      var S = gsumData(g), rows = [['Group summary: ' + gTitle(g, true), S.r[0] + ' to ' + S.r[1]], ['Account', 'Opening', 'Dr/Cr', 'Debit', 'Credit', 'Closing', 'Dr/Cr']], dc = function (v) { return v > 0.004 ? 'Dr' : v < -0.004 ? 'Cr' : ''; };
+      S.rows.forEach(function (x) { rows.push([x.en, Math.abs(x.o), dc(x.o), x.td, x.tc, Math.abs(x.c), dc(x.c)]); });
+      rows.push(['Total', Math.abs(S.T.o), dc(S.T.o), S.T.dr, S.T.cr, Math.abs(S.T.c), dc(S.T.c)]);
+      NS.xlsx(fileName(A.bizName()) + '-group-summary-' + g + '.xlsx', [{ name: 'Group summary', rows: rows }]);
+    });
+  });
+  /* every entry of the head's accounts in the period (one pass over the books, not one per account) */
+  function gvchData(g) {
+    var G = gRows(g), want = {}, out = [], r = G.r;
+    G.rows.forEach(function (x) { want[x.k] = x; });
+    B.inBooks(A.data().doc, A.bizName()).forEach(function (d) {
+      if (!d.date || d.date < r[0] || d.date > r[1]) return;
+      B.postings(d).forEach(function (l) { var x = want[l.a]; if (x && (l.dr || l.cr)) out.push({ d: d, date: d.date, k: l.a, loc: x.loc, en: x.en, dr: l.dr, cr: l.cr }); });
+    });
+    return { r: r, rows: out };
+  }
+  A.addSection('gvch', function (arg) {
+    var g = (arg || 'oth').split(/[\/?]/)[0], V = gvchData(g), r = V.r, td = 0, tc = 0;
+    var body = '<table class="tbl st lg-tbl"><thead><tr><th>Date</th><th>Voucher</th><th>Account</th><th class="n">Debit</th><th class="n">Credit</th><th class="noprint"></th></tr></thead><tbody>' +
+      (V.rows.length ? V.rows.map(function (x) {
+        td += x.dr; tc += x.cr; var h = hrefOf(x.k);
+        return '<tr data-k="' + esc(x.d.id) + '"><td>' + esc(A.ldate(x.date)) + '</td><td>' + esc(A.enName(x.d) + ' ' + (x.d.no || x.d.billNo || '')) + (x.d.narr ? '<br><span class="soft">' + esc(x.d.narr) + '</span>' : '') + '</td><td>' + (h ? '<a href="' + h + '">' + esc(x.loc) + '</a>' : esc(x.loc)) + '</td><td class="n">' + (x.dr ? money(x.dr, false) : '') + '</td><td class="n">' + (x.cr ? money(x.cr, false) : '') + '</td>' +
+          '<td class="noprint"><button type="button" class="btn sm ib" data-view="' + esc(x.d.id) + '" title="' + esc(A.T('open')) + '" aria-label="' + esc(A.T('open')) + '">' + NS.icSvg('eye') + '</button></td></tr>';
+      }).join('') : '<tr><td colspan="6" class="soft">' + esc(T('none')) + '</td></tr>') +
+      '</tbody><tfoot><tr><th colspan="3">Total (' + V.rows.length + ')</th><th class="n">' + money(r2(td), false) + '</th><th class="n">' + money(r2(tc), false) + '</th><th class="noprint"></th></tr></tfoot></table>';
+    return '<div class="pane-hd"><h2>' + esc(NS.t('rp.gvch')) + ': ' + esc(gTitle(g)) + '</h2></div>' +
+      '<p class="cr-drill"><a href="#fin/tb">' + esc(tl('tb')) + '</a> › <a href="#gsum/' + g + '">' + esc(gTitle(g)) + '</a> › <b>' + esc(NS.t('rp.gvch')) + '</b></p>' + period() +
+      '<div class="quick no-print"><button type="button" class="btn" data-print>' + esc(A.T('print')) + '</button><button type="button" class="btn" data-gvxl>' + esc(A.T('lg_xl')) + '</button></div>' +
+      '<div class="tbl-wrap"><div class="lg-print"><div class="stsheet sh lg-rep" dir="ltr" data-sheet>' + bizHead('GROUP VOUCHERS: ' + gTitle(g, true).toUpperCase(), A.ldate(r[0]) + ' to ' + A.ldate(r[1])) + body + NS.creditLine('st-ft') + '</div></div></div>';
+  }, function (pane, arg) {
+    var g = (arg || 'oth').split(/[\/?]/)[0], s = $('[data-frpre]', pane);
+    if (s) s.addEventListener('change', function () { var p = presets(NS.today())[s.value]; if (p) { A.range(p[0], p[1]); A.show(); } });
+    var xb = $('[data-gvxl]', pane); if (xb) xb.addEventListener('click', function () {
+      var V = gvchData(g), rows = [['Group vouchers: ' + gTitle(g, true), V.r[0] + ' to ' + V.r[1]], ['Date', 'Voucher', 'Voucher no.', 'Account', 'Debit', 'Credit', 'Narration']];
+      V.rows.forEach(function (x) { rows.push([x.date, A.enName(x.d), x.d.no || x.d.billNo || '', x.en, x.dr || '', x.cr || '', x.d.narr || '']); });
+      NS.xlsx(fileName(A.bizName()) + '-group-vouchers-' + g + '.xlsx', [{ name: 'Group vouchers', rows: rows }]);
+    });
+  });
+  A.fin.gsumData = gsumData;
 
   /* ---------- menu: two links of the full App (door sites keep their own short menu) ---------- */
   function menu() {
@@ -478,7 +565,7 @@
     var at = $('[data-sec="b2jv"]', nav);
     ['fin', 'capl'].forEach(function (s) {
       var a = NS.el('a', { href: '#' + s, 'data-sec': s }, '<span>' + esc(NS.t('app.' + s)) + '</span>');
-      if (at) nav.insertBefore(a, at); else nav.appendChild(a);
+      if (at && at.parentNode) at.parentNode.insertBefore(a, at); else nav.appendChild(a);
       a.addEventListener('click', function () { A.filt('all'); });
     });
   }

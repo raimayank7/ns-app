@@ -114,7 +114,7 @@
       if (!d.date || d.date > upto) return;
       var m = M[monthOf(d.date)] = M[monthOf(d.date)] || { s: 0, p: 0, e: 0 };
       B.postings(d).forEach(function (l) {
-        var a = l.a;
+        var a = B.baseAcct ? B.baseAcct(l.a) : l.a;   /* A-9: named sales / purchase ledgers */
         if (a === 'sales') m.s += l.cr - l.dr; else if (a === 'sales-return') m.s -= l.dr - l.cr;
         else if (a === 'purchases') m.p += l.dr - l.cr; else if (a === 'purchase-return') m.p -= l.cr - l.dr;
         else if (a.indexOf('exp:') === 0) m.e += l.dr - l.cr;

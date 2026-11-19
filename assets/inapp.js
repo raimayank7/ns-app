@@ -16,6 +16,7 @@
     var a = e.target.closest && e.target.closest('a[href]');
     if (!a || e.defaultPrevented || e.button || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey || a.hasAttribute('download')) return;
     if (!/^https?:/.test(a.href) || new URL(a.href).origin === location.origin && a.getAttribute('href').charAt(0) === '#') return;
+    if (a.hasAttribute('download') || /^(blob|data):/i.test(a.getAttribute('href') || '')) return;   /* a file download stays a download */
     if (NS.appGo(a.href)) e.preventDefault();
   });
   /* Esc with no box open: back to the App screen it came from (drafts keep what was typed) */

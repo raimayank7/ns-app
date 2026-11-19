@@ -46,14 +46,13 @@
   }
   function wireFy(pane) { var s = $('[data-b2fy]', pane); if (s) s.addEventListener('change', function () { fySel = s.value; A.show(); }); }
   /* settings of the App's business (per business, core.js NS.cfgEdit); closed years stay shared, kept by business name */
-  function saveCfg(fn) {
+  function saveCfg(fn, opts) {
     var id = A.biz() && A.biz().id || '';
-    return NS.cfgEdit(id, fn).then(function (S) { var v = cfg(), nv = NS.cfgFor(S, id); Object.keys(nv).forEach(function (k) { v[k] = nv[k]; }); });
+    return NS.cfgEdit(id, fn, opts).then(function (S) { var v = cfg(), nv = NS.cfgFor(S, id); Object.keys(nv).forEach(function (k) { v[k] = nv[k]; }); });
   }
   function nextNo(type, pre, date, kind) {
-    var fy = NS.fy(date), max = 0;
-    A.mine().forEach(function (d) { if (d.type !== type || kind && d.kind !== kind || NS.fy(d.date) !== fy || d.cf) return; var x = String(d.no || '').match(/(\d+)\s*$/); if (x) max = Math.max(max, +x[1]); });
-    return pre + '/' + fy.slice(2, 4) + '-' + fy.slice(5) + '/' + String(max + 1).padStart(3, '0');
+    var x = NS.nextNo(A.mine(), { type: type, date: date, cfg: A.cfg ? A.cfg() : {}, def: pre, width: 3, fy: true, match: function (d) { return !(kind && d.kind !== kind) && !d.cf; } });   /* one numbering engine (ERP A-6) */
+    return x.manual ? x.head + String(x.n).padStart(x.width, '0') + x.suffix : x.no;
   }
   function del(id) {
     var d = A.data().doc.filter(function (x) { return x.id === id; })[0]; if (!d) return;
@@ -83,8 +82,9 @@
     var bk = B.book(D, A.bizName(), 'fa:' + key(a.name || 'Fixed asset'), '', date);
     return bk && bk.rows.length ? r2(bk.close) : X.bookValueOn(a, date);
   }
-  function closedMsg(iso) { return X.isClosed(cfg().closed, A.bizName(), iso) ? T('closedmsg', { fy: X.fyOf(iso) }) : ''; }
+  function closedMsg(iso) { return X.isClosed(cfg().closed, A.biz() || A.bizName(), iso) ? T('closedmsg', { fy: X.fyOf(iso) }) : ''; }
   A.closedMsg = closedMsg;
+  A.genForm = function (gm) { jvForm(null, gm); };   /* A-10: Receipt / Payment with any ledgers (side menu, billwise.js) */
 
   /* ---------- a small dialog of its own ---------- */
   var dlg, form, onSave;
@@ -111,7 +111,7 @@
   var MODES = ['cash', 'upi', 'cheque', 'bank', 'card', 'other'];
   function modeOpts(credit) { return (credit ? [['credit', A.T('m_credit')]] : []).concat(MODES.map(function (x) { return [x, A.T('m_' + x)]; })); }
   function dl(id, list) { return '<datalist id="' + id + '">' + list.filter(Boolean).map(function (n) { return '<option value="' + esc(n) + '">'; }).join('') + '</datalist>'; }
-  function partyNames() { var o = {}; NS.forBiz(A.data().party, A.biz()).forEach(function (p) { o[key(p.name)] = p.name; }); A.mine().forEach(function (d) { var n = B.partyName(d); if (n) o[key(n)] = o[key(n)] || n; }); return Object.keys(o).map(function (k) { return o[k]; }).sort(); }
+  function partyNames() { var o = {}; NS.active(NS.forBiz(A.data().party, A.biz())).forEach(function (p) { o[key(p.name)] = p.name; }); A.mine().forEach(function (d) { var n = B.partyName(d); if (n) o[key(n)] = o[key(n)] || n; }); return Object.keys(o).map(function (k) { return o[k]; }).sort(); }
   function itemNames(goods) { return items().filter(function (x) { return !goods || x.kind !== 'service'; }).map(function (x) { return x.desc; }).sort(); }
   function need(ok, f) { if (ok) return true; NS.toast(A.T('need', { f: f }), 'bad'); return false; }
   function lockOk(date, rec) { var msg = closedMsg(date) || rec && closedMsg(rec.date); if (msg) NS.toast(msg, 'bad'); return !msg; }
@@ -121,7 +121,12 @@
   var NAMED = { party: 1, exp: 1, inc: 1, cap: 1, drw: 1, loan: 1, given: 1, fa: 1, ocl: 1, oca: 1 };   /* ocl: outstanding expenses and provisions, oca: prepaid and accrued (user test 2026-11-06) */
   var FIXED = { cash: 'cash', bank: 'bank', sales: 'sales', purchases: 'purchases', tdsr: 'tds-receivable', tdsp: 'tds-payable', 'gin-c': 'gst-in-cgst', 'gin-s': 'gst-in-sgst', 'gin-i': 'gst-in-igst',
     'gout-c': 'gst-out-cgst', 'gout-s': 'gst-out-sgst', 'gout-i': 'gst-out-igst', round: 'round-off' };
-  function acctKey(t, nm) {
+  /* several banks (ERP masters step 3): the journal's Options menu can switch on a bank choice on Bank lines (localStorage
+     ns-jv-bankpick, the user's own choice; off = every Bank line is the main bank, as before). A line keeps its bank in l.bk. */
+  function bankPickOn() { try { return localStorage.getItem('ns-jv-bankpick') === '1'; } catch (e) { return false; } }
+  function banks() { return A.banks ? A.banks() : []; }
+  function acctKey(t, nm, bk) {
+    if (t === 'bank') return B.isBank(bk) ? bk : 'bank';
     if (t === 'party') return 'party';
     if (FIXED[t]) return FIXED[t];
     if (t === 'cap') return 'cap:' + key(nm || 'Capital');
@@ -129,13 +134,14 @@
     return nm ? t + ':' + key(nm) : '';
   }
   function acctName(l) {
+    if (B.isBank(l.a) && l.a !== 'bank') return T('ac_bank') + ': ' + B.bankName(l.a).replace(/^Bank: /, '');   /* a bank chosen on the line */
     var t = l.t || Object.keys(FIXED).filter(function (k) { return FIXED[k] === l.a; })[0] || String(l.a || '').split(':')[0];
     return T('ac_' + t) + (l.party || l.nm ? ': ' + (l.party || l.nm) : !FIXED[t] && String(l.a).indexOf(':') > 0 ? ': ' + l.a.split(':')[1] : '');
   }
   function jvTotal(d) { return r2((d.lines || []).reduce(function (s, l) { return s + num(l.dr); }, 0)); }
   A.addSection('b2jv', function () {
-    var list = A.mine().filter(function (d) { return d.type === 'jv'; }).filter(A.match).sort(A.byDate);
-    return '<div class="pane-hd"><h2>' + esc(T('jv')) + '</h2><div class="quick"><button type="button" class="btn primary" data-b2="jv">+ ' + esc(T('newjv')) + '</button></div></div>' +
+    var list = A.mine().filter(function (d) { return d.type === 'jv' || d.gen; }).filter(A.match).sort(A.byDate);   /* A-10: general receipts and payments listed with the journals */
+    return '<div class="pane-hd"><h2>' + esc(T('jv')) + '</h2><div class="quick"><button type="button" class="btn primary" data-b2="jv">+ ' + esc(T('newjv')) + '</button><button type="button" class="btn" data-b2="rcpt">+ ' + esc(NS.t('bw.gv_rcpt')) + '</button><button type="button" class="btn" data-b2="pymt">+ ' + esc(NS.t('bw.gv_pymt')) + '</button></div></div>' +
       '<p class="soft">' + esc(T('jvh')) + '</p>' + A.searchBar() +
       (list.length ? '<ul class="rows">' + list.map(function (d) {
         return '<li><div class="ln"><b>' + esc(d.no || T('jv1')) + '</b> <span class="soft">' + A.ldate(d.date) + (d.dep ? ' · ' + esc(T('depjv')) : '') + (d.cf ? ' · ' + esc(T('cfjv')) : '') + '</span>' +
@@ -144,16 +150,13 @@
       }).join('') + '</ul>' : '<p class="soft">' + esc(T('nojv')) + '</p>') +
       '<details class="card"><summary><b>' + esc(A.T('help')) + '</b></summary><p>' + esc(T('jvhelp')) + '</p></details>';
   }, wireAll);
-  function jvForm(rec) {
-    var r = rec || { date: today(), narr: '', lines: [{ t: 'party', nm: '', dr: '', cr: '' }, { t: 'cash', nm: '', dr: '', cr: '' }] };
-    var L = JSON.parse(JSON.stringify(r.lines)).map(function (l) { if (!l.t) l.t = acctT(l); if (l.party) l.nm = l.party; return l; });
-    /* one row of the journal grid, like a ledger page: no., account, name, Dr, Cr (owner, 18 Nov 2026: the old form looked like a web form) */
-    function lineHtml(l, i) {
-      return '<div class="jg-r" data-jl="' + i + '"><span class="jg-no">' + (i + 1) + '</span><label class="jg-c"><span class="vh">' + esc(T('acct')) + '</span>' + sel('jl-t-' + i, l.t, ACC.map(function (a) { return [a, T('ac_' + a)]; })) + '</label>' +
-        (NAMED[l.t] ? '<label class="jg-c"><span class="vh">' + esc(T(l.t === 'party' ? 'pname' : 'aname')) + '</span>' + inp('jl-n-' + i, l.nm || '', { list: l.t === 'party' ? 'b2-parties' : l.t === 'fa' ? 'b2-assets' : 'b2-heads-' + l.t }) + '</label>' : '<span class="jg-c jg-na" aria-hidden="true">-</span>') +
-        '<label class="jg-c"><span class="vh">Dr</span>' + inp('jl-d-' + i, l.dr || '', { mode: 'decimal' }) + '</label><label class="jg-c"><span class="vh">Cr</span>' + inp('jl-c-' + i, l.cr || '', { mode: 'decimal' }) + '</label>' +
-        (L.length > 2 ? '<button type="button" class="icon-btn rm" data-jrm="' + i + '" aria-label="' + esc(A.T('rmline')) + '">✕</button>' : '<span></span>') + '</div>';
-    }
+  /* gm (ERP Round 2, A-10): '' = journal; 'rcpt' / 'pymt' = Receipt / Payment with any ledgers and several lines (Tally's Receipt and
+     Payment): one cash or bank account on top takes the difference of the lines; saved as type receipt / voucher with gen 1 (books.js genPost).
+     Party lines of all three can be set against bills (A-12, billwise.js A.bwAlloc). */
+  function jvForm(rec, gm) {
+    gm = gm || (rec && rec.gen ? (rec.type === 'receipt' ? 'rcpt' : 'pymt') : '');
+    var r = rec || { date: today(), narr: '', lines: [{ t: '', nm: '', dr: '', cr: '' }, { t: '', nm: '', dr: '', cr: '' }] };
+    var L = JSON.parse(JSON.stringify(r.lines)).map(function (l) { if (!l.t) l.t = acctT(l); if (l.party) l.nm = l.party; if (B.isBank(l.a)) { l.t = 'bank'; l.bk = l.a; } return l; });   /* a Bank line keeps the bank it was saved with */
     var heads = {}; A.mine().forEach(function (d) { if (d.cat) heads[d.cat] = 1; (d.lines || []).forEach(function (l) { if (l.head) heads[l.head] = 1; if (l.t && l.nm && l.t !== 'party') (heads[l.t + '|' + l.nm] = 1); }); });
     function named(t) {
       var o = Object.keys(heads).filter(function (h) { return h.indexOf(t + '|') === 0; }).map(function (h) { return h.split('|')[1]; });
@@ -161,48 +164,108 @@
       return o;
     }
     var assets = X.assets(A.data().doc, A.bizName()).map(function (a) { return a.name; });
+    /* Particulars (owner, 19 Nov 2026: "remove the Account column, selecting Particulars is enough"): one box per line, like an
+       accounting program's Particulars. The ledger is picked by its name from one list (parties, cash, banks, sales, purchases,
+       GST, TDS, income and expense heads, capital, drawings, loans, assets...); the list shows each one's kind beside it. A name not
+       in the list is a new ledger: only then a small "Under" choice asks its kind (expense head by default). */
+    var BL = banks(), CAT = [], BYK = {};
+    function capNm(t, n) { return n + ' (' + T('ac_' + t) + ')'; }
+    function add(name, x, grp, hide) { var k = key(name); if (!k || BYK[k]) return; BYK[k] = Object.assign({ name: name, grp: grp, hide: hide }, x); CAT.push(BYK[k]); }
+    partyNames().forEach(function (n) { add(n, { t: 'party', nm: n }, T('ac_party')); });
+    add(T('ac_cash'), { t: 'cash' }, T('ac_cash'));
+    add(T('ac_bank'), { t: 'bank', bk: 'bank' }, BL.length > 1 ? BL[0].name : T('ac_bank'));
+    if (BL.length > 1) BL.forEach(function (b) { if (b.k !== 'bank') add(b.name, { t: 'bank', bk: b.k }, T('ac_bank'), 1); });   /* the other banks: listed when the Options switch is on */
+    ['sales', 'purchases', 'tdsr', 'tdsp', 'gin-c', 'gin-s', 'gin-i', 'gout-c', 'gout-s', 'gout-i', 'round'].forEach(function (t) { add(T('ac_' + t), { t: t }, ''); });
+    ['exp', 'inc', 'loan', 'given', 'ocl', 'oca'].forEach(function (t) { named(t).forEach(function (n) { add(n, { t: t, nm: n }, T('ac_' + t)); }); });
+    assets.forEach(function (n) { add(n, { t: 'fa', nm: n }, T('ac_fa')); });
+    named('fa').forEach(function (n) { add(n, { t: 'fa', nm: n }, T('ac_fa')); });
+    ['cap', 'drw'].forEach(function (t) { add(T('ac_' + t), { t: t, nm: '' }, T('ac_' + t)); named(t).forEach(function (n) { add(capNm(t, n), { t: t, nm: n }, T('ac_' + t)); }); });
+    /* the name shown in a line's Particulars box */
+    function label(l) {
+      if (!l.t) return l.nm || '';
+      if (l.t === 'bank') { var b = BL.filter(function (x) { return x.k === l.bk; })[0]; return b && b.k !== 'bank' ? b.name : T('ac_bank'); }
+      if (FIXED[l.t]) return T('ac_' + l.t);
+      if (l.t === 'cap' || l.t === 'drw') return l.nm ? capNm(l.t, l.nm) : T('ac_' + l.t);
+      return l.nm || '';
+    }
+    var UNDER = ['exp', 'inc', 'party', 'cap', 'drw', 'loan', 'given', 'fa', 'ocl', 'oca'];
+    function lineHtml(l, i) {
+      var txt = label(l), isNew = txt && l.unk;
+      return '<div class="jg-r" data-jl="' + i + '"><span class="jg-no">' + (i + 1) + '</span><label class="jg-c jg-pc"><span class="vh">' + esc(T('part')) + '</span>' + inp('jl-p-' + i, txt, { list: 'b2-led' }) +
+        (isNew ? '<span class="vh">' + esc(T('under')) + '</span>' + sel('jl-u-' + i, l.t, UNDER.map(function (a) { return [a, T('under') + ': ' + T('ac_' + a)]; })).replace('<select ', '<select class="jg-new" title="' + esc(T('underh')) + '" ') : '') + '</label>' +
+        '<label class="jg-c"><span class="vh">Dr</span>' + inp('jl-d-' + i, l.dr || '', { mode: 'decimal' }) + '</label><label class="jg-c"><span class="vh">Cr</span>' + inp('jl-c-' + i, l.cr || '', { mode: 'decimal' }) + '</label>' +
+        (L.length > (gm ? 1 : 2) ? '<button type="button" class="icon-btn rm" data-jrm="' + i + '" aria-label="' + esc(A.T('rmline')) + '">✕</button>' : '<span></span>') + '</div>' +
+        (l.t === 'party' && l.nm && A.bwAlloc ? A.bwAlloc.html(l, i, rec) : '');   /* A-12: set this party line against bills */
+    }
+    function ledList() {
+      return '<datalist id="b2-led">' + CAT.filter(function (c) { return !c.hide || bankPickOn(); }).map(function (c) { return '<option value="' + esc(c.name) + '"' + (c.grp && c.grp !== c.name ? ' label="' + esc(c.grp) + '"' : '') + '>'; }).join('') + '</datalist>';
+    }
     function draw() {
-      $('[data-jls]', form).innerHTML = L.map(lineHtml).join(''); $$('[id^="jl-d-"],[id^="jl-c-"]', form).forEach(function (x) { x.placeholder = /-d-/.test(x.id) ? 'Dr' : 'Cr'; });
+      $('[data-jls]', form).innerHTML = L.map(lineHtml).join('') + ledList(); $$('[id^="jl-d-"],[id^="jl-c-"]', form).forEach(function (x) { x.placeholder = /-d-/.test(x.id) ? 'Dr' : 'Cr'; });
       $$('[data-jrm]', form).forEach(function (b) { b.addEventListener('click', function () { read(); L.splice(+b.getAttribute('data-jrm'), 1); draw(); }); });
       sum();
     }
-    function read() { L.forEach(function (l, i) { l.t = val('jl-t-' + i); l.nm = val('jl-n-' + i); l.dr = val('jl-d-' + i); l.cr = val('jl-c-' + i); }); }
+    /* a line from what is typed in its Particulars box: a ledger in the list, the same line unchanged, or a new ledger of the kind chosen */
+    function read() {
+      L.forEach(function (l, i) {
+        if (A.bwAlloc) A.bwAlloc.read(l, i, form);
+        var txt = val('jl-p-' + i), hit = BYK[key(txt)];
+        l.dr = val('jl-d-' + i); l.cr = val('jl-c-' + i);
+        if (!txt) { l.t = ''; l.nm = ''; delete l.bk; delete l.unk; return; }
+        if (txt === label(l) && !l.unk) return;
+        if (hit) { l.t = hit.t; l.nm = hit.nm || ''; if (hit.bk) l.bk = hit.bk; else delete l.bk; delete l.unk; return; }
+        var u = $('#jl-u-' + i, form); l.t = u ? u.value : 'exp'; l.nm = txt; l.unk = 1; delete l.bk;
+      });
+    }
     function sum() {
       read(); var dr = r2(L.reduce(function (s, l) { return s + num(l.dr); }, 0)), cr = r2(L.reduce(function (s, l) { return s + num(l.cr); }, 0));
       var e = $('[data-jsum]', form);
-      e.innerHTML = '<span></span><span class="jg-tl">' + esc(A.T('total') || 'Total') + '</span><span class="jg-df' + (dr !== cr ? ' bad' : '') + '">' + (dr !== cr ? esc(T('diff', { a: money(Math.abs(dr - cr)) })) : '') + '</span><b>' + money(dr) + '</b><b>' + money(cr) + '</b><span></span>';
+      if (gm) { var nt = r2(cr - dr), an = $('#gv-acct', form), anm = an && an.selectedIndex >= 0 ? an.options[an.selectedIndex].text : ''; e.innerHTML = '<span></span><span class="jg-tl">' + esc(anm) + ' ' + (nt >= 0 ? 'Dr' : 'Cr') + ((gm === 'rcpt') !== (nt > 0) && nt ? ' <span class="jg-df bad">' + esc(NS.t(gm === 'rcpt' ? 'bw.gv_needcr' : 'bw.gv_needdr')) + '</span>' : '') + '</span><b>' + money(Math.abs(nt)) + '</b><span></span><span></span>'; return; }
+      e.innerHTML = '<span></span><span class="jg-tl">' + esc(A.T('total') || 'Total') + (dr !== cr ? ' <span class="jg-df bad">' + esc(T('diff', { a: money(Math.abs(dr - cr)) })) + '</span>' : '') + '</span><b>' + money(dr) + '</b><b>' + money(cr) + '</b><span></span>';
     }
-    open(T(rec ? 'editjv' : 'newjv'), '<div class="fg jv-top">' + fld('jv-no', T('no'), inp('jv-no', r.no || nextNo('jv', 'JV', r.date), { mode: 'text' })) + fld('jv-date', A.T('date'), inp('jv-date', r.date, { type: 'date', req: 1 })) + '</div>' +
-      '<div class="jg" role="group" aria-label="' + esc(T('lines')) + '"><div class="jg-h" aria-hidden="true"><span>#</span><span>' + esc(T('acct')) + '</span><span>' + esc(T('aname')) + '</span><span>Dr</span><span>Cr</span><span></span></div>' +
+    var gAcct = [['cash', T('ac_cash')]].concat(BL.length ? BL.map(function (b) { return [b.k, b.name]; }) : [['bank', T('ac_bank')]]);
+    open(gm ? NS.t(gm === 'rcpt' ? 'bw.gv_rcpt' : 'bw.gv_pymt') + (rec && rec.no ? ' ' + rec.no : '') : T(rec ? 'editjv' : 'newjv'), '<div class="fg jv-top">' + fld('jv-no', T('no'), inp('jv-no', r.no || (gm ? nextNo(gm === 'rcpt' ? 'receipt' : 'voucher', gm === 'rcpt' ? 'RCT' : 'PV', r.date) : nextNo('jv', 'JV', r.date)), { mode: 'text' })) + fld('jv-date', A.T('date'), inp('jv-date', r.date, { type: 'date', req: 1 })) +
+      (gm ? fld('gv-acct', NS.t('bw.gv_acct'), sel('gv-acct', r.acct || (BL.length ? BL[0].k : 'cash'), gAcct), { hint: NS.t(gm === 'rcpt' ? 'bw.gv_accth_r' : 'bw.gv_accth_p') }) : '') +
+      (BL.length > 1 ? '<details class="jv-opts"><summary class="btn sm">' + esc(T('jv_opts')) + '</summary><label class="chk"><input type="checkbox" id="jv-bankpick"' + (bankPickOn() ? ' checked' : '') + '> ' + esc(T('jv_bankpick')) + '</label><small class="soft">' + esc(T('jv_bankpickh')) + '</small></details>' : '') + '</div>' +
+      '<div class="jg jg-p" role="group" aria-label="' + esc(T('lines')) + '"><div class="jg-h" aria-hidden="true"><span>#</span><span>' + esc(T('part')) + '</span><span>Dr</span><span>Cr</span><span></span></div>' +
         '<div data-jls></div><div class="jg-add"><button type="button" class="btn sm" data-jadd>' + esc(A.T('addline')) + '</button></div><div class="jg-f" data-jsum aria-live="polite"></div></div>' +
-      '<div class="fg">' + fld('jv-narr', T('narr'), '<textarea id="jv-narr" rows="2" dir="auto">' + esc(r.narr || '') + '</textarea>', { wide: 1 }) + '</div>' +
-      dl('b2-parties', partyNames()) + dl('b2-assets', assets) + ['exp', 'inc', 'loan', 'given', 'cap', 'drw'].map(function (t) { return dl('b2-heads-' + t, named(t)); }).join(''),
+      '<div class="fg">' + fld('jv-narr', T('narr'), '<textarea id="jv-narr" rows="2" dir="auto">' + esc(r.narr || '') + '</textarea>', { wide: 1 }) + '</div>',
     function () {
       read();
       var date = val('jv-date'), lines = L.filter(function (l) { return num(l.dr) || num(l.cr); });
       if (!need(date, A.T('date')) || !lockOk(date, rec)) return;
       var dr = r2(lines.reduce(function (s, l) { return s + num(l.dr); }, 0)), cr = r2(lines.reduce(function (s, l) { return s + num(l.cr); }, 0));
-      if (lines.length < 2 || !dr || dr !== cr) { NS.toast(T('unbal'), 'bad'); return; }
-      var bad = lines.filter(function (l) { return NAMED[l.t] && l.t !== 'cap' && l.t !== 'drw' && !l.nm; })[0];
-      if (bad) { NS.toast(A.T('need', { f: T(bad.t === 'party' ? 'pname' : 'aname') }), 'bad'); return; }
+      if (gm ? !lines.length || (gm === 'rcpt' ? !(cr > dr) : !(dr > cr)) : lines.length < 2 || !dr || dr !== cr) { NS.toast(gm ? NS.t(gm === 'rcpt' ? 'bw.gv_needcr' : 'bw.gv_needdr') : T('unbal'), 'bad'); return; }
+      var bad = lines.filter(function (l) { return !l.t || NAMED[l.t] && l.t !== 'cap' && l.t !== 'drw' && !l.nm; })[0];
+      if (bad) { NS.toast(A.T('need', { f: T('part') }), 'bad'); var bi = $('#jl-p-' + L.indexOf(bad), form); if (bi) bi.focus(); return; }
       var P = A.data().party;
       var out = lines.map(function (l) {
-        var o = { t: l.t, nm: l.nm, a: acctKey(l.t, l.nm), dr: r2(num(l.dr)), cr: r2(num(l.cr)) };
-        if (l.t === 'party') { var pm = P.filter(function (p) { return key(p.name) === key(l.nm); })[0]; o.party = l.nm; o.side = pm && pm.role === 'supplier' ? 'pay' : 'recv'; }
+        var o = { t: l.t, nm: l.t === 'bank' ? '' : l.nm, a: acctKey(l.t, l.nm, l.bk), dr: r2(num(l.dr)), cr: r2(num(l.cr)) };
+        if (l.t === 'party') { var pm = P.filter(function (p) { return key(p.name) === key(l.nm); })[0]; o.party = l.nm; o.side = pm && pm.role === 'supplier' ? 'pay' : 'recv'; if (l.alloc && l.alloc.length) o.alloc = l.alloc; }
         return o;
       });
-      var d = Object.assign(rec ? JSON.parse(JSON.stringify(rec)) : { type: 'jv', app: 1 }, { date: date, no: val('jv-no'), narr: val('jv-narr'), seller: sellerCopy(), lines: out });
+      var d = Object.assign(rec ? JSON.parse(JSON.stringify(rec)) : { type: gm === 'rcpt' ? 'receipt' : gm === 'pymt' ? 'voucher' : 'jv', app: 1 }, { date: date, no: val('jv-no'), narr: val('jv-narr'), seller: sellerCopy(), lines: out });
       d.total = dr;
-      NSStore.put('doc', d).then(function () { dlg.close(); NS.toast(A.T('saved')); A.show(); });
+      if (gm) { var ac = val('gv-acct') || 'cash', fp = out.filter(function (o) { return o.party; })[0]; d.gen = 1; d.acct = ac; d.mode = ac === 'cash' ? 'cash' : 'bank'; d.amount = d.total = B.genTotal(d); d.buyer = Object.assign(d.buyer || {}, { name: fp ? fp.party : '' }); if (gm === 'pymt') d.forBill = false; if (gm === 'rcpt') d.kind = d.kind || 'pay'; }
+      NSStore.put('doc', d).then(function (saved) { var al = []; (saved.lines || []).forEach(function (o) { (o.alloc || []).forEach(function (a) { al.push(a); }); }); return al.length && A.markPaid ? A.markPaid({ id: saved.id, alloc: al }) : null; }).then(function () { dlg.close(); NS.toast(A.T('saved')); A.show(); });
     }, function () {
       draw();
-      form.addEventListener('change', function (e) { var m2 = /^jl-t-(\d+)$/.exec(e.target.id); if (m2) { var id = e.target.id; read(); draw(); var x = $('#' + id, form); if (x) x.focus(); } else sum(); });
+      form.addEventListener('change', function (e) {
+        if (e.target.id === 'jv-bankpick') { try { localStorage.setItem('ns-jv-bankpick', e.target.checked ? '1' : '0'); } catch (x) {} read(); draw(); return; }
+        var m2 = /^jl-[pu]-(\d+)$/.exec(e.target.id);
+        if (m2) {   /* a ledger picked or a new name typed: draw again (the Under choice comes or goes), then on to the amount */
+          var i = +m2[1], was = L[i] && L[i].unk; read(); draw();
+          var nx = /^jl-p-/.test(e.target.id) && L[i] && L[i].unk && !was ? $('#jl-u-' + i, form) : $('#jl-' + (/^jl-u-/.test(e.target.id) ? 'd' : num(L[i] && L[i].cr) ? 'c' : 'd') + '-' + i, form);
+          if (nx) nx.focus();
+        } else sum();
+      });
       form.addEventListener('input', function (e) { if (/^jl-[dc]-/.test(e.target.id)) sum(); });
-      $('[data-jadd]', form).addEventListener('click', function () { read(); L.push({ t: 'exp', nm: '', dr: '', cr: '' }); draw(); });
+      $('[data-jadd]', form).addEventListener('click', function () { read(); L.push({ t: '', nm: '', dr: '', cr: '' }); draw(); var p = $('#jl-p-' + (L.length - 1), form); if (p) p.focus(); });
     });
   }
   function acctT(l) {
     if (l.a === 'party') return 'party';
+    if (B.isBank(l.a)) { l.bk = l.a; return 'bank'; }
     var f = Object.keys(FIXED).filter(function (k) { return FIXED[k] === l.a; })[0]; if (f) return f;
     var p = String(l.a || '').split(':'); if (p.length > 1) { l.nm = l.nm || p[1].replace(/^./, function (c) { return c.toUpperCase(); }); return p[0]; }
     return 'exp';
@@ -223,7 +286,7 @@
         R.rows.map(function (r) {
           var a = r.a;
           return '<tr><th scope="row">' + esc(a.name) + '<br><small class="soft">' + esc(NS.tEn ? NS.tEn('b2.k_' + a.cat) : T('k_' + a.cat)) + '</small></th><td>' + A.ldate(a.date) + '</td><td>' + (a.method === 'slm' ? 'SLM' : 'WDV') + ' · ' + a.life + ' yr</td>' +
-            '<td class="n">' + m(r.open) + '</td><td class="n">' + m(r.add) + '</td><td class="n">' + m(r.dep) + (r.todo > 0.004 ? ' <small class="np">(not posted)</small>' : '') + '</td><td class="n">' + m(r.sold) + '</td><td class="n">' + m(r.close) + '</td>' +
+            '<td class="n">' + m(r.open) + '</td><td class="n">' + m(r.add) + '</td><td class="n">' + m(r.dep) + (r.todo > 0.004 ? ' <small class="np">' + (r.todo < r.dep - 0.004 ? '(' + m(r2(r.dep - r.todo)) + ' posted, ' + m(r.todo) + ' to post)' : '(not posted)') + '</small>' : '') + '</td><td class="n">' + m(r.sold) + '</td><td class="n">' + m(r.close) + '</td>' +
             '<td class="acts">' + (a.sale ? '<span class="pill">' + esc(T('soldon', { d: A.ldate(a.sale.date) })) + '</span>' : '<button type="button" class="btn sm" data-b2sell="' + a.id + '">' + esc(T('sell')) + '</button>') +
             '<button type="button" class="btn sm" data-b2fa="' + a.id + '">' + esc(A.T('edit')) + '</button></td></tr>';
         }).join('') + '</tbody><tfoot><tr><th>Total</th><th></th><th></th><th class="n">' + m(R.tot.open) + '</th><th class="n">' + m(R.tot.add) + '</th><th class="n">' + m(R.tot.dep) + '</th><th class="n">' + m(R.tot.sold) + '</th><th class="n">' + m(R.tot.close) + '</th><th></th></tr></tfoot></table></div>' + foot() + '</div></div>'
@@ -312,11 +375,11 @@
   /* ---------- year end ---------- */
   A.addSection('b2year', function () {
     var D = A.data().doc, first = A.mine().reduce(function (f, d) { return d.date && (!f || d.date < f) ? d.date : f; }, '');
-    var picker = fyPick(first ? X.fyOf(first) : ''), fy = fySel, Y = X.yearSummary(D, items(), A.bizName(), fy), closed = X.isClosed(cfg().closed, A.bizName(), X.fyStart(fy));
+    var picker = fyPick(first ? X.fyOf(first) : ''), fy = fySel, Y = X.yearSummary(D, items(), A.bizName(), fy), closed = X.isClosed(cfg().closed, A.biz() || A.bizName(), X.fyStart(fy));
     var tiles = [['sales', Y.pl.rev], ['gp', Y.pl.gross], ['np', Y.pl.profit], ['cash', Y.cash], ['bank', Y.bank], ['recv', Y.recv], ['pay', Y.pay], ['stock', Y.stock.value]];
     return '<div class="pane-hd"><h2>' + esc(T('year')) + '</h2>' + (closed ? '<span class="pill ok">' + esc(T('isclosed')) + '</span>' : '') + '</div><p class="soft">' + esc(T('yearh')) + '</p>' + picker +
       '<div class="tbl-wrap" dir="ltr"><div lang="en-IN" class="stsheet" data-sheet>' + head('Year-end summary', 'FY ' + fy + ' (' + A.ldate(Y.from) + ' to ' + A.ldate(Y.to) + ')') +
-      '<div class="tiles">' + tiles.map(function (x) { return '<div class="tile' + (x[1] < 0 ? ' neg' : '') + '"><span>' + esc(T('y_' + x[0])) + '</span><b>' + money(x[1]) + '</b></div>'; }).join('') + '</div>' + foot() + '</div></div>' +
+      '<div class="tiles">' + tiles.map(function (x) { var nl = x[0] === 'np' && x[1] < 0; return '<div class="tile' + (x[1] < 0 ? ' neg' : '') + '"><span>' + esc(T(nl ? 'y_nl' : 'y_' + x[0])) + '</span><b>' + money(nl ? -x[1] : x[1]) + '</b></div>'; }).join('') + '</div>' + foot() + '</div></div>' +
       '<div class="card"><h3>' + esc(T('checks')) + '</h3>' + (Y.checks.length ? '<ul>' + Y.checks.map(function (c) {
         return '<li>' + esc(T('ck_' + c[0], { n: c[0] === 'dep' || c[0] === 'diff' ? money(Math.abs(c[1])) : c[1] })) + (c[0] === 'dep' ? ' <a href="#b2fa">' + esc(T('fa')) + ' ›</a>' : c[0] === 'neg' ? ' <a href="#b2gd">' + esc(T('gd')) + ' ›</a>' : '') + '</li>'; }).join('') + '</ul>' : '<p class="soft">' + esc(T('ck_ok')) + '</p>') + '</div>' +
       '<div class="card"><h3>' + esc(T('nextyear', { fy: X.nextFy(fy) })) + '</h3><p>' + esc(T('carryh')) + '</p><p>' + esc(T('numh')) + '</p></div>' +
@@ -325,13 +388,18 @@
         '<button type="button" class="btn" data-b2print>' + esc(A.T('print')) + '</button></div></div>' +
       '<div class="card"><h3>' + esc(T('newfile')) + '</h3><p>' + esc(T('newfileh')) + '</p><button type="button" class="btn" data-b2cf="' + fy + '">' + esc(T('cfdl', { fy: X.nextFy(fy) })) + '</button></div>';
   }, wireAll);
+  /* ERP Round 1 (A-4, C-1, C-18): a year is closed under the business id ('#<id>'); reopening asks the PIN (when set) and a reason, both logged */
   function toggleClose(fy) {
-    var b = key(A.bizName()), shut = X.isClosed(cfg().closed, A.bizName(), X.fyStart(fy));
-    if (!confirm(T(shut ? 'reopenq' : 'closeq', { fy: fy }))) return;
-    saveCfg(function (c) {
-      c.closed = c.closed || {}; var l = c.closed[b] = c.closed[b] || [];
-      if (shut) c.closed[b] = l.filter(function (x) { return x !== fy; }); else if (l.indexOf(fy) < 0) l.push(fy);
-    }).then(function () { NS.toast(T(shut ? 'reopened' : 'closed', { fy: fy })); A.show(); });
+    var bz = A.biz() || { name: A.bizName() }, b = bz.id ? '#' + bz.id : key(A.bizName()), shut = X.isClosed(cfg().closed, bz, X.fyStart(fy));
+    var ask = shut ? NS.guard({ title: NS.t('au.reopent', { fy: fy }), msg: NS.t('au.reopenp'), why: 'need' }) : Promise.resolve(NS.okSync(T('closeq', { fy: fy })) ? { why: '' } : null);
+    ask.then(function (g) {
+      if (!g) return;
+      return saveCfg(function (c) {
+        c.closed = c.closed || {};
+        if (shut) X.closedKeys(bz).forEach(function (k) { if (c.closed[k]) c.closed[k] = c.closed[k].filter(function (x) { return x !== fy; }); });
+        else { var l = c.closed[b] = c.closed[b] || []; if (l.indexOf(fy) < 0) l.push(fy); }
+      }, { why: g.why }).then(function () { NS.toast(T(shut ? 'reopened' : 'closed', { fy: fy })); A.show(); });
+    }, function () {});
   }
   function carry(fy) {
     var C = A.data(), recs = X.carryForward(C.doc, C.item, A.bizName(), fy, sellerCopy()), now = Date.now();
@@ -393,7 +461,7 @@
       if (!need(lines.length, A.T('items'))) return;
       var H = S.inHand(A.data().doc.filter(function (d) { return !rec || d.id !== rec.id; }), items(), A.bizName(), date, from || S.MAIN);
       var short = lines.filter(function (l) { return num(l.qty) > (H[key(l.desc)] || 0) + 0.0005; });
-      if (short.length && !confirm(T('shortq', { l: short.map(function (l) { return l.desc; }).join(', ') }))) return;
+      if (short.length && !NS.okSync(T('shortq', { l: short.map(function (l) { return l.desc; }).join(', ') }))) return;
       var d = Object.assign(rec ? JSON.parse(JSON.stringify(rec)) : { type: 'stk', kind: 'move', app: 1 }, { date: date, no: val('mv-no'), from: from, to: to, seller: sellerCopy(),
         lines: lines.map(function (l) { var mm = items().filter(function (x) { return key(x.desc) === key(l.desc); })[0]; return { desc: l.desc, qty: num(l.qty), unit: mm && mm.unit || '', batch: l.batch }; }) });
       var add = [from, to].filter(function (g) { return g && gdNames().map(key).indexOf(key(g)) < 0; });
@@ -473,7 +541,7 @@
       var date = val('mk-date'), nm = val('mk-item'), q = num(val('mk-qty')), lines = L.filter(function (l) { return l.desc && num(l.qty) > 0; });
       if (!need(date, A.T('date')) || !need(nm, T('fin')) || !need(q > 0, T('mkqty')) || !need(lines.length, T('rawused')) || !lockOk(date, rec)) return;
       var c = cost();
-      if (c.short.length && !confirm(T('shortq', { l: c.short.join(', ') }))) return;
+      if (c.short.length && !NS.okSync(T('shortq', { l: c.short.join(', ') }))) return;
       var mm = items().filter(function (x) { return key(x.desc) === key(nm); })[0];
       var d = Object.assign(rec ? JSON.parse(JSON.stringify(rec)) : { type: 'stk', kind: 'make', app: 1 }, { date: date, no: val('mk-no'), gd: val('mk-gd'), extra: r2(num(val('mk-extra'))), seller: sellerCopy(),
         out: { desc: nm, qty: q, unit: mm && mm.unit || '', rate: r2(c.total / q), batch: val('mk-batch'), exp: val('mk-exp') }, lines: lines.map(function (l) { return { desc: l.desc, qty: num(l.qty), unit: l.unit }; }) });
@@ -496,10 +564,10 @@
     var r = A.range(), P = X.profit(A.data().doc, items(), A.bizName(), r[0], r[1]), t = P.tot;
     var tabs = ['bill', 'item', 'party', 'trend'], body = '';
     function pc(x) { return (x.value ? NS.qty(x.pct) + '%' : '—'); }
-    if (pView === 'bill') body = '<table class="tbl"><thead><tr><th>Bill</th><th>Party</th><th class="n">Sale value</th><th class="n">Cost</th><th class="n">Profit</th><th class="n">Margin</th></tr></thead><tbody>' +
-      P.bills.slice(0, 300).map(function (b) { return '<tr><th scope="row">' + esc(A.enName(b.d)) + ' ' + esc(b.d.no || '') + '<br><small class="soft">' + A.ldate(b.d.date) + '</small></th><td>' + esc(B.partyName(b.d) || '—') + '</td><td class="n">' + m(b.value) + '</td><td class="n">' + m(b.cost) + (b.unknown ? ' <span class="pill warn" title="' + esc(T('nocost')) + '">?</span>' : '') + '</td><td class="n' + (b.profit < 0 ? ' neg' : '') + '">' + money(b.profit, false) + '</td><td class="n">' + pc(b) + '</td></tr>'; }).join('') + '</tbody></table>';
-    else if (pView === 'item' || pView === 'party') body = '<table class="tbl"><thead><tr><th>' + (pView === 'item' ? 'Item' : 'Party') + '</th><th class="n">' + (pView === 'item' ? 'Qty sold' : 'Bills') + '</th><th class="n">Sale value</th><th class="n">Cost</th><th class="n">Profit</th><th class="n">Margin</th></tr></thead><tbody>' +
-      P[pView === 'item' ? 'items' : 'parties'].map(function (x) { return '<tr><th scope="row">' + esc(x.name || T('cashcust')) + '</th><td class="n">' + NS.qty(pView === 'item' ? x.qty : x.n) + '</td><td class="n">' + m(x.value) + '</td><td class="n">' + m(x.cost) + (x.unknown ? ' <span class="pill warn" title="' + esc(T('nocost')) + '">?</span>' : '') + '</td><td class="n' + (x.profit < 0 ? ' neg' : '') + '">' + money(x.profit, false) + '</td><td class="n">' + pc(x) + '</td></tr>'; }).join('') + '</tbody></table>';
+    if (pView === 'bill') body = '<table class="tbl lg-tbl"><thead><tr><th>Bill</th><th>Party</th><th class="n">Sale value</th><th class="n">Cost</th><th class="n">Profit</th><th class="n">Margin</th></tr></thead><tbody>' +
+      P.bills.slice(0, 300).map(function (b) { var pn = B.partyName(b.d); return '<tr data-k="' + esc(b.d.id) + '"><th scope="row">' + esc(A.enName(b.d)) + ' ' + esc(b.d.no || '') + ' <span class="noprint"><button type="button" class="btn sm ib" data-view="' + esc(b.d.id) + '" title="' + esc(A.T('open')) + '" aria-label="' + esc(A.T('open')) + '">' + NS.icSvg('eye') + '</button></span><br><small class="soft">' + A.ldate(b.d.date) + '</small></th><td>' + (pn ? '<a href="#st/' + encodeURIComponent(B.key(pn)) + '">' + esc(pn) + '</a>' : '—') + '</td><td class="n">' + m(b.value) + '</td><td class="n">' + m(b.cost) + (b.unknown ? ' <span class="pill warn" title="' + esc(T('nocost')) + '">?</span>' : '') + '</td><td class="n' + (b.profit < 0 ? ' neg' : '') + '">' + money(b.profit, false) + '</td><td class="n">' + pc(b) + '</td></tr>'; }).join('') + '</tbody></table>';
+    else if (pView === 'item' || pView === 'party') body = '<table class="tbl lg-tbl"><thead><tr><th>' + (pView === 'item' ? 'Item' : 'Party') + '</th><th class="n">' + (pView === 'item' ? 'Qty sold' : 'Bills') + '</th><th class="n">Sale value</th><th class="n">Cost</th><th class="n">Profit</th><th class="n">Margin</th></tr></thead><tbody>' +
+      P[pView === 'item' ? 'items' : 'parties'].map(function (x) { var lk = !x.name ? '' : pView === 'item' ? '#do/stock/#item/' + encodeURIComponent(B.key(x.name)) : '#st/' + encodeURIComponent(B.key(x.name)); return '<tr><th scope="row">' + (lk ? '<a href="' + lk + '">' + esc(x.name) + '</a>' : esc(x.name || T('cashcust'))) + '</th><td class="n">' + NS.qty(pView === 'item' ? x.qty : x.n) + '</td><td class="n">' + m(x.value) + '</td><td class="n">' + m(x.cost) + (x.unknown ? ' <span class="pill warn" title="' + esc(T('nocost')) + '">?</span>' : '') + '</td><td class="n' + (x.profit < 0 ? ' neg' : '') + '">' + money(x.profit, false) + '</td><td class="n">' + pc(x) + '</td></tr>'; }).join('') + '</tbody></table>';
     else {
       var TR = X.trend(A.data().doc, items(), A.bizName(), r[0], r[1], tBy, 10), max = Math.max.apply(null, TR.all.concat([1]));
       body = '<div class="seg" role="group">' + ['item', 'party'].map(function (b) { return '<button type="button" class="btn sm" data-b2tby="' + b + '" aria-pressed="' + (tBy === b) + '">' + esc(T('by_' + b)) + '</button>'; }).join('') + '</div>' +
@@ -533,7 +601,7 @@
   /* ---------- one wire for every section ---------- */
   function wireAll(pane) {
     wireFy(pane);
-    $$('[data-b2]', pane).forEach(function (b) { b.addEventListener('click', function () { var k = b.getAttribute('data-b2'); ({ jv: jvForm, fa: faForm, move: moveForm, make: makeForm, bom: bomForm })[k](); }); });
+    $$('[data-b2]', pane).forEach(function (b) { b.addEventListener('click', function () { var k = b.getAttribute('data-b2'); ({ jv: jvForm, rcpt: function () { jvForm(null, 'rcpt'); }, pymt: function () { jvForm(null, 'pymt'); }, fa: faForm, move: moveForm, make: makeForm, bom: bomForm })[k](); }); });
     function byId(id) { return A.data().doc.filter(function (x) { return x.id === id; })[0]; }
     $$('[data-b2edit]', pane).forEach(function (b) { b.addEventListener('click', function () { jvForm(byId(b.getAttribute('data-b2edit'))); }); });
     $$('[data-b2del]', pane).forEach(function (b) { b.addEventListener('click', function () { del(b.getAttribute('data-b2del')); }); });
@@ -589,7 +657,7 @@
   /* edit buttons in the app's own lists (recent, party statement) open these forms */
   var prevMX = A.editX;   /* keep the editors other files set before this one (acctx, staff...) */
   A.editX = function (d) {
-    if (d.type === 'jv') { jvForm(d); return true; }
+    if (d.type === 'jv' || d.gen) { jvForm(d); return true; }   /* A-10: general receipt / payment */
     if (d.type === 'fa' && d.kind === 'sale') { var a = X.assets(A.data().doc, A.bizName()).filter(function (x) { return x.id === d.asset; })[0]; if (a) sellForm(a); return true; }
     if (d.type === 'fa') { faForm(d); return true; }
     if (d.type === 'stk' && d.kind === 'move') { moveForm(d); return true; }

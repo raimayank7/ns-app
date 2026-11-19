@@ -127,7 +127,7 @@
 
   /* ---------- hooks into the final accounts screens (finrep.js) ---------- */
   function relabel(o, map) {
-    return o.map(function (x) { var m = map[x.en]; return m ? Object.assign({}, x, { loc: M(m[0]), en: m[1] }) : x; });
+    return o.map(function (x) { var m = map[x.en]; if (m && m[0] === 'sbt' && +x.v < 0) m = ['dbt', 'Deficit before tax']; return m ? Object.assign({}, x, { loc: M(m[0]), en: m[1], v: m[0] === 'dbt' ? -x.v : x.v }) : x; });
   }
   var NPO_PL = { 'Revenue from operations': ['inc_act', 'Income from activities (fees, donations, sales)'], 'Expenses': ['expd', 'Expenditure'], 'Total expenses': ['totexpd', 'Total expenditure'],
     'Profit before tax': ['sbt', 'Surplus before tax'], 'Profit for the period': ['exi', 'Excess of income over expenditure'], 'Loss for the period': ['exe', 'Excess of expenditure over income'] };
@@ -140,6 +140,7 @@
     var t = bt();
     if (kind === 'tab') return t === 'npo' && C === 'pl' ? M('t_ie') : x;
     if (kind === 'title') return t === 'npo' && C === 'pl' ? 'INCOME AND EXPENDITURE ACCOUNT' : x;
+    if (kind === 'tsheet') return t === 'npo' && C === 'pl' ? String(x).replace(/TRADING AND PROFIT AND LOSS ACCOUNT|PROFIT AND LOSS ACCOUNT|STATEMENT OF PROFIT AND LOSS/g, 'INCOME AND EXPENDITURE ACCOUNT').replace(/Net profit/g, 'Excess of income over expenditure').replace(/Net loss/g, 'Excess of expenditure over income') : x;   /* F2-13 */
     if (kind === 'links') return links(x, C) + as2Note(C);
     if (kind === 'pl' && t === 'npo') {
       var o = relabel(x, NPO_PL), fee = feeTotal(C), i = -1;

@@ -83,6 +83,7 @@
   });
 
   K = NS.kit({
+    acctLines: true,   /* ERP C-9: particulars and value only when the business keeps no items */
     type: 'visit', site: 'clinic', prefix: 'OPD', digits: 4, paper: 'a5', papers: ['a5', 'a4'], copies: 2, copyLabels: ['Patient copy', 'Clinic copy'],
     name: function (d) { return d.show === 'rx' ? 'Prescription' : d.show === 'bill' ? (d.kind === 'tax' ? 'Tax Invoice' : d.kind === 'supply' ? 'Bill of Supply' : 'Consultation Bill') : 'Visit'; },
     blank: function () { return { show: 'both', age: '', sex: '', wt: '', vit: '', allergy: '', doctor: '', qual: '', reg: '', complaint: '', diag: '', advice: '', next: '', apptId: '', rx: [rx()], kind: 'plain', adv: '', status2: 'paid', payMode: 'cash', items: [line('Consultation')] }; },

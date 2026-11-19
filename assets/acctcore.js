@@ -148,16 +148,22 @@
     var to = fyEnd(fy), start = fyStart(nextFy(fy)), A = B.accounts(docs, biz, to), P = B.parties(docs, biz), out = [], n = 0, jl = [];
     function id() { n++; return 'cf' + fy.replace('-', '') + '-' + n; }
     var base = { app: 1, cf: fy, date: start, seller: seller };
-    Object.keys(P).forEach(function (k) {
+    /* A-13 (r2-billwise): each party's open bills go forward one by one (their own dates and due dates, so ageing and interest
+       carry on), money on account as a lump on the other side; the party balance is always the same as before */
+    if (B.openBillsAt) B.openBillsAt(docs, biz, to).forEach(function (o) {
+      out.push(Object.assign({ id: id(), type: 'ob', no: '', buyer: { name: o.name }, side: o.side, amount: o.amount, total: o.amount }, o.bills.length ? { bills: o.bills } : {}, base));
+    });
+    else Object.keys(P).forEach(function (k) {
       var b = r2(P[k].bal); if (Math.abs(b) < 0.005) return;
       out.push(Object.assign({ id: id(), type: 'ob', no: '', buyer: { name: P[k].name }, side: b > 0 ? 'recv' : 'pay', amount: Math.abs(b), total: Math.abs(b) }, base));
     });
-    ['cash', 'bank'].forEach(function (a) { var v = r2(A[a] || 0); if (v > 0.004) out.push(Object.assign({ id: id(), type: 'ob', no: '', buyer: { name: '' }, side: a, amount: v, total: v }, base)); else if (v < -0.004) jl.push({ a: a, dr: 0, cr: -v }); });
+    /* cash, the default bank and every other bank account (several banks: an opening balance per bank, d.bacct names it) */
+    ['cash', 'bank'].concat(Object.keys(A).filter(function (a) { return a !== 'bank' && B.isBank && B.isBank(a); })).forEach(function (a) { var v = r2(A[a] || 0); if (v > 0.004) out.push(Object.assign({ id: id(), type: 'ob', no: '', buyer: { name: '' }, side: a === 'cash' ? 'cash' : 'bank', amount: v, total: v }, a.indexOf('bank:') === 0 ? { bacct: a } : {}, base)); else if (v < -0.004) jl.push({ a: a, dr: 0, cr: -v }); });
     var stock = S.summary(docs, items, biz, '', to).items.filter(function (s) { return s.close > 0; });
     if (stock.length) out.push(Object.assign({ id: id(), type: 'stk', kind: 'open', no: 'OPEN/' + nextFy(fy), note: 'Carried forward from ' + fy, lines: stock.map(function (s) { return { desc: s.name, unit: s.unit, qty: s.close, rate: s.cost }; }) }, base));
-    var isPL = function (a) { return a === 'sales' || a === 'sales-return' || a === 'purchases' || a === 'purchase-return' || a === 'round-off' || /^(exp|inc):/.test(a); };
+    var isPL = function (a) { return /^(sales|purchases):/.test(a) || a === 'sales' || a === 'sales-return' || a === 'purchases' || a === 'purchase-return' || a === 'round-off' || /^(exp|inc):/.test(a); };
     Object.keys(A).forEach(function (a) {
-      var v = r2(A[a]); if (Math.abs(v) < 0.005 || a.indexOf('p:') === 0 || a === 'cash' || a === 'bank' || a === 'opening' || isPL(a)) return;
+      var v = r2(A[a]); if (Math.abs(v) < 0.005 || a.indexOf('p:') === 0 || a === 'cash' || a === 'bank' || a.indexOf('bank:') === 0 || a === 'opening' || isPL(a)) return;
       jl.push({ a: a, dr: v > 0 ? v : 0, cr: v < 0 ? -v : 0 });
     });
     if (jl.length) {
@@ -168,7 +174,9 @@
     return out;
   }
   /* is a date inside a financial year closed for this business? closed = settings.closed { '<biz key>': ['2025-26', ...] } */
-  function isClosed(closed, biz, iso) { var l = closed && closed[key(biz)]; return !!(l && iso && l.indexOf(fyOf(iso)) >= 0); }
+  /* ERP Round 1, C-1: biz may be the business record { id, name, oldNames }: a year closed under its id ('#<id>'), its name or a name it had before */
+  function closedKeys(biz) { var o = biz && typeof biz === 'object' ? biz : { name: biz }, l = [key(o.name)]; if (o.id) l.push('#' + o.id); (o.oldNames || []).forEach(function (n) { l.push(key(n)); }); return l; }
+  function isClosed(closed, biz, iso) { if (!closed || !iso) return false; var f = fyOf(iso); return closedKeys(biz).some(function (k) { var l = closed[k]; return !!(l && l.indexOf(f) >= 0); }); }
 
   /* ---------- profit per bill, item and party ---------- */
   function masterCost(m) { return m ? num(m.cost || m.prate || m.purchase || m.buy) : 0; }
@@ -270,7 +278,7 @@
   }
 
   var API = { KINDS: KINDS, fyOf: fyOf, fyStart: fyStart, fyEnd: fyEnd, nextFy: nextFy, assets: assets, wdvRate: wdvRate, bookSchedule: bookSchedule, bookValueOn: bookValueOn,
-    posted: posted, register: register, taxBlocks: taxBlocks, yearSummary: yearSummary, carryForward: carryForward, isClosed: isClosed,
+    posted: posted, register: register, taxBlocks: taxBlocks, yearSummary: yearSummary, carryForward: carryForward, isClosed: isClosed, closedKeys: closedKeys,
     saleLines: saleLines, profit: profit, months: months, trend: trend, salesmen: salesmen, num: num, r2: r2, key: key };
   if (typeof module !== 'undefined' && module.exports) module.exports = API; else G.NSAcct = API;
 })(typeof window !== 'undefined' ? window : this);

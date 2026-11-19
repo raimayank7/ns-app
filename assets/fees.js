@@ -187,7 +187,7 @@
       }).then(function () { d.close(); NS.toast(T('ca.saved')); return reload(); }, function (e) { err(e.message || String(e)); });
     });
     var del = $('#fs-del', d);
-    if (del) del.addEventListener('click', function () { if (!confirm(T('fee.v.del', { n: s.name }))) return; NSStore.del('party', s.id).then(function () { d.close(); return reload(); }, function (e) { err(e.message); }); });
+    if (del) del.addEventListener('click', function () { if (!NS.okSync(T('fee.v.del', { n: s.name }))) return; NSStore.del('party', s.id).then(function () { d.close(); return reload(); }, function (e) { err(e.message); }); });
   }
   function importBox() {
     var d = dlg('fe-imp', T('fee.import'), '<p class="soft">' + esc(T('fee.imph')) + '</p><div class="btns"><button type="button" class="btn" id="fi-file">' + esc(T('fee.pickcsv')) + '</button><input type="file" id="fi-in" accept=".csv,.txt,text/csv,text/plain" hidden></div>' +

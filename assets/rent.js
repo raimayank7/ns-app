@@ -78,7 +78,7 @@
     var a = b.getAttribute('data-um'), id = b.getAttribute('data-id'), u = UNITS.filter(function (x) { return x.id === id; })[0];
     if (a === 'edit' && u) { editUnit = id; $('#rq-up').value = u.prop || ''; $('#rq-un').value = u.unit; $('#rq-ur').value = u.rate || u.price || ''; $('#rq-um').value = u.maint || ''; $('#rq-uu').value = u.use === 'res' ? 'res' : 'com'; $('#rq-ul').textContent = t('rq.editunit'); $('#rq-un').focus(); }
     else if (a === 'clear') { editUnit = null; unitsDialog(); }
-    else if (a === 'del' && u) { if (confirm(t('rq.delunit', { n: R.unitName(u.prop, u.unit) }))) NSStore.del('item', id).then(function () { unitsDialog(); }, function (e) { NS.toast(e.message, 'bad'); }); }
+    else if (a === 'del' && u) { if (NS.okSync(t('rq.delunit', { n: R.unitName(u.prop, u.unit) }))) NSStore.del('item', id).then(function () { unitsDialog(); }, function (e) { NS.toast(e.message, 'bad'); }); }
     else if (a === 'save') {
       var c = R.cleanUnit({ prop: $('#rq-up').value, unit: $('#rq-un').value, rent: $('#rq-ur').value, maint: $('#rq-um').value, use: $('#rq-uu').value });
       if (!c) { NS.toast(t('rq.v.unit'), 'bad'); return; }

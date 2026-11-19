@@ -60,7 +60,7 @@
     if (a === 'tap' || a === 'minus') {
       var nm = b.getAttribute('data-d'), v = ITEMS.filter(function (m) { return m.desc === nm; })[0];
       if (a === 'minus') G.minus(d.items, nm, row);
-      else if (v) G.tap(d.items, v, row, d.kind === 'tax' && d.incl);
+      else if (v) { G.tap(d.items, v, row, d.kind === 'tax' && d.incl); var hv = STOCK[G.key(nm)], inb = G.billMap(d.items)[G.key(nm)]; if (hv != null && inb > hv) NS.toast(t('gm.es.low', { n: Math.max(0, hv), x: nm }), 'bad'); }   /* F5-9 */
       K.refill(); drawPick();
     } else if (a === 'prod') openProd();
     else if (a === 'csvp') { if (!PROD.length) NS.toast(t('gm.none'), 'bad'); else dl('Garment products ' + NS.today() + '.csv', G.variantRows(ITEMS, STOCK)); }
@@ -173,7 +173,7 @@
       else if (a === 'stocksave') saveStock();
       else if (a === 'stockhide') { EDIT = null; $('[data-pstock]', x).innerHTML = ''; }
       else if (a === 'labels') printLabels(k);
-      else if (a === 'del' && p && confirm(t('gm.d.cdel', { x: p.name, n: p.variants.length }))) {
+      else if (a === 'del' && p && NS.okSync(t('gm.d.cdel', { x: p.name, n: p.variants.length }))) {
         Promise.all(p.variants.map(function (v) { return v.id ? NSStore.del('item', v.id) : null; })).then(function () { NS.toast(t('gm.d.deleted', { x: p.name })); return load(); });
       }
     });
