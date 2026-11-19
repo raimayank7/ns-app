@@ -194,9 +194,9 @@
     return '<div class="seg or-tabs" role="tablist">' + VIEWS.map(function (v) { return '<a class="btn sm" role="tab" href="#ord/' + v + '" aria-pressed="' + (v === view) + '" aria-selected="' + (v === view) + '">' + esc(t('v_' + v)) + '</a>'; }).join('') + '</div>';
   }
   function head(view) {
-    return '<div class="pane-hd"><h2>' + esc(t('title')) + '</h2><div class="quick no-print">' +
-      act('+ ' + t('new_so'), 'data-ornew="sales-order"') + act('+ ' + t('new_po'), 'data-ornew="purchase-order"') + act('+ ' + t('new_grn'), 'data-orform="grn"') +
-      act('+ ' + t('new_rejin'), 'data-orform="rejin"') + act('+ ' + t('new_rejout'), 'data-orform="rejout"') + act('+ ' + t('new_lc'), 'data-orlc') + '</div></div>' + tabs(view);
+    /* a report screen, as in Tally: the entries (receipt note, goods back, additional cost) are under Transactions › Inventory Vouchers,
+       sales and purchase orders under Other Documents (owner 19 Nov 2026) */
+    return '<div class="pane-hd"><h2>' + esc(t('title')) + '</h2></div>' + tabs(view);
   }
   function outView(side, by, filt) {
     var TT = T0(), kinds = side === 'buy' ? ['po'] : ['so'];
@@ -272,6 +272,7 @@
     else body = lcView();
     return head(view) + '<div data-sheet>' + body + '</div>';
   }, function (pane) { pane.addEventListener('click', onPane); });   /* one listener (the App draws into the same pane every time) */
+  A.orAct = function (k) { if (k === 'lc') lcForm(); else A.openForm('vdoc', { ty: k }); };   /* the menu's Inventory Vouchers entries (desk.js) */
   function onPane(e) {
       var b = e.target.closest('button'); if (!b) return;
       var TT;

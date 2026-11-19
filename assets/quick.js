@@ -1,6 +1,6 @@
 /* NSBiz: speed habits.
    Search everything (Ctrl K or /): parties, documents, items, menu screens and actions in one box.
-   One-key shortcuts while not typing: N new invoice, R money received, P money paid, E expense, B purchase bill, 1-9 menu screens.
+   No one-key shortcuts (owner 19 Nov 2026): the entries use Alt+N, F6, F5, F10, F9 and the menu Alt+1..9 (desk.js).
    The app opens on the screen used last, and offers "Install app" when the browser allows it. */
 (function () {
   'use strict';
@@ -82,16 +82,8 @@
   /* ---------- keys ---------- */
   document.addEventListener('keydown', function (e) {
     if (!DESK && (e.ctrlKey || e.metaKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); if (dlg && dlg.open) dlg.close(); else open(); return; }
-    if (e.ctrlKey || e.metaKey || e.altKey || typing(e) || busy()) return;
-    var k = e.key;
-    if (k === '/' && !DESK) { e.preventDefault(); open(); return; }
-    /* a Hindi, Punjabi or other keyboard layout sends its own letter: go by the key's place on the keyboard then */
-    if (!/^[a-z0-9]$/i.test(k) && /^Key[NRPEB]$/.test(e.code || '')) k = e.code.slice(3);
-    if (e.repeat) return;
-    var act = { n: function () { A.openUrl(A.toolUrl('billing')); }, r: function () { A.openForm('min'); }, p: function () { A.openForm('mout'); }, e: function () { A.openForm('exp'); }, b: function () { A.openForm('pbill'); } }[k.toLowerCase()];
-    /* pressed while the data is still coming in: runs when it is there, not dropped */
-    if (act) { e.preventDefault(); (A.whenReady || function (f) { f(); })(function () { if (k.toLowerCase() === 'n' || A.biz() && !busy()) act(); }); return; }
-    if (/^[1-9]$/.test(k)) { var a = $$('[data-sec]')[+k - 1]; if (a) { e.preventDefault(); location.hash = a.getAttribute('href').replace(/^#?/, ''); } }
+    /* no single-key shortcuts any more (owner 19 Nov 2026): N, R, P, E, B and 1-9 fired by accident. The same jobs keep their
+       combinations: Alt+N new invoice, F6 receipt, F5 payment, F10 expense, F9 purchase bill, Alt+1..9 menu screens (desk.js) */
   });
 
   /* ---------- search button in the header ---------- */

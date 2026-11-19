@@ -32,6 +32,7 @@
     var k = (e.key || '').toLowerCase(), P = window.parent;
     var mine = (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && k === 'k' || (e.ctrlKey || e.metaKey) && !e.altKey && k === 'b' ||
       e.altKey && !e.ctrlKey && !e.metaKey && /^(Digit[1-9]|Key[NRPBXSGHLMUYKAJTWOCQ])$/.test(e.code || '') ||
+      e.altKey && e.ctrlKey && !e.metaKey && !e.shiftKey && /^Key[PITBLDRSC]$/.test(e.code || '') ||   /* Ctrl+Alt keys of the Shortcuts panel (19 Nov 2026) */
       !e.altKey && !e.metaKey && !e.shiftKey && (/^F([3-9]|10)$/.test(e.key) && !e.ctrlKey || e.ctrlKey && /^F[89]$/.test(e.key));
     if (!mine || !app()) return;
     e.preventDefault(); e.stopImmediatePropagation();

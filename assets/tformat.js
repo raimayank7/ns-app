@@ -55,10 +55,10 @@
   /* the format switch above the statement; the choice is saved for every screen */
   A.finWire = function (pane, view) {
     if (view !== 'pl' && view !== 'bs') return;
-    var at = $('.seg', pane); if (!at || $('[data-tffmt]', pane)) return;
+    var at = $('.seg', pane), per = $('.lg-period', pane); if ((!at && !per) || $('[data-tffmt]', pane)) return;   /* no view tabs in the App any more: the switch goes above the period */
     var t = on(), box = NS.el('div', { 'class': 'seg tf-fmt', role: 'group', 'aria-label': T('fmt'), 'data-tffmt': '' },
       [['t', 'f_t'], ['v', 'f_v']].map(function (x) { var p = (x[0] === 't') === t; return '<button type="button" class="btn sm" data-f="' + x[0] + '" aria-pressed="' + p + '">' + esc(T(x[1])) + '</button>'; }).join(''));
-    at.parentNode.insertBefore(box, at.nextSibling);
+    if (at) at.parentNode.insertBefore(box, at.nextSibling); else per.parentNode.insertBefore(box, per);
     box.addEventListener('click', function (e) {
       var b = e.target.closest('[data-f]'); if (!b || b.getAttribute('aria-pressed') === 'true') return;
       var f = b.getAttribute('data-f');

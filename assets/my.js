@@ -105,6 +105,8 @@
       ['climit', 'b1.climit', 'num', { hint: 'b1.h_climit' }], ['cdays', 'b1.cdays', 'num', { hint: 'b1.h_cdays' }],
       /* India plan A: route / beat and scheme (distributors) */
       ['route', 'rtb.route', 'text', { hint: 'rtb.h_route' }], ['scheme', 'rtb.scheme', 'text', { hint: 'rtb.h_scheme' }],
+      /* Evershine's account master (owner 19 Nov 2026): agent (salesman) and the road distance in km for e-way bills */
+      ['agent', 'ms.agent', 'text', { hint: 'ms.h_agent' }], ['km', 'ms.km', 'num', { hint: 'ms.h_km' }],
       /* compliance pack: MSME payables (size, Udyam number as typed by the supplier, days agreed in writing) */
       ['msme', 'cp.f_size', 'sel', { opts: [['', 'cp.sz_none'], ['micro', 'cp.sz_micro'], ['small', 'cp.sz_small'], ['medium', 'cp.sz_medium'], ['other', 'cp.sz_other']], hint: 'cp.h_size' }],
       ['udyam', 'cp.f_ud', 'ltr', { max: 22, upper: 1, ph: 'UDYAM-XX-00-0000000' }], ['agdays', 'cp.f_ag', 'num', { hint: 'cp.f_ag_h' }],

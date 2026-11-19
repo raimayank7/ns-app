@@ -524,7 +524,16 @@
   /* other files add their own tabs: window.NSMsExt = [{ id, html(), wire(pane), newKey }] (cfields.js: custom fields, remembered entries) */
   function EXT(id) { return (window.NSMsExt || []).filter(function (x) { return x.id === id; })[0]; }
   function tabsAll() { return TABS.concat((window.NSMsExt || []).map(function (x) { return [x.id, x.id]; })); }
-  function tabs(cur) { return '<nav class="seg ms-tabs" aria-label="' + esc(M('title')) + '">' + tabsAll().map(function (t) { return '<a class="btn sm" href="#masters' + (t[0] ? '/' + t[0] : '') + '"' + (t[0] === cur ? ' aria-current="page"' : '') + '>' + esc(M('t_' + t[1])) + '</a>'; }).join('') + '</nav>'; }
+  /* the masters by kind, as on the gateway: one 'Go to master' box on a list page replaces the old row of chip tabs (19 Nov 2026) */
+  var KINDS = [['g_acc', ['led', 'grp', 'bank', 'vt']], ['g_inv', ['item', 'igrp', 'unit']], ['g_dsp', ['trn', 'veh']], ['g_co', ['biz']]];
+  function tabs(cur) {
+    if (!cur) return '';
+    var ext = (window.NSMsExt || []).map(function (x) { return x.id; }), all = KINDS.map(function (k) { return [k[0], k[1].concat(k[0] === 'g_co' ? ext : [])]; });
+    return '<nav class="ms-crumb" aria-label="' + esc(M('title')) + '"><a href="#masters">' + esc(M('title')) + '</a><span aria-hidden="true">›</span><b>' + esc(M('t_' + cur)) + '</b>' +
+      '<label class="ms-goto"><span class="vh">' + esc(M('goto')) + '</span><select id="ms-goto" aria-label="' + esc(M('goto')) + '">' + all.map(function (k) {
+        return '<optgroup label="' + esc(M(k[0])) + '">' + k[1].map(function (id) { return '<option value="' + id + '"' + (id === cur ? ' selected' : '') + '>' + esc(M('t_' + id)) + '</option>'; }).join('') + '</optgroup>';
+      }).join('') + '</select></label></nav>';
+  }
   var MSQ = '';
   function q() { return MSQ.trim().toLowerCase(); }
   function srch() { return '<div class="f ms-find"><label for="ms-q" class="vh">' + esc(M('find')) + '</label><input id="ms-q" type="search" placeholder="' + esc(M('find')) + '" value="' + esc(MSQ) + '" autocomplete="off"></div>'; }
@@ -540,12 +549,13 @@
         return '<li><a href="' + r[1] + '"><b>' + esc(M(r[0])) + '</b>' + (r[2] != null ? ' <span class="pill">' + r[2] + '</span>' : '') + '</a>' + (r[3] ? '<button type="button" class="btn sm" data-msnew="' + r[3] + '">+ ' + esc(M('create')) + '</button>' : '') + '</li>';
       }).join('') + '</ul></section>';
     };
+    /* five lists, as in Tally's Create / Alter: what you set up once, nothing else (settings and features are under Utilities) */
     return '<div class="ms-gw">' +
-      card('g_acc', [['t_led', '#masters/led', L, 'led'], ['t_bank', '#masters/bank', A.banks ? A.banks().length : 1, 'bank'], ['t_grp', '#masters/grp', NS.groupsOf(GRP(), 'party').length + PRIMARY.length, 'grp'], ['t_vt', '#masters/vt', VT.length], ['t_ob', '#money', null, 'ob'], ['t_coa', '#coa'], ['t_fa', '#b2fa'], ['t_capl', '#capl']]) +
-      card('g_inv', [['t_item', '#masters/item', I, 'item'], ['t_igrp', '#masters/igrp', NS.groupsOf(GRP(), 'item').length, 'igrp'], ['t_unit', '#masters/unit', null], ['t_gd', '#b2gd'], ['t_bom', '#b2make']]) +
+      card('g_acc', [['t_led', '#masters/led', L, 'led'], ['t_grp', '#masters/grp', NS.groupsOf(GRP(), 'party').length + PRIMARY.length, 'grp'], ['t_bank', '#masters/bank', A.banks ? A.banks().length : 1, 'bank'], ['t_vt', '#masters/vt', VT.length, 'vt'], ['t_ob', '#money', null, 'ob'], ['t_coa', '#coa']]) +
+      card('g_inv', [['t_item', '#masters/item', I, 'item'], ['t_igrp', '#masters/igrp', NS.groupsOf(GRP(), 'item').length, 'igrp'], ['t_unit', '#masters/unit', null, 'unit'], ['t_gd', '#b2gd'], ['t_bom', '#b2make']]) +
+      card('g_pay', [['t_emp', '#stf/emp'], ['t_sman', '#b2sman']]) +
       card('g_dsp', [['t_trn', '#masters/trn', DSPM.tr.length, 'trn'], ['t_veh', '#masters/veh', DSPM.veh.length, 'veh']]) +
-      card('g_org', [['t_biz', '#masters/biz', D.biz.length], ['t_emp', '#stf/emp'], ['t_sman', '#b2sman'], ['t_set', '#do/my/#settings'], ['t_feat', '#features']]) +
-      (window.NSMsExt ? card('g_cf', [['t_cf', '#masters/cf', EXT('cf') ? EXT('cf').count() : null, 'cf'], ['t_rem', '#masters/rem']]) : '') +
+      card('g_co', [['t_biz', '#masters/biz', D.biz.length, 'biz']].concat(window.NSMsExt ? [['t_cf', '#masters/cf', EXT('cf') ? EXT('cf').count() : null, 'cf'], ['t_rem', '#masters/rem']] : [])) +
       '</div><p class="soft">' + esc(M('gwh')) + '</p>';
   }
   /* the ledger rows the search leaves (name, group and the party's custom field values): the list and its buttons use the same rows */
@@ -556,8 +566,17 @@
     return srch() + tbl([[M('name')], [M('under')]].concat(CC.map(function (f) { return [f.label]; }), [[M('bal'), 'n'], ['', 'noprint']]), R.map(function (r, i) {
       var nm = r.kind === 'party' || r.kind === 'party0' ? '<a href="#st/' + encodeURIComponent(key(r.name)) + '">' + esc(r.name) + '</a>' + offPill(r.rec) : r.k ? '<a href="#acl/' + encodeURIComponent(r.k) + '">' + esc(r.name) + '</a>' : esc(r.name);
       var a = r.kind === 'party' || r.kind === 'head' ? ib('data-msalt="' + i + '"', 'edit', M('alter')) + ib('data-msdel="' + i + '"', 'trash', NS.t('desk.del'), 'danger') : r.kind === 'bank' ? bankBtns(r.rec) : r.kind === 'sys' ? '<small class="soft">' + esc(M('auto')) + '</small>' : '';
-      return '<tr><td class="l">' + nm + '</td><td class="l">' + esc(r.group) + '</td>' + (CC.length ? NSCF.colCells(CC, r.kind === 'party' ? r.rec : null) : '') + '<td class="n">' + balTxt(r.bal) + '</td>' + acts(a) + '</tr>';
-    })) + '<p class="soft">' + esc(M('ledh')) + '</p>';
+      return '<tr data-msi="' + i + '" tabindex="0"><td class="l">' + nm + '</td><td class="l">' + esc(r.group) + '</td>' + (CC.length ? NSCF.colCells(CC, r.kind === 'party' ? r.rec : null) : '') + '<td class="n">' + balTxt(r.bal) + '</td>' + acts(a) + '</tr>';
+    })) + '<div class="ms-strip" data-msstrip aria-live="polite"><span class="soft">Point at an account, or move with ↑ ↓, to see its details here.</span></div><p class="soft">' + esc(M('ledh')) + '</p>';
+  }
+  /* the details strip of one ledger line (Evershine's account list) */
+  function stripHtml(r) {
+    var p = r.rec || {}, st = p.state && NS.stateName ? NS.stateName(p.state) : p.state, bits = [];
+    var add = function (l, v, cls) { if (v) bits.push('<span><small>' + esc(l) + '</small> <b' + (cls ? ' class="' + cls + '"' : '') + '>' + esc(v) + '</b></span>'); };
+    add('Address', [p.addr, p.city, p.pin, st].filter(Boolean).join(', ')); add('GSTIN', p.gstin, 'mono'); add('PAN', p.pan, 'mono'); add('Phone', p.phone, 'mono'); add('Email', p.email);
+    add('Route', p.route); add('Agent', p.agent); add('Distance', p.km ? p.km + ' km' : ''); add('Credit limit', p.climit ? NS.money(p.climit) : ''); add('Credit days', p.cdays ? p.cdays + ' days' : '');
+    add('Balance', r.bal ? NS.money(Math.abs(r.bal)) + (r.bal > 0 ? ' Dr' : ' Cr') : 'Nil');
+    return '<b class="ms-sn">' + esc(r.name) + '</b> <small class="soft">' + esc(r.group) + '</small><div class="ms-sb">' + bits.join('') + '</div>';
   }
   function grpHtml() {
     var own = NS.groupsOf(GRP(), 'party').filter(function (g) { return !g.builtin && hit(g.name); }), L = NS.groupsOf(GRP(), 'party');
@@ -696,6 +715,14 @@
       tabs(cur) + (body ? body() : gateway());
   }, function (pane) {
     (window.NSMsExt || []).forEach(function (x) { if (x.wire) x.wire(pane); });
+    var gt = $('#ms-goto', pane); if (gt) gt.addEventListener('change', function () { location.hash = '#masters/' + gt.value; });
+    if (!pane._msStrip) {   /* Masters > Ledgers: the line in focus fills the details strip; Up / Down move between lines (one set of listeners: the pane stays) */
+      pane._msStrip = 1;
+      var fill = function (tr) { var strip = $('[data-msstrip]', pane), r = tr && strip && ledRows()[+tr.getAttribute('data-msi')]; if (!r) return; $$('tr.ms-cur', pane).forEach(function (x) { x.classList.remove('ms-cur'); }); tr.classList.add('ms-cur'); strip.innerHTML = stripHtml(r); };
+      pane.addEventListener('mouseover', function (e) { var tr = e.target.closest && e.target.closest('tr[data-msi]'); if (tr) fill(tr); });
+      pane.addEventListener('focusin', function (e) { var tr = e.target.closest && e.target.closest('tr[data-msi]'); if (tr) fill(tr); });
+      pane.addEventListener('keydown', function (e) { var tr = e.target.closest && e.target.closest('tr[data-msi]'); if (!tr || !/^Arrow(Up|Down)$/.test(e.key)) return; e.preventDefault(); var n = e.key === 'ArrowDown' ? tr.nextElementSibling : tr.previousElementSibling; if (n && n.matches('tr[data-msi]')) { n.focus(); fill(n); } });
+    }
     var qi = $('#ms-q', pane); if (qi) { qi.addEventListener('input', function () { MSQ = qi.value; var p = qi.selectionStart; A.show(); var n = $('#ms-q'); if (n) { n.focus(); try { n.setSelectionRange(p, p); } catch (e) {} } }); }
     if (pane._msWired) return; pane._msWired = 1;   /* the pane stays from screen to screen: one listener */
     pane.addEventListener('click', function (e) {

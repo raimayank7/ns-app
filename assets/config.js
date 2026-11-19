@@ -12,7 +12,7 @@
   function W(k, v) { return NS.t('cf.' + k, v); }
   function S() { return NS.cfgFor(A.cfg(), A.biz()); }
   function biz() { return A.biz() || {}; }
-  function myLink(part) { var a = $('#ns-side a[data-ic=set]'); return (a ? a.href.split('#')[0] : 'https://my.niveshsahayak.in/') + '#' + part; }
+  function myLink(part) { return A.myUrl ? A.myUrl('#' + part) : 'https://my.niveshsahayak.in/#' + part; }   /* the data home address the App itself uses */
   var TABS = [['', 'biz'], ['feat', 'feat'], ['vt', 'vt'], ['safe', 'safe'], ['data', 'data']];
 
   /* the voucher type an App form or screen works with (index into NS.VTYPES) */
@@ -29,7 +29,7 @@
   function tabs(cur) { return '<nav class="seg ms-tabs" aria-label="' + esc(W('title')) + '">' + TABS.map(function (t) { return '<a class="btn sm" href="#config' + (t[0] ? '/' + t[0] : '') + '"' + (t[0] === cur ? ' aria-current="page"' : '') + '>' + esc(W('t_' + t[1])) + '</a>'; }).join('') + '</nav>'; }
   function row(label, value, action) { return '<tr><td class="l">' + esc(label) + '</td><td class="l">' + value + '</td><td class="noprint">' + (action || '') + '</td></tr>'; }
   function table(rows) { return '<div class="tbl-wrap"><table class="tbl cf-tbl"><tbody>' + rows.join('') + '</tbody></table></div>'; }
-  function lnk(href, label, blank) { return '<a class="btn sm" href="' + esc(href) + '"' + (blank ? ' target="_blank" rel="noopener"' : '') + '>' + esc(label) + '</a>'; }
+  function lnk(href, label) { return '<a class="btn sm" href="' + esc(href) + '">' + esc(label) + '</a>'; }   /* inside the App, never a new window (owner 19 Nov 2026) */
   function bizHtml() {
     var b = biz(), c = S(), fy = NS.fy(NS.today()), reg = { regular: W('reg_regular'), comp: W('reg_comp'), unreg: W('reg_unreg'), sez: W('reg_sez') }[b.reg || 'regular'] || b.reg;
     return table([

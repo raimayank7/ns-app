@@ -1,0 +1,102 @@
+/* Voucher tools on the App's entry screens (owner 19 Nov 2026, from the Evershine and Busy videos):
+   1. First / Back / Next / Last and Find by number: move through the saved vouchers of this kind without leaving the screen.
+   2. The party's balance under the party box as soon as it is picked; cash in hand and bank balance on money vouchers.
+   6. Purchase bill / return: the date it was entered in the books, kept apart from the supplier's bill date (d.idate).
+   7. Copy: a new voucher made from the one on screen (new number, today's date); the day name next to every date.
+   Hooks of app.js: NSApp.formTail / formWire / formSave (chained, like tdsbook.js). The App is English only. */
+(function () {
+  'use strict';
+  var A = window.NSApp, B = window.NSBooks; if (!A || !B || !A.openForm) return;
+  var $ = NS.$, $$ = NS.$$, esc = NS.esc, money = NS.money;
+  function key(s) { return String(s || '').trim().toLowerCase().replace(/\s+/g, ' '); }
+  /* the saved vouchers each entry screen moves through */
+  var KIND = {
+    sale: function (d) { return d.type === 'invoice'; }, pbill: function (d) { return d.type === 'pbill' && d.kind !== 'return'; },
+    pret: function (d) { return d.type === 'pbill' && d.kind === 'return'; }, min: function (d) { return d.type === 'receipt'; },
+    mout: function (d) { return d.type === 'voucher'; }, exp: function (d) { return d.type === 'exp'; }, contra: function (d) { return d.type === 'contra'; }
+  };
+  var MONEY = { min: 1, mout: 1, contra: 1, exp: 1 }, COPY = { sale: 1, pbill: 1, pret: 1 };
+  function listOf(kind) {
+    var f = KIND[kind]; if (!f) return [];
+    return (A.mine ? A.mine() : []).filter(function (d) { return d && d.id && f(d); })
+      .sort(function (a, b) { return String(a.date || '').localeCompare(String(b.date || '')) || String(a.no || '').localeCompare(String(b.no || ''), undefined, { numeric: true }) || (a.created || 0) - (b.created || 0); });
+  }
+  function dlg() { return $('#app-form'); }
+  /* Modify (the top menu, Busy style): the last saved voucher of this kind, with the Find box ready for another number */
+  A.vtModify = function (kind) {
+    var L = listOf(kind); if (!L.length) { NS.toast('Nothing saved yet: a new one opens'); A.openForm(kind); return; }
+    A.openForm(kind, { rec: L[L.length - 1] }); setTimeout(function () { var f = $('#app-form .vt-find'); if (f) f.focus(); }, 300);
+  };
+  function go(kind, rec) { NS.vsLeave(function () { A.openForm(kind, rec ? { rec: rec } : {}); }, dlg()); }
+  function dayName(v) { if (!/^\d{4}-\d{2}-\d{2}$/.test(v || '')) return ''; var p = v.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString('en-IN', { weekday: 'long' }); }
+  function balText(b) { return !b ? 'Nil' : money(Math.abs(b)) + (b > 0 ? ' Dr (to receive)' : ' Cr (to pay)'); }
+
+  var prevTail = A.formTail, prevWire = A.formWire, prevSave = A.formSave;
+  A.formTail = function (kind, rec) {
+    var h = prevTail ? prevTail(kind, rec) || '' : '';
+    if (kind === 'pbill' || kind === 'pret')   /* 6: entry date (the bill's own date stays in Date) */
+      h += '<div class="fg"><div class="f"><label for="f-idate">Entered in books on</label><input id="f-idate" type="date" value="' + esc(rec && rec.idate || NS.today()) + '"><small class="soft">The supplier\'s bill date stays in Date; this is the day it was entered.</small></div></div>';
+    return h;
+  };
+  A.formSave = function (kind, d, form, F) {
+    if (prevSave) prevSave(kind, d, form, F);
+    var i = $('#f-idate', form); if (i && i.value) d.idate = i.value;
+  };
+  A.formWire = function (kind, form, F) {
+    if (prevWire) prevWire(kind, form, F);
+    var box = dlg(); if (!box) return;
+    /* 7: the day name next to each date */
+    $$('input[type=date]', form).forEach(function (inp) {
+      var s = NS.el('small', { 'class': 'vt-day soft', 'aria-live': 'polite' }); inp.insertAdjacentElement('afterend', s);
+      var put = function () { s.textContent = dayName(inp.value); }; put(); inp.addEventListener('input', put); inp.addEventListener('change', put);
+    });
+    /* 2: the party's balance as soon as it is picked */
+    var pi = $('#f-party', form);
+    if (pi) {
+      var pb = NS.el('small', { 'class': 'vt-bal', 'aria-live': 'polite' }); (pi.closest('.f') || pi.parentNode).appendChild(pb);
+      var show = function () {
+        var k = key(pi.value); if (!k) { pb.textContent = ''; return; }
+        var P = B.parties(A.data().doc || [], A.bizName()), p = P[k];
+        pb.textContent = p ? 'Balance: ' + balText(p.bal) : (pi.value.trim() ? 'New party: no balance yet' : '');
+        pb.classList.toggle('dr', !!(p && p.bal > 0)); pb.classList.toggle('cr', !!(p && p.bal < 0));
+      };
+      show(); pi.addEventListener('change', show); pi.addEventListener('input', function () { clearTimeout(pi._vtT); pi._vtT = setTimeout(show, 250); });
+    }
+    /* 2: cash in hand and bank on money vouchers */
+    if (MONEY[kind]) {
+      var acc = B.accounts(A.data().doc || [], A.bizName()), cash = acc.cash || 0, bank = 0;
+      Object.keys(acc).forEach(function (a) { if (a === 'bank' || a.indexOf('bank:') === 0) bank += acc[a]; });
+      form.insertAdjacentHTML('afterbegin', '<p class="vt-cash"><span>Cash in hand <b>' + esc(money(cash)) + '</b></span><span>Bank <b>' + esc(money(bank)) + '</b></span></p>');
+    }
+    /* 1 + 7: move through the saved vouchers, find one by number, copy the one on screen */
+    if (!KIND[kind] || F.quick) return;
+    var L = listOf(kind), at = F.rec ? L.map(function (d) { return d.id; }).indexOf(F.rec.id) : L.length;
+    var hd = $('.dlg-h, .dlg-hd', box); if (!hd || $('.vt-nav', hd)) { var old = hd && $('.vt-nav', hd); if (old) old.remove(); }
+    if (!hd) return;
+    var btn = function (k, label, title, off) { return '<button type="button" class="btn sm" data-vtnav="' + k + '" title="' + esc(title) + '" aria-label="' + esc(title) + '"' + (off ? ' disabled' : '') + '>' + label + '</button>'; };
+    var nav = NS.el('div', { 'class': 'vt-nav', role: 'group', 'aria-label': 'Saved vouchers' },
+      btn('first', '|◀', 'First voucher', !L.length || at === 0) + btn('back', '◀', 'Back: the voucher before', !L.length || at <= 0) +
+      '<span class="vt-pos soft">' + (F.rec && at >= 0 ? (at + 1) + ' of ' + L.length : 'New · ' + L.length + ' saved') + '</span>' +
+      btn('next', '▶', 'Next voucher', at >= L.length - 1) + btn('last', '▶|', 'Last voucher', !L.length || at === L.length - 1) +
+      '<input class="vt-find" type="search" placeholder="Find no." aria-label="Find a voucher by its number" autocomplete="off">' +
+      (COPY[kind] && F.rec ? btn('copy', 'Copy', 'Copy: a new voucher made from this one') : ''));
+    hd.appendChild(nav);
+    nav.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-vtnav]'); if (!b || b.disabled) return;
+      var w = b.getAttribute('data-vtnav');
+      if (w === 'copy') {
+        var c = JSON.parse(JSON.stringify(F.rec)); ['id', 'no', 'created', 'updated', 'status', 'paidBy', 'cancelled', 'irn', 'ewb', 'idate', 'vno'].forEach(function (x) { delete c[x]; }); c.date = NS.today();
+        NS.vsLeave(function () { A.openForm(kind, { draft: c }); NS.toast('A copy: check it and press Save'); }, dlg()); return;
+      }
+      var i = w === 'first' ? 0 : w === 'last' ? L.length - 1 : w === 'back' ? (at > L.length - 1 ? L.length - 1 : at - 1) : at + 1;
+      if (L[i]) go(kind, L[i]);
+    });
+    var fi = $('.vt-find', nav);
+    fi.addEventListener('keydown', function (e) {
+      if (e.key !== 'Enter') return; e.preventDefault(); e.stopPropagation();
+      var q = key(fi.value); if (!q) return;
+      var hit = L.filter(function (d) { return key(d.no) === q; })[0] || L.filter(function (d) { return key(d.no).indexOf(q) >= 0 || key(d.no).slice(-q.length) === q; }).pop();
+      if (hit) go(kind, hit); else NS.toast('No voucher with number ' + fi.value, 'bad');
+    });
+  };
+})();

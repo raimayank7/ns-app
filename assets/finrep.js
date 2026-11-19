@@ -118,18 +118,24 @@
   }
   function tbView(C) {
     try { Object.assign(tbp, JSON.parse(localStorage.getItem(TBK) || '{}') || {}); each = tbp.lv === 'ledger'; } catch (e) {}   /* C-13: the style may arrive from the data home after this file loaded */
-    var det = tbp.st === 'detail', rows;
+    var det = tbp.st === 'detail', op = tbp.st === 'open', rows;
     if (det) rows = P.tbDetail(A.data().doc, A.data().item, A.bizName(), C.r[0], C.r[1], { map: headMap(), each: each }).rows;
+    /* opening trial balance: what stood before the first day plus the opening balances and opening stock typed for the period */
+    else if (op) rows = P.tbDetail(A.data().doc.filter(function (d) { return !d.date || d.date < C.r[0] || d.type === 'ob' || d.type === 'stk' && d.kind === 'open'; }), A.data().item, A.bizName(), C.r[0], C.r[1], { map: headMap(), each: each }).rows;
     else rows = tbRows(C);
+    /* opening trial balance: the balances brought in on the first day of the period, nothing entered after */
+    if (op) rows = rows.map(function (x) { return Object.assign({}, x, { od: 0, oc: 0, td: 0, tc: 0 }); }).filter(function (x) { return x.dr || x.cr; });
     if (!tbp.sk) rows = P.stockOff(rows);
     if (tbp.lv === 'group') rows = P.tbGroups(rows);
     rows = rows.map(function (x) { return tbName(x, C); });
-    if (tbp.lv !== 'group') rows.sort(function (a, b) { return P.ORDER.indexOf(a.g) - P.ORDER.indexOf(b.g) || (a.k.indexOf('p:') === 0 && b.k.indexOf('p:') === 0 ? a.loc.localeCompare(b.loc) : 0); });
-    return { rows: rows, T: P.tbTotals(rows), det: det, grp: tbp.lv === 'group', sk: tbp.sk, cs: C.cs };
+    var az = tbp.ord === 'az';
+    if (az) rows.sort(function (a, b) { return String(a.loc).localeCompare(String(b.loc)); });
+    else if (tbp.lv !== 'group') rows.sort(function (a, b) { return P.ORDER.indexOf(a.g) - P.ORDER.indexOf(b.g) || (a.k.indexOf('p:') === 0 && b.k.indexOf('p:') === 0 ? a.loc.localeCompare(b.loc) : 0); });
+    return { rows: rows, T: P.tbTotals(rows), det: det, op: op, flat: az, grp: tbp.lv === 'group', sk: tbp.sk && !op, cs: C.cs };
   }
   function tbControls() {
     function sel(f, opts) { return '<label><span>' + esc(S('l_' + f)) + '</span> <select data-tbs="' + f + '">' + opts.map(function (v) { return '<option value="' + v + '"' + (tbp[f] === v ? ' selected' : '') + '>' + esc(S(f + '_' + v)) + '</option>'; }).join('') + '</select></label>'; }
-    return '<div class="tools-row fr-tbs">' + sel('st', ['close', 'detail']) + sel('lv', ['group', 'acct', 'ledger']) +
+    return '<div class="tools-row fr-tbs">' + sel('st', ['close', 'detail', 'open']) + sel('lv', ['group', 'acct', 'ledger']) + sel('ord', ['book', 'az']) +
       '<label class="chk"><input type="checkbox" data-tbs="sk"' + (tbp.sk ? ' checked' : '') + '> ' + esc(S('sk')) + '</label></div>';
   }
   function tbGrid(V, en) {
@@ -139,7 +145,7 @@
       : '<tr><th class="l">' + esc(en ? 'Account' : L('acct')) + '</th><th class="n">' + esc(en ? 'Debit (Rs)' : L('dr')) + '</th><th class="n">' + esc(en ? 'Credit (Rs)' : L('cr')) + '</th></tr>';
     function cells(x) { return (V.det ? '<td class="n">' + c(x.od) + '</td><td class="n">' + c(x.oc) + '</td><td class="n">' + c(x.td) + '</td><td class="n">' + c(x.tc) + '</td>' : '') + '<td class="n">' + c(x.dr) + '</td><td class="n">' + c(x.cr) + '</td>'; }
     var body = V.rows.map(function (x) {
-      var h = !V.grp && hg(x) !== g0 ? '<tr class="sec"><th colspan="' + n + '" class="l">' + (en ? esc(gName(hg(x), en)) : '<a href="#gsum/' + hg(x) + '">' + esc(gName(hg(x), en)) + '</a>') + '</th></tr>' : ''; g0 = hg(x);
+      var h = !V.grp && !V.flat && hg(x) !== g0 ? '<tr class="sec"><th colspan="' + n + '" class="l">' + (en ? esc(gName(hg(x), en)) : '<a href="#gsum/' + hg(x) + '">' + esc(gName(hg(x), en)) + '</a>') + '</th></tr>' : ''; g0 = hg(x);
       return h + '<tr><th scope="row" class="l' + (V.grp ? '' : ' sub') + '">' + (!en && (V.grp || /^(trec|tpay)$/.test(x.k || '')) && x.g ? '<a href="#gsum/' + (x.grp ? x.g : hg(x)) + '">' + esc(x.loc) + '</a>' : V.grp || !x.k || /^(trec|tpay)$/.test(x.k) ? esc(en ? x.en : x.loc) : '<a href="' + (x.k.indexOf('p:') === 0 ? '#st/' + encodeURIComponent(x.k.slice(2)) : '#acl/' + encodeURIComponent(x.k)) + '">' + esc(en ? x.en : x.loc) + '</a>') + '</th>' + cells(x) + '</tr>';
     }).join('');
     var tot = function (v) { return '<th class="n">' + money(v, false) + '</th>'; };
@@ -270,6 +276,7 @@
       '<label>' + esc(A.T('from')) + ' <input type="date" data-stfrom value="' + r[0] + '"></label><label>' + esc(A.T('to')) + ' <input type="date" data-stto value="' + r[1] + '"></label></div>';
   }
   function tabs() {
+    if (A.data) return '';   /* the App: Trial Balance, Profit and Loss A/c and Balance Sheet are menu entries of their own, no repeat here (owner 19 Nov 2026) */
     return '<div class="seg" role="group">' + ['tb', 'pl', 'bs'].map(function (v) { return '<a class="btn sm" href="#fin/' + v + '" aria-pressed="' + (v === view) + '"' + (v === view ? ' aria-current="page"' : '') + '>' + esc(tl(v)) + '</a>'; }).join('') + '</div>';
   }
   /* a date inside right-to-left text keeps its own order (Unicode isolate) */
@@ -304,6 +311,7 @@
     var sub = view === 'bs' ? 'As at ' + A.ldate(r[1]) : view === 'tb' ? 'As at ' + A.ldate(r[1]) + ' (period ' + A.ldate(r[0]) + ' to ' + A.ldate(r[1]) + ')' : 'For ' + A.ldate(r[0]) + ' to ' + A.ldate(r[1]);
     var V = view === 'tb' && tbView(C), pr = view !== 'tb' && prevC(C);
     if (V && V.det) title = 'TRIAL BALANCE (DETAILED)';
+    if (V && V.op) { title = 'OPENING TRIAL BALANCE'; sub = 'As at ' + A.ldate(r[0]) + ' (balances brought in on the first day)'; }
     var body = view === 'tb' ? tbGrid(V, true) + '<p>' + (V.sk ? 'Closing stock Rs ' + money(C.cs, false) + ' (' + valEn() + ') is not part of the trial balance: it is shown under inventories.' : 'Ledger balances only: opening stock and stock brought in are left out; their value is in profit or loss of earlier periods.') + (V.grp ? ' One line per group of accounts.' : '') + '</p>'
       : stTablePY(stLinesPY(C, pr), true, pr) + (view === 'pl' ? '<p>Gross profit (sales less the cost of goods sold): Rs ' + money(grossOf(C), false) + '. Closing stock valued at ' + valEn() + '.</p>' : '');
     return '<div class="stsheet sh" dir="ltr" lang="en-IN" data-sheet>' + bizHead(title, sub) + body +
@@ -406,7 +414,8 @@
         return '<tr><th scope="row">' + esc(x.name) + '</th><td>' + esc(T('ty_' + x.t)) + '</td><td class="n">' + money(o, false) + '</td><td class="n">' + (up ? money(up, false) : '') + '</td><td class="n">' + (down ? money(down, false) : '') + '</td><td class="n"><b>' + money(c, false) + '</b></td></tr>';
       }).join('') + '</tbody></table></div>' : '<p class="soft">' + esc(T('noacc')) + '</p>';
     return '<div class="pane-hd"><h2>' + esc(NS.t('app.capl')) + '</h2></div><p class="soft">' + esc(T('clh')) + '</p>' +
-      '<div class="quick fr-kinds">' + KINDS.map(function (k, i) { return '<button type="button" class="btn' + (i ? '' : ' primary') + '" data-frcl="' + k + '">+ ' + esc(kName(k)) + '</button>'; }).join('') + '</div>' +
+      '<div class="quick fr-kinds"><label for="fr-kind">' + esc(NS.t('fr.etype')) + '</label><select id="fr-kind">' + KINDS.map(function (k) { return '<option value="' + k + '">' + esc(kName(k)) + '</option>'; }).join('') + '</select>' +
+        '<button type="button" class="btn primary" data-frclgo>+ ' + esc(NS.t('fr.newentry')) + '</button></div>' +   /* one box for the kind of entry, like a voucher class (owner 19 Nov 2026) */
       period() + tbl +
       '<h3>' + esc(T('entries')) + '</h3>' + (list.length ? '<ul class="rows">' + list.map(function (d) {
         return '<li><div class="ln"><b>' + esc(kName(d.cl)) + (d.nm ? ': ' + esc(d.nm) : '') + '</b> <span class="soft">' + A.ldate(d.date) + ' · ' + esc(d.no || '') + (d.narr ? ' · ' + esc(d.narr) : '') + '</span></div>' +
@@ -417,6 +426,7 @@
     var s = $('[data-frpre]', pane);
     if (s) s.addEventListener('change', function () { var p = presets(NS.today())[s.value]; if (p) { A.range(p[0], p[1]); A.show(); } });
     $$('[data-frcl]', pane).forEach(function (b) { b.addEventListener('click', function () { clForm(b.getAttribute('data-frcl')); }); });
+    $$('[data-frclgo]', pane).forEach(function (b) { b.addEventListener('click', function () { var k = $('#fr-kind', pane); clForm(k ? k.value : 'capin'); }); });
   });
 
   /* the form: one dialog for the six kinds */
