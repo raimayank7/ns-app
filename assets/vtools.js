@@ -16,6 +16,7 @@
     mout: function (d) { return d.type === 'voucher'; }, exp: function (d) { return d.type === 'exp'; }, contra: function (d) { return d.type === 'contra'; }
   };
   var MONEY = { min: 1, mout: 1, contra: 1, exp: 1 }, COPY = { sale: 1, pbill: 1, pret: 1 };
+  var VREG = { sale: 'sale', pbill: 'purchase', pret: 'pret', min: 'receipt', mout: 'payment', contra: 'contra', exp: 'expense' };   /* List: the register of each voucher */
   function listOf(kind) {
     var f = KIND[kind]; if (!f) return [];
     return (A.mine ? A.mine() : []).filter(function (d) { return d && d.id && f(d); })
@@ -115,11 +116,15 @@
       '<span class="vt-pos soft">' + (F.rec && at >= 0 ? (at + 1) + ' of ' + L.length : 'New · ' + L.length + ' saved') + '</span>' +
       btn('next', '▶', 'Next voucher', at >= L.length - 1) + btn('last', '▶|', 'Last voucher', !L.length || at === L.length - 1) +
       '<input class="vt-find" type="search" placeholder="Find no." aria-label="Find a voucher by its number" autocomplete="off">' +
-      (COPY[kind] && F.rec ? btn('copy', 'Copy', 'Copy: a new voucher made from this one') : ''));
+      btn('list', 'List', 'List: the register of these vouchers') +
+      (COPY[kind] && F.rec ? btn('copy', 'Copy', 'Copy: a new voucher made from this one') : '') +
+      (kind === 'sale' ? btn('einv', 'E-invoice / E-way bill', 'Make the e-invoice or e-way bill JSON of this bill', !F.rec) : ''));
     hd.appendChild(nav);
     nav.addEventListener('click', function (e) {
       var b = e.target.closest('[data-vtnav]'); if (!b || b.disabled) return;
       var w = b.getAttribute('data-vtnav');
+      if (w === 'list') { var reg = VREG[kind]; var bx = dlg(); if (bx && bx.open) bx.close(); if (A.vregOf) A.vregOf(reg); if (location.hash === '#vreg' && A.show) A.show(); else location.hash = '#vreg'; return; }
+      if (w === 'einv') { var u = A.docUrl && F.rec ? A.docUrl(F.rec) : ''; if (!u) { NS.toast('Save the bill first', 'bad'); return; } var bx2 = dlg(); if (bx2 && bx2.open) bx2.close(); u += '&ei=1'; if (!(A.openUrl && A.openUrl(u))) location.href = u; return; }
       if (w === 'copy') {
         var c = JSON.parse(JSON.stringify(F.rec)); ['id', 'no', 'created', 'updated', 'status', 'paidBy', 'cancelled', 'irn', 'ewb', 'idate', 'vno'].forEach(function (x) { delete c[x]; }); c.date = NS.today();
         swap(function () { A.openForm(kind, { draft: c }); NS.toast('A copy: check it and press Save'); }, dlg()); return;
