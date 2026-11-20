@@ -268,7 +268,7 @@
         '<div class="tools-row"><label>' + esc(B2('fy')) + ' <select data-mffy>' + cur.fys.map(function (f) { return '<option' + (f === cur.fy ? ' selected' : '') + '>' + f + '</option>'; }).join('') + '</select></label>' +
         '<label class="chk"><input type="checkbox" data-mfhalf' + (cur.half ? ' checked' : '') + '> ' + esc(T('half')) + '</label>' +
         '<label>' + esc(T('period')) + ' <select data-mfper>' + cur.P.map(function (p) { return '<option value="' + p.id + '"' + (p.id === cur.p.id ? ' selected' : '') + '>' + esc(T('p_' + p.id)) + '</option>'; }).join('') + '</select></label></div>' +
-        '<p class="soft">' + esc(T('due', { d: A.ldate(cur.p.due) })) + '</p><div class="quick no-print"><button type="button" class="btn sm" data-mfxl="itc">' + esc(T('xl')) + '</button></div>' +
+        '<p class="soft">' + esc(T('due', { d: A.ldate(cur.p.due) })) + '</p><div class="quick no-print"><button type="button" class="btn sm" data-mfxl="itc">' + esc(T('xl')) + '</button>' + (NS.xlFill ? '<button type="button" class="btn sm primary" data-mfutil="0" data-ic="xls" title="Fills the official ITC-04 Offline Utility of gst.gov.in with these tables and saves it as a new file">Fill the ITC-04 Offline Utility (Excel)</button><button type="button" class="btn sm" data-mfutil="1" data-noic>Change template file</button>' : '') + '</div>' +
         '<div class="tbl-wrap" dir="ltr"><div lang="en-IN" class="stsheet wide">' + head('ITC-04: goods sent to and received from job workers', A.ldate(cur.p.from) + ' to ' + A.ldate(cur.p.to)) +
         '<h4>Table 4: goods sent to job workers</h4><div class="tbl-wrap"><table class="tbl eb"><thead><tr>' + H4.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('') + '</tr></thead><tbody>' +
           (cur.R.sent.map(function (x) { return '<tr>' + row4(x).map(function (v) { return '<td>' + esc(v) + '</td>'; }).join('') + '</tr>'; }).join('') || '<tr><td colspan="' + H4.length + '" class="soft">Nothing sent in this period.</td></tr>') + '</tbody></table></div>' +
@@ -279,6 +279,48 @@
   var H5 = ['GSTIN of job worker', 'State (if no GSTIN)', 'Job worker', "Job worker's challan no.", "Job worker's challan date", 'Description', 'UQC', 'Quantity', 'Original challan no.', 'Original challan date', 'Nature of job work', 'Losses and wastes UQC', 'Losses and wastes quantity'];
   function row4(x) { return [x.gstin, x.gstin ? '' : NS.stateName && NS.stateName(x.state) || x.state, x.name, x.dc, A.ldate(x.date), x.type, x.desc, x.uqc, x.qty, x.value, x.igst, x.cgst, x.sgst, x.cess]; }
   function row5(x) { return [x.gstin, x.gstin ? '' : NS.stateName && NS.stateName(x.state) || x.state, x.name, x.wdc, A.ldate(x.date), x.desc, x.uqc, x.qty, x.odc, x.odate ? A.ldate(x.odate) : '', x.nature, x.lossUqc, x.loss]; }
+  /* the department's ITC-04 Offline Utility (Excel): a copy filled from Table 4 and 5A (5B and 5C emptied: NSBiz does not keep
+     goods sent on to another job worker or supplied from the job worker's place). Home: GSTIN, SEZ No, year, period; rows from row 7
+     (row 6 holds the utility's field names); units and states as the utility's own lists spell them; dates dd-mm-yyyy. */
+  function fillItc04(book, c) {
+    if (['Home', 'Table 4', 'Table 5A', 'Table 5B', 'Table 5C', 'master'].some(function (n) { return book.sheets.indexOf(n) < 0; })) return Promise.reject(new Error('notutil'));
+    var X = NS.xlFill, dmy = function (d) { return d ? d.slice(8, 10) + '-' + d.slice(5, 7) + '-' + d.slice(0, 4) : ''; }, U = {}, ST = [];
+    return book.sheet('master').then(function (M) {
+      for (var r = 2; r <= 60; r++) { var a = M.get('A' + r), b = M.get('B' + r); if (a && b && a.v && b.v) U[String(b.v).trim().toUpperCase()] = String(a.v).trim(); }
+      ST = M.listUnder('JWS');
+    }).then(function () {
+      var uq = function (u) { u = String(u || '').toUpperCase(); return U[u] || U[{ PCS: 'PCS', KG: 'KGS', KGS: 'KGS', LTR: 'LTR', MTR: 'MTR', NOS: 'NOS' }[u] || ''] || 'OTHERS'; };
+      var st = function (x) { return x.gstin ? '' : X.posFrom(ST, String(x.state || '').padStart(2, '0') + '-'); };
+      var goods = function (t) { return /capital/i.test(t || '') ? 'Capital Goods' : 'Inputs'; };
+      var t4 = c.R.sent.map(function (x) { return ['', x.gstin || '', st(x), 'Non SEZ', x.dc || '', dmy(x.date), goods(x.type), String(x.desc || '').slice(0, 70), uq(x.uqc), +x.qty || 0, +x.value || 0, +x.igst || 0, +x.cgst || 0, +x.sgst || 0, +x.cess || 0, 'ADD']; });
+      var t5 = c.R.back.map(function (x) { return ['', x.gstin || '', st(x), x.odc || '', dmy(x.odate), x.wdc || '', dmy(x.date), String(x.nature || 'Job work').slice(0, 70), String(x.desc || '').slice(0, 70), uq(x.uqc), +x.qty || 0, x.loss ? uq(x.lossUqc || x.uqc) : '', +x.loss || '', 'ADD']; });
+      var y = +c.fy.slice(0, 4), per = c.p.id === 'h1' ? 'Apr-Sep' : c.p.id === 'h2' ? 'Oct-Mar' : 'Apr-Mar';
+      return book.sheet('Home').then(function (H) { H.set('B5', String(biz().gstin || '').toUpperCase()); H.set('D5', 'No'); H.set('F5', y + '-' + (y + 1)); H.set('H5', per); })
+        .then(function () { return book.sheet('Table 4'); }).then(function (S) { S.putRows(7, t4); })
+        .then(function () { return book.sheet('Table 5A'); }).then(function (S) { S.putRows(7, t5); })
+        .then(function () { return book.sheet('Table 5B'); }).then(function (S) { S.putRows(7, []); })
+        .then(function () { return book.sheet('Table 5C'); }).then(function (S) { S.putRows(7, []); })
+        .then(function () { return { t4: t4.length, t5: t5.length, per: per, y: y }; });
+    });
+  }
+  function fillUtil(change) {
+    var c = X04(), g = String(biz().gstin || '').toUpperCase(), tp = null;
+    if (!/^\d{2}[A-Z0-9]{13}$/.test(g)) { NS.toast('Add the GSTIN of this business first (My data › Businesses).'); return; }
+    NS.xlFill.template('itc04', change).then(function (x) {
+      tp = x; if (!tp) return;
+      NS.toast('Filling ' + tp.file.name + '…');
+      return NS.xlFill.open(tp.file).then(function (book) { return fillItc04(book, c).then(function (n) {
+        NS.xlFill.good('itc04', tp);
+        var nm = g + '_ITC04_' + n.per + '_' + n.y + '-' + String(n.y + 1).slice(2) + ' NSBiz.xlsm';
+        return book.save(nm).then(function (bl) { return NS.xlFill.toFolder(g, 'ITC-04 ' + n.y + '-' + String(n.y + 1).slice(2) + ' ' + n.per, nm, bl); }).then(function (inF) {
+          NS.toast('Saved as "' + nm + '" (Table 4: ' + n.t4 + ' rows, Table 5A: ' + n.t5 + ').' + (inF ? ' Also saved in NSBiz › GST Returns.' : '') + ' Open it in Excel, enable macros, then use the utility\'s own buttons to check it and make the upload file.');
+        });
+      }); });
+    }).catch(function (e) {
+      var w = e && e.message; if (/^(notutil|nosheet|notxl)$/.test(w)) NS.xlFill.bad('itc04', tp);
+      NS.toast(w === 'notzip' ? 'Choose the zip downloaded from gst.gov.in, or the utility inside it.' : w === 'notinzip' ? 'That zip does not hold the ITC-04 Offline Utility. Download it from gst.gov.in › Downloads › Offline Tools › ITC04 Offline Tool.' : w === 'notutil' || w === 'nosheet' || w === 'notxl' ? 'That file is not the ITC-04 Offline Utility.' : 'Could not fill the utility: ' + (w || e), 'bad');
+    });
+  }
   var perJ = '';
   function X04() {
     var cur = NS.fy(today()), fys = [], y = +cur.slice(0, 4);
@@ -407,6 +449,7 @@
     $$('[data-mfdel]', pane).forEach(function (b) { b.addEventListener('click', function () { del(b.getAttribute('data-mfdel')); }); });
     $$('[data-mfprint]', pane).forEach(function (b) { b.addEventListener('click', function () { window.print(); }); });
     $$('[data-mfxl]', pane).forEach(function (b) { b.addEventListener('click', function () { xl(b.getAttribute('data-mfxl')); }); });
+    $$('[data-mfutil]', pane).forEach(function (b) { b.addEventListener('click', function () { fillUtil(b.getAttribute('data-mfutil') === '1'); }); });
     var fy = $('[data-mffy]', pane); if (fy) fy.addEventListener('change', function () { fyJ = fy.value; perJ = ''; A.show(); });
     var hf = $('[data-mfhalf]', pane); if (hf) hf.addEventListener('change', function () { halfJ = hf.checked; perJ = ''; A.show(); });
     var pr = $('[data-mfper]', pane); if (pr) pr.addEventListener('change', function () { perJ = pr.value; A.show(); });
