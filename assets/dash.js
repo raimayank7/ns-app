@@ -113,5 +113,6 @@
       }).join('') + '</ol></fieldset>';
     }).join('') +
       '<div class="dlg-foot"><button type="submit" class="btn primary">' + esc(NS.t('app.save')) + '</button><button type="button" class="btn" data-dash-reset>' + esc(t('reset')) + '</button></div>';
+    if (NS.dragSort) [].forEach.call(f.querySelectorAll('.dash-list'), function (ol) { var k = (ol.querySelector('[data-k]') || {}).getAttribute ? ol.querySelector('[data-k]').getAttribute('data-k') : ''; if (k) NS.dragSort(ol, function (a, b) { var L = draft[k].list; L.splice(b, 0, L.splice(a, 1)[0]); draw(); }); });
   }
 })();

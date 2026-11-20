@@ -43,11 +43,18 @@
   PREFIXES.push(['dairy', '', 'DY', 'nav.dairy', 3], ['subs', '', 'SUB', 'nav.subs', 3]);   /* India plan B */
   PREFIXES.push(['mandi', '', 'MN', 'nav.mandi', 3], ['pump', '', 'SR', 'nav.petrol', 4], ['tsh', '', 'TS', 'nav.tripsheet', 4]);
   /* Settings: one small card per document, grouped: [group key, [[type, maker site, name key], ...]]; a card shows that type's PREFIXES rows */
+  /* the App's own vouchers (numbered by the App, same settings: S[type].prefix, S.series[type]) */
+  PREFIXES.push(['contra', '', 'CV', 'hub.v.contra'], ['jv', '', 'JV', 'hub.v.jv'], ['oinc', '', 'OI', 'hub.v.oinc'], ['taxpay', '', 'TX', 'hub.v.taxpay'], ['wo', '', 'WO', 'hub.v.wo'], ['pdd', '', 'PDD', 'hub.v.pdd'],
+    ['make', '', 'PRD', 'hub.v.make'], ['jobout', '', 'JWO', 'hub.v.jobout'], ['jobin', '', 'JWR', 'hub.v.jobin'], ['sadv', '', 'SA', 'hub.v.sadv'], ['loan', '', 'LN', 'hub.v.loan'], ['emi', '', 'EMI', 'hub.v.emi']);
+  /* Settings: one small card per voucher, grouped like Tally's voucher types (owner 20 Nov): [group key, [[type, maker site ('' = made in the App), name key, kind], ...]] */
   var DOCCARDS = [
-    ['hub.grp.sell', [['quote', 'quotation', 'nav.quote'], ['proforma', 'proforma', 'Doc.proforma'], ['so', 'sales-order', 'Doc.so'], ['challan', 'challan', 'Doc.challan'],
-      ['cashmemo', 'cash-memo', 'Doc.cashmemo'], ['note', 'credit-note', 'nav.note', 'credit'], ['note', 'debit-note', 'nav.dnote', 'debit'], ['exp', 'export-invoice', 'Doc.exp']]],
-    ['hub.grp.buy', [['po', 'purchase-order', 'Doc.po'], ['self', 'self-invoice', 'Doc.self']]],
-    ['hub.grp.money', [['receipt', 'receipt', 'Doc.receipt'], ['refund', 'receipt', 'k.ref'], ['voucher', 'voucher', 'Doc.voucher'], ['petty', 'petty-cash', 'Doc.petty'], ['rent', 'rent-receipt', 'Doc.rent'], ['salary', 'salary-slip', 'Doc.salary']]],
+    ['hub.grp.acc', [['cashmemo', 'cash-memo', 'Doc.cashmemo'], ['exp', 'export-invoice', 'Doc.exp'], ['note', 'credit-note', 'nav.note', 'credit'], ['note', 'debit-note', 'nav.dnote', 'debit'],
+      ['receipt', 'receipt', 'Doc.receipt'], ['refund', 'receipt', 'k.ref'], ['voucher', 'voucher', 'Doc.voucher'], ['contra', '', 'hub.v.contra'], ['jv', '', 'hub.v.jv'], ['self', 'self-invoice', 'Doc.self'],
+      ['oinc', '', 'hub.v.oinc'], ['taxpay', '', 'hub.v.taxpay'], ['wo', '', 'hub.v.wo'], ['pdd', '', 'hub.v.pdd']]],
+    ['hub.grp.ord', [['quote', 'quotation', 'nav.quote'], ['proforma', 'proforma', 'Doc.proforma'], ['so', 'sales-order', 'Doc.so'], ['po', 'purchase-order', 'Doc.po']]],
+    ['hub.grp.inv', [['challan', 'challan', 'Doc.challan'], ['make', '', 'hub.v.make'], ['jobout', '', 'hub.v.jobout'], ['jobin', '', 'hub.v.jobin']]],
+    ['hub.grp.pay', [['salary', 'salary-slip', 'Doc.salary'], ['sadv', '', 'hub.v.sadv'], ['loan', '', 'hub.v.loan'], ['emi', '', 'hub.v.emi']]],
+    ['hub.grp.oth', [['petty', 'petty-cash', 'Doc.petty'], ['rent', 'rent-receipt', 'Doc.rent']]],
     ['hub.grp.trade', [['pos', 'pos', 'nav.pos'], ['pharma', 'pharmacy', 'nav.pharmacy'], ['resto', 'restaurant', 'nav.restaurant'], ['lr', 'bilty', 'nav.bilty'], ['job', 'job-card', 'nav.jobcard'], ['hotel', 'hotel', 'nav.hotel'], ['rentb', 'rent', 'nav.rentmgr'],
       ['rabill', 'contractor-bill', 'nav.contractorbill'], ['fee', 'fee-receipt', 'nav.feereceipt'], ['visit', 'clinic', 'nav.clinic'], ['svc', 'salon', 'nav.salon']]]];
   DOCCARDS[DOCCARDS.length - 1][1].push(['jewel', 'jewellery', 'nav.jewellery'], ['garment', 'garment', 'nav.garment']);
@@ -735,7 +742,7 @@
       '<fieldset class="card"><legend>' + esc(t('hub.g.docs')) + '</legend><p class="hint">' + esc(t('hub.h.docs')) + '</p>' + DOCCARDS.map(function (g) {
         return '<h3 class="dc-sub">' + esc(t(g[0])) + '</h3><div class="dcards">' + g[1].map(function (d) {
           var rows = PREFIXES.filter(function (x) { return x[0] === d[0] && (!d[3] || x[1].indexOf(d[3]) === 0); }), c2 = S[d[0]] || {};
-          return '<div class="dcard"><div class="dc-h"><b>' + esc(t(d[2])) + '</b><a class="dc-open" href="' + siteUrl(d[1]) + '" target="_blank" rel="noopener">' + esc(t('hub.openmk')) + ' ›</a></div>' + rows.map(function (x) {
+          return '<div class="dcard"><div class="dc-h"><b>' + esc(t(d[2])) + '</b>' + (d[1] ? '<a class="dc-open" href="' + siteUrl(d[1]) + '" target="_blank" rel="noopener">' + esc(t('hub.openmk')) + ' ›</a>' : '<span class="soft dc-app">' + esc(t('hub.inapp')) + '</span>') + '</div>' + rows.map(function (x) {
             var v = x[1] ? (c2.prefixes || {})[x[1]] : c2.prefix, id = 'st-p-' + x[0] + (x[1] ? '-' + x[1] : '');
             return '<div class="dc-row"><label for="' + id + '">' + esc(rows.length > 1 ? t(x[3]) : t('hub.pfx')) + '</label><input id="' + id + '" data-pre="' + x[0] + '|' + x[1] + '"' + (x[4] ? ' data-fix="' + x[4] + '"' : '') + ' dir="ltr" maxlength="8" autocapitalize="characters" value="' + esc(v != null ? v : x[2]) + '">' +
               '<small class="dc-next">' + esc(t('hub.nextno')) + ' <b class="mono" data-pre-pv></b></small>' + serHtml(S, x) + '</div>'; }).join('') + vtcHtml(S, d) + '</div>'; }).join('') + '</div>'; }).join('') +
@@ -789,34 +796,51 @@
   /* the settings page as a list of groups (Tally F12 style): one group shown at a time, the choice remembered in this browser */
   function setNav(pane) {
     var form = $('form.set', pane); if (!form || $('.set-nav', pane)) return;
-    var cards = [].slice.call(pane.querySelectorAll('form.set > fieldset.card, :scope > .card, :scope > form.card, :scope > section.card, :scope > div.card'))
-      .filter(function (c) { return !c.classList.contains('set-biz') && !c.closest('.set-nav'); });
-    if (cards.length < 3) return;
-    var items = [];
-    cards.forEach(function (c, i) {
-      var lg = c.querySelector(':scope > legend, :scope > h3, :scope > h2, :scope > .dc-h b, :scope h3'), name = lg ? lg.textContent.replace(/\s+(On|Off|चालू|बंद)$/, '').trim() : 'More';
-      var subs = [].slice.call(c.querySelectorAll(':scope > h3.dc-sub')).filter(function (h) { return h.nextElementSibling && h.nextElementSibling.classList.contains('dcards'); });
-      if (subs.length > 1) subs.forEach(function (h, j) { items.push({ id: 'c' + i + 's' + j, card: c, sub: h, name: h.textContent.trim(), head: name }); });
-      else items.push({ id: 'c' + i, card: c, name: name });
+    /* every part of the page: the main settings form and the forms or cards other files add (each with its own Save button).
+       A group = one card; it is shown inside its own form, so that form's Save button shows with it and never on its own. */
+    var host = form.parentNode, holders = [form].concat([].slice.call(host.children).filter(function (c) { return c !== form && !c.classList.contains('set-biz') && (c.tagName === 'FORM' || c.classList.contains('card') || c.tagName === 'SECTION'); }));
+    var items = [], uid = 0;
+    holders.forEach(function (hd) {
+      var fs = [].slice.call(hd.querySelectorAll(':scope > fieldset.card'));
+      (fs.length ? fs : [hd]).forEach(function (c) {
+        var lg = c.querySelector(':scope > legend, :scope > h3, :scope > h2, legend, h3'), name = lg ? lg.textContent.replace(/\s+(On|Off|चालू|बंद)$/, '').trim() : 'More';
+        var subs = [].slice.call(c.querySelectorAll(':scope > h3.dc-sub')).filter(function (h) { return h.nextElementSibling && h.nextElementSibling.classList.contains('dcards'); });
+        if (subs.length > 1) subs.forEach(function (h) { items.push({ id: 'g' + (uid++), card: c, hold: hd, sub: h, name: h.textContent.trim(), head: name }); });
+        else items.push({ id: 'g' + (uid++), card: c, hold: hd, name: name });
+      });
     });
+    if (items.length < 3) return;
     var nav = NS.el('nav', { 'class': 'set-nav', 'aria-label': 'Settings' }), last = '';
     nav.innerHTML = items.map(function (x) { var h = x.head && x.head !== last ? '<p class="set-nh">' + esc(x.head) + '</p>' : ''; last = x.head || ''; return h + '<button type="button" class="set-ni' + (x.head ? ' sub' : '') + '" data-setgo="' + x.id + '">' + esc(x.name) + '</button>'; }).join('');
     var wrap = NS.el('div', { 'class': 'set-wrap' }), body = NS.el('div', { 'class': 'set-body' });
-    form.parentNode.insertBefore(wrap, form); wrap.appendChild(nav); wrap.appendChild(body); body.appendChild(form);
-    cards.forEach(function (c) { if (c.parentNode !== form) body.appendChild(c); });
+    host.insertBefore(wrap, form); wrap.appendChild(nav); wrap.appendChild(body);
+    holders.forEach(function (hd) { body.appendChild(hd); });
     var save = $('.sticky-save', form);
     function pick(id) {
       var x = items.filter(function (y) { return y.id === id; })[0] || items[0];
-      cards.forEach(function (c) { c.hidden = c !== x.card; });
-      if (x.sub) { var on = false; [].slice.call(x.card.children).forEach(function (e) { if (e.tagName === 'H3' && e.classList.contains('dc-sub')) on = e === x.sub; if (e.tagName === 'H3' && e.classList.contains('dc-sub') || e.classList.contains('dcards')) e.hidden = !on; }); }
-      else [].slice.call(x.card.children).forEach(function (e) { if (e.classList.contains('dcards') || e.tagName === 'H3' && e.classList.contains('dc-sub')) e.hidden = false; });
-      if (save) save.hidden = x.card.parentNode !== form;
+      holders.forEach(function (hd) { hd.hidden = hd !== x.hold; });
+      [].slice.call(x.hold.querySelectorAll(':scope > fieldset.card')).forEach(function (c) { c.hidden = c !== x.card; });
+      [].slice.call(x.card.children).forEach(function (e) {
+        var isSub = e.tagName === 'H3' && e.classList.contains('dc-sub');
+        if (isSub || e.classList.contains('dcards')) e.hidden = x.sub ? !(isSub ? e === x.sub : e.previousElementSibling === x.sub) : false;
+      });
+      if (save) save.hidden = x.hold !== form;
       [].slice.call(nav.querySelectorAll('[data-setgo]')).forEach(function (b) { var me = b.getAttribute('data-setgo') === x.id; b.classList.toggle('on', me); if (me) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current'); });
-      try { localStorage.setItem('ns-setpick', x.id); } catch (e) {}
+      try { localStorage.setItem('ns-setpick', x.name); } catch (e) {}
     }
-    nav.addEventListener('click', function (e) { var b = e.target.closest('[data-setgo]'); if (b) { pick(b.getAttribute('data-setgo')); body.scrollTop = 0; var top = wrap.getBoundingClientRect().top; if (top < 0) wrap.scrollIntoView({ block: 'start' }); } });
+    /* like a desktop settings window: the list and the chosen group each scroll by themselves and fill the window, so a group
+       always opens from its first line and the page does not move (owner 20 Nov: groups opened cut off or out of view) */
+    function fit() {
+      if (innerWidth <= 760) { wrap.style.height = ''; wrap.classList.remove('set-win'); return; }
+      var hp = $('.hub-pick', document), off = hp && /sticky|fixed/.test(getComputedStyle(hp).position) ? hp.getBoundingClientRect().height + 10 : 10;
+      wrap.classList.add('set-win'); wrap.style.scrollMarginTop = off + 'px'; wrap.style.height = Math.max(360, innerHeight - off - 12) + 'px';
+    }
+    function show() { fit(); body.scrollTop = 0; if (innerWidth > 760) wrap.scrollIntoView({ block: 'start' }); }
+    window.addEventListener('resize', fit);
+    nav.addEventListener('click', function (e) { var b = e.target.closest('[data-setgo]'); if (!b) return; pick(b.getAttribute('data-setgo')); show(); });
     var k = ''; try { k = localStorage.getItem('ns-setpick') || ''; } catch (e) {}
-    pick(k);
+    pick((items.filter(function (y) { return y.name === k; })[0] || items[0]).id); fit();
+    var on = $('.set-ni.on', nav); if (on) on.scrollIntoView({ block: 'nearest' });
   }
   function wireSettings(pane) {
     var sb = $('[data-setbiz]', pane);
