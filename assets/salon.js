@@ -7,7 +7,7 @@
   var $ = NS.$, esc = NS.esc, num = NS.num, r2 = NS.r2, t = NS.t, A = window.NSAppt;
   var K, ui;
   var TRADES = ['salon', 'gym', 'coaching', 'other'];
-  var STAFFEN = { salon: 'Stylist', gym: 'Trainer', coaching: 'Teacher', other: 'Staff' };
+  var STAFFEN = { salon: 'Stylist', gym: 'Trainer', coaching: 'Teacher', other: 'Employee' };
   /* GST rate and SAC heading proposed for each trade; both are typed fields. Beauty and physical well-being services (salon, gym, yoga):
      5% without input tax credit from 22 Sep 2025 (56th GST Council, reported; check the notification); private coaching: 18%, SAC 9992 */
   var RATE = { salon: 5, gym: 5, coaching: 18, other: 18 }, SAC = { salon: '9997', gym: '9997', coaching: '9992', other: '' };
@@ -31,7 +31,7 @@
   /* these services are taxable once registered; below the registration limit a business charges no GST */
   function kindFor(s) { return s.reg === 'comp' ? 'supply' : s.gstin && s.reg !== 'unreg' ? 'tax' : 'plain'; }
   function calcTo(d) { var m = d.mship, e = A.planEnd(m.from, m.unit, m.n); if (e) m.to = e; }
-  function staffWord(d) { return STAFFEN[d.trade] || 'Staff'; }
+  function staffWord(d) { return STAFFEN[d.trade] || 'Employee'; }
   function planNames(all) { var s = {}; all.forEach(function (x) { if (x.type === 'svc' && x.mship && x.mship.plan) s[x.mship.plan] = x; }); return s; }
   var plans = {};
   function fillLists(all) {
@@ -64,7 +64,7 @@
 
   var LK = { doc: function () { return K.doc(); }, openDoc: function (r, a) { return K.openDoc(r, a); } };
   ui = NS.apptUi({
-    K: LK, site: 'salon', billType: 'svc', personType: 'mem', plans: true, soon: 7, titleKey: 'svc.desk', peopleKey: 'svc.t.mem', staffKey: 'svc.staff', staffEn: 'Staff', reasonKey: 'svc.reason', reasonEn: 'Service', billKey: 'svc.startbill', addKey: 'svc.addmem', dur: 30, peopleFile: 'clients', billsFile: 'bills',
+    K: LK, site: 'salon', billType: 'svc', personType: 'mem', plans: true, soon: 7, titleKey: 'svc.desk', peopleKey: 'svc.t.mem', staffKey: 'svc.staff', staffEn: 'Employee', reasonKey: 'svc.reason', reasonEn: 'Service', billKey: 'svc.startbill', addKey: 'svc.addmem', dur: 30, peopleFile: 'clients', billsFile: 'bills',
     fields: [['dob', 'cli.dob', 'date', {}, 'Date of birth'], ['notes', 'svc.pnotes', 'area', { wide: 1 }, 'Notes']],
     staffList: function (data) { var s = {}; data.appts.concat(data.bills).forEach(function (x) { var n = String(x.staff || '').trim(); if (n) s[n] = 1; (x.items || []).forEach(function (i) { if (i.staff) s[i.staff] = 1; }); }); return Object.keys(s).sort(); },
     onBill: startBill,
@@ -75,7 +75,7 @@
     },
     histText: function (d) { return d.mship && d.mship.plan ? d.mship.plan + ' (' + NS.fmtDate(d.mship.from) + ' – ' + NS.fmtDate(d.mship.to) + ')' : (d.items || []).map(function (i) { return i.desc; }).filter(Boolean).slice(0, 3).join(', '); },
     byStaff: function (b) { return (b.items || []).map(function (i) { var q = i.qty === '' || i.qty == null ? 1 : num(i.qty); return [String(i.staff || b.staff || '').trim(), r2(q * num(i.rate) * (1 - num(i.disc) / 100))]; }).filter(function (x) { return x[1]; }); },
-    csvHead: ['Plan', 'From', 'To', 'Staff'], csvRow: function (x) { return [x.mship && x.mship.plan || '', x.mship && x.mship.from || '', x.mship && x.mship.to || '', x.staff || '']; }
+    csvHead: ['Plan', 'From', 'To', 'Employee'], csvRow: function (x) { return [x.mship && x.mship.plan || '', x.mship && x.mship.from || '', x.mship && x.mship.to || '', x.staff || '']; }
   });
 
   K = NS.kit({

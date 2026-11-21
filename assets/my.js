@@ -29,7 +29,7 @@
   var APPDOC = { pbill: ['Purchase bill', '#buy'], exp: ['Expense', '#buy'], ob: ['Opening balance', '#money'],
     /* records made only in the App (F7-1: they showed raw codes and a billing link that cannot open them) */
     jv: ['Journal entry', '#b2jv'], fa: ['Fixed asset', '#b2fa'], stk: ['Stock entry', '#b2gd'], contra: ['Cash and bank transfer', '#cash'], oinc: ['Other income', '#acx'],
-    taxpay: ['Tax payment', '#acx'], gstset: ['GST set-off', '#acx'], wo: ['Write off', '#dues'], pdd: ['Provision for doubtful debts', '#acx'], sadv: ['Staff advance', '#stf'],
+    taxpay: ['Tax payment', '#acx'], gstset: ['GST set-off', '#acx'], wo: ['Write off', '#dues'], pdd: ['Provision for doubtful debts', '#acx'], sadv: ['Employee advance', '#stf'],
     loan: ['Loan', '#stf'], emi: ['Loan EMI', '#stf'], cap: ['Capital', '#capl'] };
   /* number prefixes of the other documents (Settings); quotation and credit note have two series each */
   var PREFIXES = [['quote', 'quote', 'QT', 'k.quote'], ['quote', 'estimate', 'EST', 'k.estimate'], ['proforma', '', 'PI', 'Doc.proforma'], ['so', '', 'SO', 'Doc.so'], ['challan', '', 'DC', 'Doc.challan'],
