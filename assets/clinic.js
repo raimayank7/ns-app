@@ -89,7 +89,7 @@
     blank: function () { return { show: 'both', age: '', sex: '', wt: '', vit: '', allergy: '', doctor: '', qual: '', reg: '', complaint: '', diag: '', advice: '', next: '', apptId: '', rx: [rx()], kind: 'plain', adv: '', status2: 'paid', payMode: 'cash', items: [line('Consultation')] }; },
     newRow: function (n) { return n === 'rx' ? rx() : line(); },
     emptyRows: true,
-    keepOnNew: function (d) { return { doctor: d.doctor, qual: d.qual, reg: d.reg, kind: d.kind, paper: d.paper, show: d.show, rx: [rx()], items: d.items.map(function (i) { return line(i.desc, i.rate); }).map(function (i, x) { i.gst = d.items[x].gst; i.hsn = d.items[x].hsn; return i; }) }; },
+    keepOnNew: function (d) { return { doctor: d.doctor, qual: d.qual, reg: d.reg, kind: d.kind, paper: d.paper, show: d.show, rx: [rx()], items: d.items.slice(0, 1).map(function (i) { return line(i.desc, i.rate); }).map(function (i, x) { i.gst = d.items[x].gst; i.hsn = d.items[x].hsn; return i; }) }; },
     form: function (K) {
       return ui.bar(K) +
         K.card(t('cli.patient'), '<div class="fg">' + K.f('buyer.name', t('cli.pname'), { wide: true, ph: t('cli.pnameph') }) + K.f('buyer.phone', t('l.phone'), { type: 'tel', mode: 'tel', ltr: 1 }) +

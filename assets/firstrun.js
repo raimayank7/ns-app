@@ -48,7 +48,7 @@
   var FEAT = {}; CAT.forEach(function (g) { g[1].forEach(function (f) { FEAT[f[0]] = f; }); });
 
   /* ---------- what each business gets ON at the start (owner's idea: only what the business needs) ---------- */
-  var KINDS = ['shop', 'whole', 'mfg', 'svc', 'resto', 'pharma', 'trans', 'contr', 'school', 'salon', 'clinic', 'dairy', 'hotel', 'rent', 'garage', 'jewel', 'garment', 'petrol', 'mandi', 'online', 'other'];
+  var KINDS = ['shop', 'whole', 'mfg', 'svc', 'resto', 'pharma', 'trans', 'contr', 'school', 'trust', 'salon', 'clinic', 'dairy', 'hotel', 'rent', 'garage', 'jewel', 'garment', 'petrol', 'mandi', 'online', 'other'];
   var BASE = ['buy', 'books', 'reports', 'itx', 'lrn', 'packs', 'inv', 'batch', 'billwise'];   /* batch, billwise: on for everyone, they only change entry screens (ERP C-9) */   /* inv: items with quantity in vouchers (ERP C-9; off = accounting mode) */
   var REC = {
     shop: ['stock', 'barcode', 'khata', 'chq', 'pos', 'share'],
@@ -60,6 +60,7 @@
     trans: ['bilty', 'trips', 'chq', 'tds', 'bankreco'],
     contr: ['rabill', 'orders', 'tds', 'chq', 'fa', 'msme'],
     school: ['fee', 'fees', 'salary', 'repeat', 'trust'],
+    trust: ['trust', 'salary', 'bankreco', 'chq', 'tds'],   /* trust, society, NGO, temple: donation receipts and 80G (R-009) */
     salon: ['salon', 'repeat', 'salary'],
     clinic: ['clinic', 'repeat', 'salary'],
     dairy: ['dairy', 'khata', 'stock', 'subs'],
@@ -154,6 +155,7 @@
     var st = document.getElementById('nsf-hide');
     if (!st) { st = document.createElement('style'); st.id = 'nsf-hide'; document.head.appendChild(st); }
     st.textContent = HIDESEL ? HIDESEL + '{display:none!important}' : '';
+    if (NS.sideTidy) setTimeout(NS.sideTidy, 0);   /* sub-headings with nothing left under them go too */
     document.documentElement.classList.toggle('nsf-on', !!HIDESEL);
     syncTab(off);
   }
