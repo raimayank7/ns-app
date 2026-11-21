@@ -44,7 +44,7 @@
     if (!fySel || list.indexOf(fySel) < 0) fySel = cur;
     return '<div class="tools-row"><label>' + esc(T('fy')) + ' <select data-b2fy>' + list.reverse().map(function (f) { return '<option' + (f === fySel ? ' selected' : '') + '>' + f + '</option>'; }).join('') + '</select></label></div>';
   }
-  function wireFy(pane) { var s = $('[data-b2fy]', pane); if (s) s.addEventListener('change', function () { fySel = s.value; A.show(); }); }
+  function wireFy(pane) { var s = $('[data-b2fy]', pane); if (s) s.addEventListener('change', function () { fySel = s.value; if (!(A.needYears && A.needYears(X.fyStart(fySel)))) A.show(); }); }
   /* settings of the App's business (per business, core.js NS.cfgEdit); closed years stay shared, kept by business name */
   function saveCfg(fn, opts) {
     var id = A.biz() && A.biz().id || '';
@@ -375,7 +375,8 @@
   /* ---------- year end ---------- */
   A.addSection('b2year', function () {
     var D = A.data().doc, first = A.mine().reduce(function (f, d) { return d.date && (!f || d.date < f) ? d.date : f; }, '');
-    var picker = fyPick(first ? X.fyOf(first) : ''), fy = fySel, Y = X.yearSummary(D, items(), A.bizName(), fy), closed = X.isClosed(cfg().closed, A.biz() || A.bizName(), X.fyStart(fy));
+    var Ys = A.years ? A.years() : {}, f0 = first ? X.fyOf(first) : ''; if (Ys.first && (!f0 || Ys.first < f0)) f0 = Ys.first;   /* SQLite Stage 3: closed years are not read at start, but stay in the list */
+    var picker = fyPick(f0), fy = fySel, Y = X.yearSummary(D, items(), A.bizName(), fy), closed = X.isClosed(cfg().closed, A.biz() || A.bizName(), X.fyStart(fy));
     var tiles = [['sales', Y.pl.rev], ['gp', Y.pl.gross], ['np', Y.pl.profit], ['cash', Y.cash], ['bank', Y.bank], ['recv', Y.recv], ['pay', Y.pay], ['stock', Y.stock.value]];
     return '<div class="pane-hd"><h2>' + esc(T('year')) + '</h2>' + (closed ? '<span class="pill ok">' + esc(T('isclosed')) + '</span>' : '') + '</div><p class="soft">' + esc(T('yearh')) + '</p>' + picker +
       '<div class="tbl-wrap" dir="ltr"><div lang="en-IN" class="stsheet" data-sheet>' + head('Year-end summary', 'FY ' + fy + ' (' + A.ldate(Y.from) + ' to ' + A.ldate(Y.to) + ')') +
@@ -383,7 +384,7 @@
       '<div class="card"><h3>' + esc(T('checks')) + '</h3>' + (Y.checks.length ? '<ul>' + Y.checks.map(function (c) {
         return '<li>' + esc(T('ck_' + c[0], { n: c[0] === 'dep' || c[0] === 'diff' ? money(Math.abs(c[1])) : c[1] })) + (c[0] === 'dep' ? ' <a href="#b2fa">' + esc(T('fa')) + ' ›</a>' : c[0] === 'neg' ? ' <a href="#b2gd">' + esc(T('gd')) + ' ›</a>' : '') + '</li>'; }).join('') + '</ul>' : '<p class="soft">' + esc(T('ck_ok')) + '</p>') + '</div>' +
       '<div class="card"><h3>' + esc(T('nextyear', { fy: X.nextFy(fy) })) + '</h3><p>' + esc(T('carryh')) + '</p><p>' + esc(T('numh')) + '</p></div>' +
-      '<div class="card"><h3>' + esc(T('closet')) + '</h3><p>' + esc(T(closed ? 'reopenh' : 'closeh')) + '</p><div class="quick">' +
+      '<div class="card"><h3>' + esc(T('closet')) + '</h3><p>' + esc(T(closed ? 'reopenh' : 'closeh')) + '</p><p class="soft">' + esc(T('fasth')) + '</p><div class="quick">' +
         '<button type="button" class="btn' + (closed ? '' : ' primary') + '" data-b2close="' + fy + '">' + esc(T(closed ? 'reopen' : 'close', { fy: fy })) + '</button>' +
         '<button type="button" class="btn" data-b2print>' + esc(A.T('print')) + '</button></div></div>' +
       '<div class="card"><h3>' + esc(T('newfile')) + '</h3><p>' + esc(T('newfileh')) + '</p><button type="button" class="btn" data-b2cf="' + fy + '">' + esc(T('cfdl', { fy: X.nextFy(fy) })) + '</button></div>';
