@@ -839,7 +839,7 @@
       var hp = $('.hub-pick', document), off = hp && /sticky|fixed/.test(getComputedStyle(hp).position) ? hp.getBoundingClientRect().height + 10 : 10;
       wrap.classList.add('set-win'); wrap.style.scrollMarginTop = off + 'px'; wrap.style.height = Math.max(360, innerHeight - off - 12) + 'px';
     }
-    function show() { fit(); body.scrollTop = 0; if (innerWidth > 760) wrap.scrollIntoView({ block: 'start' }); }
+    function show() { fit(); body.scrollTop = 0; if (innerWidth > 760) wrap.scrollIntoView({ block: 'start' }); else body.scrollIntoView({ behavior: 'smooth', block: 'start' }); }   /* phone test 21 Nov: on a phone the chosen group opens below the list; bring it into view */
     window.addEventListener('resize', fit);
     nav.addEventListener('click', function (e) { var b = e.target.closest('[data-setgo]'); if (!b) return; pick(b.getAttribute('data-setgo')); show(); });
     var k = ''; try { k = localStorage.getItem('ns-setpick') || ''; } catch (e) {}

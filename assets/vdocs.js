@@ -163,7 +163,7 @@
     hx += '<fieldset><legend>' + esc(T0('items')) + '</legend><div data-lines></div><button type="button" class="btn sm" data-addline>' + esc(T0('addline')) + '</button>' +
       '<input type="checkbox" id="f-nogst" hidden>' +   /* the grid's "no GST" box (new lines take GST 0 when ticked); here the document's own switch below */
       (T.gstFlag ? '<label class="chk"><input type="checkbox" id="f-vgst"' + (d.withGst !== false ? ' checked' : '') + '> ' + esc(t('l.withgst')) + '</label>' : '') +
-      '<label class="chk"><input type="checkbox" id="f-round"' + (d.round !== false ? ' checked' : '') + '> ' + esc(T0('round')) + '</label><div class="sum" data-sum></div></fieldset>';
+      '<label class="chk"><input type="checkbox" id="f-round"' + (d.round !== false ? ' checked' : '') + '> ' + esc(T0('round')) + '</label>' + (T.stk ? '' : H().chgBlock()) + '<div class="sum" data-sum></div></fieldset>';
     hx += '<div class="fg">' + fld('f-vnotes', t('l.notes'), inp('f-vnotes', d.notes || ''), { wide: 1 }) + fld('f-narr', NS.t('bw.narr'), inp('f-narr', d.narr || ''), { wide: 1, hint: NS.t('bw.narrh') }) + '</div>';   /* A-26 (r2-billwise): narration for the books, apart from the printed notes */
     if (ty === 'exp') {
       var x = d.exp || {};
@@ -266,6 +266,7 @@
       if (/^exp/.test(d.kind)) d.pos = '96'; else if (d.pos === '96') d.pos = '';
     }
     var unit = dset(V.ty, d.seller).unit || 'Nos';
+    if (!T.stk) d.charges = H().chgOut();   /* extra charges, as the makers save them */
     d.items = F.lines.filter(function (L) { return String(L.desc || '').trim() || num(L.rate); }).map(function (L) {
       var it = { desc: String(L.desc || '').trim(), hsn: String(L.hsn || '').trim(), qty: L.qty === '' || L.qty == null ? 1 : num(L.qty), unit: L.unit || unit, rate: num(L.rate), disc: num(L.disc) || '', gst: num(L.gst) };
       return A().lineCopy ? A().lineCopy(L, it) : it;
