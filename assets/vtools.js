@@ -76,9 +76,85 @@
     if (prevSave) prevSave(kind, d, form, F);
     var i = $('#f-idate', form); if (i && i.value) d.idate = i.value;
   };
+  /* ---------- Print with copies on every voucher (owner 20 Nov: "some vouchers have no Print nor the voucher copy") ----------
+     Sale: the tax invoice from the bill maker (its own copies: Original for recipient, Duplicate for transporter...).
+     Every other voucher: an accounting voucher like Tally's (Particulars, Debit, Credit from the books' own entry, the items of a
+     purchase, amount in words, narration, signatures), one page per copy: Original, Duplicate, Triplicate. Unsaved: saved first. */
+  var CP = { o: ['ORIGINAL'], od: ['ORIGINAL', 'DUPLICATE'], odt: ['ORIGINAL', 'DUPLICATE', 'TRIPLICATE'], d: ['DUPLICATE'], t: ['TRIPLICATE'] };
+  var CPL = [['o', 'Original'], ['od', 'Original + Duplicate'], ['odt', 'Original, Duplicate, Triplicate'], ['d', 'Duplicate only'], ['t', 'Triplicate only']];
+  function cpGet(kind) { try { return localStorage.getItem('ns-vt-cp-' + kind) || 'o'; } catch (e) { return 'o'; } }
+  function cpSet(kind, v) { try { localStorage.setItem('ns-vt-cp-' + kind, v); } catch (e) {} }
+  function vtTitle(d) {
+    var t = d.type || 'invoice';
+    return t === 'receipt' ? 'RECEIPT VOUCHER' : t === 'voucher' ? 'PAYMENT VOUCHER' : t === 'contra' ? 'CONTRA VOUCHER' : t === 'jv' ? 'JOURNAL VOUCHER' :
+      t === 'pbill' ? (d.kind === 'return' ? 'PURCHASE RETURN (DEBIT NOTE)' : 'PURCHASE VOUCHER') : t === 'exp' ? 'EXPENSE VOUCHER' : t === 'ob' ? 'OPENING BALANCE' : 'VOUCHER';
+  }
+  function vtSheet(d, tag) {
+    var b = A.biz() || d.seller || {}, P = []; try { P = B.postings(d) || []; } catch (e) {}
+    var pend = '';
+    if (!P.length && /^(receipt|voucher)$/.test(d.type || '')) {   /* not in the books yet (a cheque not cleared): the money lines from the voucher itself */
+      var am = +(A.amountOf ? A.amountOf(d) : d.amount) || 0, via = d.mode === 'cheque' ? 'Cheque in hand' : d.mode === 'cash' ? 'Cash' : 'Bank', who = B.partyName(d) || 'Party';
+      P = d.type === 'receipt' ? [{ a: via, dr: am, cr: 0 }, { a: who, dr: 0, cr: am }] : [{ a: who, dr: am, cr: 0 }, { a: via, dr: 0, cr: am }];
+      if (d.mode === 'cheque') pend = '<p class="vt-narr"><b>Cheque' + (d.chq && d.chq.no ? ' no. ' + esc(d.chq.no) : '') + ':</b> not yet cleared, so not yet in the books.</p>';
+    }
+    var an = function (a) { return /^(Cash|Bank|Cheque in hand|Party)$/.test(a) || a === B.partyName(d) ? a : A.accName ? A.accName(a, d) : a; }, td = 0, tc = 0, party = B.partyName(d) || d.emp || d.lender || '';
+    var rows = P.map(function (l) { td += l.dr; tc += l.cr; return '<tr><td>' + (l.dr ? '<span class="vt-to">Dr</span> ' : '<span class="vt-to">Cr</span> ') + esc(an(l.a)) + '</td><td class="n">' + (l.dr ? money(l.dr, false) : '') + '</td><td class="n">' + (l.cr ? money(l.cr, false) : '') + '</td></tr>'; }).join('');
+    var items = (d.items || []).filter(function (it) { return it && (it.desc || it.qty); });
+    var itab = items.length ? '<table class="tbl st vt-items"><thead><tr><th>Item</th><th>HSN</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr></thead><tbody>' +
+      items.map(function (it) { var a = (+it.qty || 0) * (+it.rate || 0) * (1 - (+it.disc || 0) / 100); return '<tr><td>' + esc(it.desc || '') + '</td><td>' + esc(it.hsn || '') + '</td><td class="n">' + esc(String(it.qty || '')) + (it.unit ? ' ' + esc(it.unit) : '') + '</td><td class="n">' + money(+it.rate || 0, false) + '</td><td class="n">' + money(a, false) + '</td></tr>'; }).join('') + '</tbody></table>' : '';
+    var amt = Math.max(td, tc), note = d.notes || d.narr || d.note || '', money2 = /^(receipt|voucher|exp)$/.test(d.type || '');
+    return '<div class="stsheet sh vch vt-vch" dir="ltr" lang="en" data-sheet>' + (d.cancelled ? '<div class="stamp cx-stamp">CANCELLED</div>' : '') +
+      '<p class="vt-tag">' + esc(tag) + '</p>' +
+      '<div class="st-hd"><div><b class="vch-biz">' + esc(b.name || '') + '</b>' + (b.addr ? '<br>' + esc(b.addr).replace(/\n/g, '<br>') : '') + ([b.city, b.pin].filter(Boolean).length ? '<br>' + esc([b.city, b.pin].filter(Boolean).join(' - ')) : '') + (b.gstin ? '<br>GSTIN ' + esc(b.gstin) : '') + '</div>' +
+      '<div class="r"><b class="vch-ttl">' + vtTitle(d) + '</b>' + (d.type === 'pbill' ? (d.vno ? '<br>No. ' + esc(d.vno) : '') + '<br>Date ' + esc(A.ldate(d.date)) + (d.billNo || d.no ? '<br>Supplier bill ' + esc(d.billNo || d.no) : '') : '<br>No. ' + esc(d.no || d.vno || '') + '<br>Date ' + esc(A.ldate(d.date))) + '</div></div>' +
+      (party ? '<p class="vt-party"><b>' + (d.type === 'receipt' ? 'Received from' : /^(voucher|exp)$/.test(d.type || '') ? 'Paid to' : d.type === 'pbill' ? 'Supplier' : 'Party') + ':</b> ' + esc(party) + '</p>' : '') +
+      itab +
+      '<table class="tbl st vt-post"><thead><tr><th>Particulars</th><th class="n">Debit</th><th class="n">Credit</th></tr></thead><tbody>' + rows + '</tbody>' +
+      '<tfoot><tr><th>Total</th><th class="n">' + money(td, false) + '</th><th class="n">' + money(tc, false) + '</th></tr></tfoot></table>' +
+      '<p class="vt-words"><b>Amount in words:</b> ' + esc(NS.inWords(amt)) + '</p>' +
+      (note ? '<p class="vt-narr"><b>Narration:</b> ' + esc(note) + '</p>' : '') + pend +
+      '<div class="vch-sign"><div>Prepared by</div><div>Checked by</div><div>' + (money2 ? (d.type === 'receipt' ? 'Received by (for ' + esc(b.name || '') + ')' : 'Receiver\'s signature') : 'Authorised signatory') + '</div></div>' +
+      NS.creditLine('st-ft') + '</div>';
+  }
+  function vtPrint(kind, d, cp) {
+    if (!d) return;
+    if ((d.type || 'invoice') === 'invoice' || d.type === 'cashmemo' || d.type === 'expinv') { var u = A.docUrl && A.docUrl(d); if (u) { var bx = dlg(); if (bx && bx.open) bx.close(); u += '&print=1'; if (!(A.openUrl && A.openUrl(u))) location.href = u; } return; }
+    var host = $('#vch-print'); if (!host) { host = document.createElement('div'); host.id = 'vch-print'; host.className = 'vch-print'; document.body.appendChild(host); }
+    host.innerHTML = (CP[cp] || CP.o).map(function (t) { return vtSheet(d, t); }).join('<div class="vt-pb"></div>');
+    document.documentElement.classList.add('vch-on');
+    var off = function () { window.removeEventListener('afterprint', off); document.documentElement.classList.remove('vch-on'); host.innerHTML = ''; };
+    window.addEventListener('afterprint', off);
+    setTimeout(function () { window.print(); }, 60);
+  }
+  A.vtPrint = vtPrint;
+  var KTYPE = { sale: 'invoice', pbill: 'pbill', pret: 'pbill', min: 'receipt', mout: 'voucher', contra: 'contra', exp: 'exp', jv: 'jv', ob: 'ob' };
+  function addPrint(kind, form, F) {
+    var ft = $('.dlg-foot', form), sv = ft && $('button[type=submit]', ft); if (!sv || $('[data-vtprint]', ft) || !KTYPE[kind]) return;
+    var sel = NS.el('select', { 'class': 'vt-cp', 'aria-label': 'Copies to print', title: 'Copies to print' });
+    sel.innerHTML = CPL.map(function (c) { return '<option value="' + c[0] + '"' + (c[0] === cpGet(kind) ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('');
+    if (kind === 'sale') sel.hidden = true;   /* the tax invoice keeps its own copies (Original for recipient, Duplicate for transporter...) */
+    sel.addEventListener('change', function () { cpSet(kind, sel.value); });
+    var pb = NS.el('button', { type: 'button', 'class': 'btn', 'data-vtprint': '', 'data-ic': 'print' }); pb.textContent = 'Print';
+    pb.addEventListener('click', function () {
+      var box = dlg(), dirty = box && box.getAttribute('data-dirty');
+      if (F.rec && !dirty) { vtPrint(kind, F.rec, sel.value); return; }
+      /* not saved yet (or changed): save first, then print the voucher that was saved */
+      var t0 = Date.now(), want = KTYPE[kind];
+      sv.click();
+      setTimeout(function () {
+        var L = A.mine().filter(function (x) { return (x.type || 'invoice') === want && (x.updated || x.created || 0) >= t0 - 2000; }).sort(function (a, b) { return (b.updated || b.created || 0) - (a.updated || a.created || 0); });
+        if (L[0]) vtPrint(kind, L[0], sel.value); else if (!box || !box.open) NS.toast('Saved. Open it again to print.');
+      }, 1200);
+    });
+    var pv = $('[data-vtpv]', ft);
+    if (pv) pv.insertAdjacentElement('afterend', pb); else sv.insertAdjacentElement('afterend', pb);
+    pb.insertAdjacentElement('afterend', sel);
+    var old = $('[data-andprint]', ft); if (old) old.hidden = true;   /* the expense's own Save + Print: the new Print saves too */
+  }
   A.formWire = function (kind, form, F) {
     if (prevWire) prevWire(kind, form, F);
     var box = dlg(); if (!box) return;
+    addPrint(kind, form, F);
     /* Preview next to Save on bills and documents that print */
     var ft = $('.dlg-foot', form), sv = ft && $('button[type=submit]', ft);
     if (sv && (kind === 'sale' || F.vd) && !$('[data-vtpv]', ft)) { var pb = NS.el('button', { type: 'button', 'class': 'btn', 'data-vtpv': '', 'data-ic': 'eye' }); pb.textContent = 'Preview'; pb.addEventListener('click', preview); sv.insertAdjacentElement('afterend', pb); }

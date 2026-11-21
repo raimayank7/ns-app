@@ -325,6 +325,7 @@
     }
     else if (kind === 'gst') h = '<select id="' + id + '" name="' + k + '"><option value="">—</option>' + ratesWith(v).map(function (g) { return '<option value="' + g + '"' + (String(g) === String(v) ? ' selected' : '') + '>' + g + '%' + (RATES.indexOf(g) < 0 ? ' ⚠' : '') + '</option>'; }).join('') + '</select>';
     else if (kind === 'img') h = '<div class="imgf"><img alt="" data-img="' + k + '"' + (v ? ' src="' + esc(v) + '"' : ' hidden') + '><input id="' + id + '" type="file" accept="image/*" data-imgin="' + k + '" data-max="' + x.max + '">' +
+      (k === 'sign' ? '<button type="button" class="btn" data-imgdraw="' + k + '">Draw signature</button>' : '') +
       '<button type="button" class="link" data-imgrm="' + k + '"' + (v ? '' : ' hidden') + '>' + esc(t('hub.rmimg')) + '</button></div>';
     else {
       var attrs = ' id="' + id + '" name="' + k + '" value="' + esc(v) + '"' + req;
@@ -388,6 +389,9 @@
         var file = inp.files[0], k = inp.getAttribute('data-imgin');
         if (file) shrink(file, +inp.getAttribute('data-max')).then(function (u) { imgs[k] = u; var im = $('[data-img="' + k + '"]', f); im.src = u; im.hidden = !u; $('[data-imgrm="' + k + '"]', f).hidden = !u; });
       });
+    });
+    $$('[data-imgdraw]', f).forEach(function (b) {   /* draw the signature on screen (NS.drawSign, signature_pad) */
+      b.addEventListener('click', function () { var k = b.getAttribute('data-imgdraw'); NS.drawSign().then(function (u) { if (!u) return; imgs[k] = u; var im = $('[data-img="' + k + '"]', f); im.src = u; im.hidden = false; $('[data-imgrm="' + k + '"]', f).hidden = false; }); });
     });
     $$('[data-imgrm]', f).forEach(function (b) {
       b.addEventListener('click', function () { var k = b.getAttribute('data-imgrm'); imgs[k] = ''; $('[data-img="' + k + '"]', f).hidden = true; b.hidden = true; $('[data-imgin="' + k + '"]', f).value = ''; });

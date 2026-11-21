@@ -7,7 +7,7 @@
 (function () {
   'use strict';
   var $ = NS.$, esc = NS.esc, t = NS.t;
-  var XL = ['https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw'];
+  var XL = ['/assets/vendor/xlsx-0.20.3.full.min.js', ''];   /* SheetJS 0.20.3 kept inside NSBiz (0.18.5 had CVE-2023-30533, CVE-2024-22363) */
   var RATES = [0, 0.1, 0.25, 1, 1.5, 3, 5, 6, 7.5, 12, 18, 28, 40];
   var OBCOLS = [['party', 'Party'], ['side', 'Type'], ['amount', 'Amount'], ['date', 'Date']];
   var SIDES = [['recv', /receiv|due to us|debtor|customer|recv|lena|^dr$/i], ['pay', /payab|we owe|creditor|supplier|pay|dena|^cr$/i], ['cash', /cash/i], ['bank', /bank/i]];

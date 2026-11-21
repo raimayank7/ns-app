@@ -26,13 +26,14 @@
         return '<li><label class="chk"><input type="checkbox" data-mk="' + i + '" checked> <b>' + esc(B.partyName(tp) || NS.t('h.nocust')) + '</b></label>' +
           '<span class="soft">' + esc(tt('rep_line', { d: A.ldate(x.date), no: tp.no || '' })) + '</span><b class="amt">' + NS.money(+tp.total || 0) + '</b></li>';
       }).join('') + '</ul><div class="quick"><button type="button" class="btn primary" data-mkgo>' + esc(tt('rep_make')) + '</button></div>' : '<p class="soft">' + esc(tt('rep_none')) + '</p>') + '</div>' +
-      '<div class="card"><h3>' + esc(tt('rep_all')) + '</h3>' + (all.length ? '<ul class="rows">' + all.map(function (d) {
-        var made = A.mine().filter(function (x) { return x.recOf === d.id; }).length;
+      '<div class="card"><h3>' + esc(tt('rep_all')) + '</h3>' + (all.length ? '<ul class="rows">' + (function () {
+        var cnt = {}; A.mine().forEach(function (x) { if (x.recOf) cnt[x.recOf] = (cnt[x.recOf] || 0) + 1; }); return all.map(function (d) {   /* copies made, counted in one pass */
+        var made = cnt[d.id] || 0;
         return '<li><div><b>' + esc(B.partyName(d) || NS.t('h.nocust')) + '</b> <span class="pill">' + esc(NS.repLabel(d.rec.every)) + '</span>' + (d.rec.stop ? ' <span class="pill">' + esc(tt('rep_stopped')) + '</span>' : '') +
           '<br><span class="soft">' + esc(tt('rep_from', { no: d.no || '', d: A.ldate(d.date), n: made })) + (d.rec.until ? ' · ' + esc(tt('repuntil')) + ' ' + A.ldate(d.rec.until) : '') + '</span></div>' +
           '<div class="acts"><a class="btn sm" href="' + A.toolUrl('billing') + '?open=' + encodeURIComponent(d.id) + '">' + esc(NS.t('h.open')) + '</a>' +
           '<button type="button" class="btn sm" data-rstop="' + esc(d.id) + '">' + esc(tt(d.rec.stop ? 'rep_restart' : 'rep_stop')) + '</button></div></li>';
-      }).join('') + '</ul>' : '<p class="soft">' + esc(tt('rep_how')) + '</p>') + '</div>';
+      }).join(''); })() + '</ul>' : '<p class="soft">' + esc(tt('rep_how')) + '</p>') + '</div>';
   }, function (pane) {
     var go = $('[data-mkgo]', pane), list = due();
     if (go) go.addEventListener('click', function () {

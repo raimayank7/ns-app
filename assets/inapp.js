@@ -24,6 +24,7 @@
   window.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('dialog[open]') || !app()) return;
     var a = document.activeElement; if (a && a.list && a.value) return;   /* a suggestion list may be open */
+    if (a && (a.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) { a.blur(); return; }   /* the first Esc leaves the box, the next goes back (like the App's own screens) */
     try { var b = window.parent.document.querySelector('[data-fback]'); if (b) { e.preventDefault(); b.click(); } } catch (er) {}
   });
   /* the bottom bar shows the keys */

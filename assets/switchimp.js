@@ -7,7 +7,7 @@
 (function () {
   'use strict';
   var $ = NS.$, esc = NS.esc, t = NS.t, I = window.NSImport;
-  var XL = ['https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js', 'sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw'];
+  var XL = ['/assets/vendor/xlsx-0.20.3.full.min.js', ''];   /* SheetJS 0.20.3 kept inside NSBiz (0.18.5 had CVE-2023-30533, CVE-2024-22363) */
   var MAPKEY = 'ns-imp-maps', KINDS = ['party', 'item', 'bill'];
   var ST = null;   /* { lists, opts, have, biz, plan, done } */
   function key(s) { return String(s == null ? '' : s).trim().toLowerCase().replace(/\s+/g, ' '); }
