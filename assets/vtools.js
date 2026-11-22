@@ -135,15 +135,15 @@
     var t = d.type || 'invoice';
     if (t === 'invoice' || t === 'expinv') {
       var h = (d.items || []).map(function (it) { return String(it && it.hsn || '').replace(/\D/g, ''); }).filter(Boolean);
-      return t === 'invoice' && h.length && h.every(function (x) { return /^99/.test(x); }) ? ['orig', 'dupsup'] : ['orig', 'dup', 'trip'];
+      return t === 'invoice' && h.length && h.every(function (x) { return /^99/.test(x); }) ? ['orig', 'dupsup', 'extra'] : ['orig', 'dup', 'trip', 'extra'];
     }
-    if (t === 'challan') return ['dcorig', 'dcdup', 'dctrip'];
-    if (t === 'note') return d.side === 'purchase' ? ['orig', 'ocopy'] : ['orig', 'dupsup'];
+    if (t === 'challan') return ['dcorig', 'dcdup', 'dctrip', 'extra'];
+    if (t === 'note') return d.side === 'purchase' ? ['orig', 'ocopy', 'extra'] : ['orig', 'dupsup', 'extra'];
     if (t === 'cashmemo' || kind === 'vdoc') return null;   /* a cash memo, quotation, order...: one copy, no copy names */
-    return ['ORIGINAL', 'DUPLICATE', 'TRIPLICATE'];
+    return ['ORIGINAL', 'DUPLICATE', 'TRIPLICATE', 'EXTRA COPY'];
   }
   var CPN = { orig: 'Original for recipient', dup: 'Duplicate for transporter', trip: 'Triplicate for supplier', dupsup: 'Duplicate for supplier', ocopy: 'Office copy',
-    dcorig: 'Original for consignee', dcdup: 'Duplicate for transporter', dctrip: 'Triplicate for consignor', ORIGINAL: 'Original', DUPLICATE: 'Duplicate', TRIPLICATE: 'Triplicate' };
+    dcorig: 'Original for consignee', dcdup: 'Duplicate for transporter', dctrip: 'Triplicate for consignor', ORIGINAL: 'Original', DUPLICATE: 'Duplicate', TRIPLICATE: 'Triplicate', 'EXTRA COPY': 'Extra copy', extra: 'Extra copy' };
   function cpName(k) { var v = NS.t('cp.' + k); return v && v !== 'cp.' + k ? v : CPN[k] || k; }
   function cpKey(kind, set) { return 'ns-vt-cpx-' + kind + '-' + set[0]; }
   function cpStart(kind, d, set) {
@@ -180,7 +180,7 @@
         try { localStorage.setItem(cpKey(kind, set), JSON.stringify(pick)); } catch (er) {}
         fin(pick);
       });
-      /* number keys 1-3 tick and untick, Enter prints */
+      /* number keys 1-4 tick and untick, Enter prints */
       cpDlg.onkeydown = function (e) { var n = +e.key; if (n >= 1 && n <= boxes.length && !e.ctrlKey && !e.altKey) { e.preventDefault(); boxes[n - 1].checked = !boxes[n - 1].checked; boxes[n - 1].focus(); } };
       cpDlg.addEventListener('close', function () { fin(null); }, { once: true });
       cpDlg.showModal();
@@ -188,6 +188,32 @@
     });
   }
   A.chooseCopies = choose;
+  /* ---------- after saving: "Print it now?" (owner 22 Nov: "When we save the bill it exits to the dashboard instead of asking to print") ----------
+     Bills, vouchers and documents that print ask once after Save; "Don't ask again" for that kind is kept on this device. */
+  function askKey(kind) { return 'ns-askprint-' + kind; }
+  A.askPrint = function (kind, d) {
+    if (!d) return;
+    var no = false; try { no = localStorage.getItem(askKey(kind)) === '0'; } catch (e) {}
+    if (no) return;
+    var box = NS.el('dialog', { 'class': 'vt-cpd vt-ask', 'aria-labelledby': 'vt-ask-h' });
+    box.innerHTML = '<form method="dialog"><div class="dlg-hd"><h2 id="vt-ask-h">Saved ' + esc(d.no || d.vno || '') + '</h2></div>' +
+      '<p class="vt-cpn" style="font-size:1rem">Print it now?</p>' +
+      '<label class="vt-cpl" style="margin:10px 18px 0"><input type="checkbox" data-ask-no> <span>Don\'t ask after saving this kind</span></label>' +
+      '<div class="dlg-foot"><button type="submit" class="btn primary" value="ok" data-ic="print">Print</button><button type="submit" class="btn" value="no" data-noic>Not now</button></div></form>';
+    document.body.appendChild(box);
+    var pick = '';
+    $('form', box).addEventListener('submit', function (e) { pick = e.submitter ? e.submitter.value : 'ok'; });
+    box.addEventListener('close', function () {
+      if ($('[data-ask-no]', box).checked) { try { localStorage.setItem(askKey(kind), '0'); } catch (e) {} }
+      box.remove();
+      if (pick === 'ok') {
+        if (kind === 'vdoc') choose(kind, d).then(function (cp) { if (cp && window.NSVDocs) NSVDocs.out(d, 'print', cp); });
+        else choose(kind, d).then(function (cp) { if (cp) vtPrint(kind, d, cp); });
+      }
+    }, { once: true });
+    box.showModal();
+    var b = $('button[value=ok]', box); if (b) b.focus();
+  };
   var KTYPE = { sale: 'invoice', pbill: 'pbill', pret: 'pbill', min: 'receipt', mout: 'voucher', contra: 'contra', exp: 'exp', jv: 'jv', ob: 'ob' };
   function addPrint(kind, form, F) {
     var ft = $('.dlg-foot', form), sv = ft && $('button[type=submit]', ft); if (!sv || $('[data-vtprint]', ft) || !KTYPE[kind]) return;

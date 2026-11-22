@@ -383,7 +383,7 @@
     if (!A().biz()) return false;   /* no business yet: the maker asks for one */
     var open = q.get('open'), from = q.get('from'), copy = q.get('copy'), ty = SITE2[site];
     var find = function (id) { return A().data().doc.filter(function (x) { return x.id === id; })[0]; };
-    if (open && q.get('print')) { A().whenReady(function () { out(open, 'print'); }); return true; }
+    if (open && q.get('print')) { var cps = (q.get('cp') || '').split(',').filter(Boolean); A().whenReady(function () { out(open, 'print', cps); }); return true; }   /* owner 22 Nov: the copies ticked in the print box */
     if (site === 'billing') {
       if (open) { var r0 = find(open); if (r0 && r0.app && !r0.counter) { A().whenReady(function () { A().openForm('sale', { rec: r0 }); }); return true; } return false; }   /* a bill made in the maker is changed there (its charges, TCS, ship-to) */
       if (copy) return false;
