@@ -273,5 +273,37 @@
     A.whenReady(function () { try { notifyOpen(); badge(); } catch (e) {} });
   }).catch(function () { STATE = STATE || {}; });
   document.addEventListener('ns-data', function () { try { badge(); } catch (e) {} });
-  window.NSHomeUI = { ctx: ctx, lineText: lineText };
+  /* the NSBiz Helper add-on's summary (core.js hands it over): today's list as on My day, the parties and the newest documents,
+     for its toolbar badge, search, address-bar keyword and reminders. Only the business open in the App. */
+  function addonDigest() {
+    var c = ctx(), list = H.todayList(c), B = A.B, key = B.key;
+    var lines = list.map(function (x) {
+      var o = { id: x.id, group: x.group, sev: x.sev, text: lineText(x), href: x.href || '#day', amt: x.amt || 0, date: x.date || '' };
+      if (x.k === 'chase1' && x.v && x.v.p) {
+        var k = key(x.v.p), w = A.waReminder ? A.waReminder(k) : null, bid = String(x.id).slice(String(x.id).indexOf(':') + 1);
+        if (w) o.wa = w.url;
+        o.party = k; if (bid) o.pay = '#pay/min/' + bid;
+      }
+      return o;
+    });
+    var D = A.mine(), P = B.parties(D, A.bizName()), C = A.data(), gst = {};
+    (C.party || []).forEach(function (p) { if (p.gstin) gst[key(p.name)] = p.gstin; });
+    var parties = Object.keys(P).map(function (k) { return { n: P[k].name, k: k, bal: NS.r2(+P[k].bal || 0), g: gst[k] || '' }; });
+    /* saved parties with no bill yet (search and the GSTIN look-up find them too) */
+    (C.party || []).forEach(function (p) { var k = key(p.name); if (k && !P[k]) parties.push({ n: p.name, k: k, bal: 0, g: p.gstin || '' }); });
+    parties = parties.slice(0, 3000);
+    /* items, for "save a supplier's price"; the business's own details, for "fill my business details" on other websites */
+    var items = (C.item || []).filter(function (i) { return i.desc; }).slice(0, 3000).map(function (i) { return { n: i.desc, rate: +i.rate || 0, prate: +i.prate || 0, hsn: i.hsn || '' }; });
+    var bz = A.biz && A.biz() || {}, me = {};
+    ['name', 'legal', 'gstin', 'pan', 'addr', 'city', 'pin', 'phone', 'email', 'bankName', 'bankAcc', 'bankIfsc', 'bankBranch', 'upi'].forEach(function (f) { if (bz[f]) me[f] = String(bz[f]); });
+    if (bz.gst && bz.gst.legal && !me.legal) me.legal = bz.gst.legal;
+    if (bz.state) { me.stateCode = String(bz.state).slice(0, 2); me.state = NS.stateName ? NS.stateName(me.stateCode) : ''; }
+    if (!me.pan && me.gstin && me.gstin.length === 15) me.pan = me.gstin.slice(2, 12);
+    var docs = D.filter(function (d) { return d.no || d.total; }).sort(function (a, b) { return String(b.date || '').localeCompare(String(a.date || '')); }).slice(0, 500).map(function (d) {
+      return { id: d.id, no: d.no || '', t: A.enName ? A.enName(d) : d.type, p: B.partyName ? B.partyName(d) : '', date: d.date || '', total: NS.r2(+d.total || 0), url: A.docUrl ? A.docUrl(d) : '' };
+    });
+    return { biz: A.bizName(), at: Date.now(), today: c.today, attention: list.filter(function (x) { return x.sev <= 1; }).length, lines: lines, parties: parties, docs: docs, items: items, me: me,
+      bizs: (C.biz || []).map(function (z) { return { id: z.id, name: z.name || '', gstin: z.gstin || '' }; }) };
+  }
+  window.NSHomeUI = { ctx: ctx, lineText: lineText, digest: addonDigest };
 })();

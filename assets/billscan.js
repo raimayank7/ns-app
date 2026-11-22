@@ -202,5 +202,7 @@
   }
 
   A.scan = function () { if (!dlg) build(); photo = null; pickScreen(); dlg.showModal(); };
+  /* a picture handed over (the NSBiz Helper add-on's screen snip): straight to the language choice, Read ready */
+  A.scanFile = function (file) { if (!dlg) build(); photo = file; pickScreen(); var go = $('#cap-go', dlg); if (go) go.disabled = !file; dlg.showModal(); };
   window.NSBillScan = { prepare: prepare, recognize: recognize, ensure: ensureTesseract, ctx: ctx, run: function (file, mode) { return prepare(file).then(function (c) { return ensureTesseract(mode, function () {}).then(function () { return readAll(c, mode, function () {}); }); }); } };
 })();
