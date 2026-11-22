@@ -331,7 +331,7 @@
 
   /* ---------- Print / PDF / Share: the maker's paper in a frame nobody sees ---------- */
   var outFr = null;
-  function out(rec, how) {
+  function out(rec, how, cp) {
     var id = typeof rec === 'string' ? rec : rec.id, d = typeof rec === 'string' ? A().data().doc.filter(function (x) { return x.id === id; })[0] : rec, site = d && siteOf(d);
     if (!site) return !!(d && window.NSOrd && NSOrd.print && NSOrd.print(d, how));   /* receipt note, goods back / sent back: printed by orders.js */
     if (outFr) outFr.remove();
@@ -339,7 +339,7 @@
     var fr = outFr = document.createElement('iframe');
     fr.className = 'vd-out'; fr.setAttribute('aria-hidden', 'true'); fr.tabIndex = -1; fr.title = '';
     fr.style.cssText = 'position:fixed;left:-12000px;top:0;width:1100px;height:1500px;border:0;opacity:0;pointer-events:none';
-    fr.src = '/do/' + site + '/?open=' + encodeURIComponent(id) + (how === 'print' ? '&print=1' : '');
+    fr.src = '/do/' + site + '/?open=' + encodeURIComponent(id) + (how === 'print' ? '&print=1' + (cp && cp.length ? '&cp=' + cp.join(',') : '') : '');
     document.body.appendChild(fr);
     var gone = function () { setTimeout(function () { if (outFr === fr) outFr = null; fr.remove(); }, 1500); };
     var tries = 0;

@@ -118,37 +118,94 @@
   }
   function vtPrint(kind, d, cp) {
     if (!d) return;
-    if ((d.type || 'invoice') === 'invoice' || d.type === 'cashmemo' || d.type === 'expinv') { var u = A.docUrl && A.docUrl(d); if (u) { var bx = dlg(); if (bx && bx.open) bx.close(); u += '&print=1'; if (!(A.openUrl && A.openUrl(u))) location.href = u; } return; }
+    if ((d.type || 'invoice') === 'invoice' || d.type === 'cashmemo' || d.type === 'expinv') { var u = A.docUrl && A.docUrl(d); if (u) { var bx = dlg(); if (bx && bx.open) bx.close(); u += '&print=1' + (Array.isArray(cp) && cp.length ? '&cp=' + cp.join(',') : ''); if (!(A.openUrl && A.openUrl(u))) location.href = u; } return; }
     var host = $('#vch-print'); if (!host) { host = document.createElement('div'); host.id = 'vch-print'; host.className = 'vch-print'; document.body.appendChild(host); }
-    host.innerHTML = (CP[cp] || CP.o).map(function (t) { return vtSheet(d, t); }).join('<div class="vt-pb"></div>');
+    host.innerHTML = (Array.isArray(cp) && cp.length ? cp : CP[cp] || CP.o).map(function (t) { return vtSheet(d, t); }).join('<div class="vt-pb"></div>');
     document.documentElement.classList.add('vch-on');
     var off = function () { window.removeEventListener('afterprint', off); document.documentElement.classList.remove('vch-on'); host.innerHTML = ''; };
     window.addEventListener('afterprint', off);
     setTimeout(function () { window.print(); }, 60);
   }
   A.vtPrint = vtPrint;
+  /* ---------- Which copies to print (owner 22 Nov: "How will user select how many copies or which copies they want to print?") ----------
+     A small box before every print: one tick per copy, any mix (only the Duplicate when the transporter's copy was lost). Bills, challans
+     and notes use the copy names of the GST rules (Rule 48 and Rule 55); other vouchers Original, Duplicate, Triplicate. The first time
+     a kind is printed, the number of copies set for that voucher type in Configure is ticked; after that, the ticks used last time. */
+  function copySet(d, kind) {
+    var t = d.type || 'invoice';
+    if (t === 'invoice' || t === 'expinv') {
+      var h = (d.items || []).map(function (it) { return String(it && it.hsn || '').replace(/\D/g, ''); }).filter(Boolean);
+      return t === 'invoice' && h.length && h.every(function (x) { return /^99/.test(x); }) ? ['orig', 'dupsup'] : ['orig', 'dup', 'trip'];
+    }
+    if (t === 'challan') return ['dcorig', 'dcdup', 'dctrip'];
+    if (t === 'note') return d.side === 'purchase' ? ['orig', 'ocopy'] : ['orig', 'dupsup'];
+    if (t === 'cashmemo' || kind === 'vdoc') return null;   /* a cash memo, quotation, order...: one copy, no copy names */
+    return ['ORIGINAL', 'DUPLICATE', 'TRIPLICATE'];
+  }
+  var CPN = { orig: 'Original for recipient', dup: 'Duplicate for transporter', trip: 'Triplicate for supplier', dupsup: 'Duplicate for supplier', ocopy: 'Office copy',
+    dcorig: 'Original for consignee', dcdup: 'Duplicate for transporter', dctrip: 'Triplicate for consignor', ORIGINAL: 'Original', DUPLICATE: 'Duplicate', TRIPLICATE: 'Triplicate' };
+  function cpName(k) { var v = NS.t('cp.' + k); return v && v !== 'cp.' + k ? v : CPN[k] || k; }
+  function cpKey(kind, set) { return 'ns-vt-cpx-' + kind + '-' + set[0]; }
+  function cpStart(kind, d, set) {
+    var saved = null; try { saved = JSON.parse(localStorage.getItem(cpKey(kind, set)) || 'null'); } catch (e) {}
+    if (Array.isArray(saved)) { saved = saved.filter(function (k) { return set.indexOf(k) >= 0; }); if (saved.length) return saved; }
+    var old = set[0] === 'ORIGINAL' ? CP[cpGet(kind)] : null; if (old) return old.slice();   /* the copies list this voucher had before */
+    var n = Math.min(set.length, Math.max(1, +d.copies || 1));
+    try { var vc = NS.vtCfg && NS.cfgFor && A.cfg ? NS.vtCfg(NS.cfgFor(A.cfg(), d.seller), d.type || 'invoice', d.kind || '', d.vt) : null; if (vc && +vc.copies) n = Math.min(set.length, +vc.copies); } catch (e) {}
+    return set.slice(0, n);
+  }
+  var cpDlg = null;
+  function choose(kind, d) {
+    var set = copySet(d, kind); if (!set) return Promise.resolve([]);
+    var on = cpStart(kind, d, set);
+    if (!cpDlg) {
+      cpDlg = NS.el('dialog', { 'class': 'vt-cpd', 'aria-labelledby': 'vt-cpd-h' });
+      document.body.appendChild(cpDlg);
+    }
+    cpDlg.innerHTML = '<form method="dialog"><div class="dlg-hd"><h2 id="vt-cpd-h">Print</h2></div>' +
+      '<fieldset class="vt-cpf"><legend>Which copies?</legend>' + set.map(function (k, i) {
+        return '<label class="vt-cpl"><input type="checkbox" value="' + k + '"' + (on.indexOf(k) >= 0 ? ' checked' : '') + '> <span><b>' + (i + 1) + '.</b> ' + esc(cpName(k)) + '</span></label>';
+      }).join('') + '</fieldset>' +
+      '<p class="soft vt-cpn">Each ticked copy prints on its own page. Your ticks are kept for the next print of this kind.</p>' +
+      '<p class="vt-cpw" role="alert" hidden>Tick at least one copy.</p>' +
+      '<div class="dlg-foot"><button type="submit" class="btn primary" value="ok" data-ic="print">Print</button><button type="submit" class="btn" value="cancel" formnovalidate>Cancel</button></div></form>';
+    var f = $('form', cpDlg), boxes = [].slice.call(cpDlg.querySelectorAll('input[type=checkbox]'));
+    return new Promise(function (res) {
+      var done = false, fin = function (v) { if (done) return; done = true; res(v); };
+      f.addEventListener('submit', function (e) {
+        var ok = e.submitter ? e.submitter.value === 'ok' : true;
+        if (!ok) return;
+        var pick = boxes.filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
+        if (!pick.length) { e.preventDefault(); $('.vt-cpw', cpDlg).hidden = false; boxes[0].focus(); return; }
+        try { localStorage.setItem(cpKey(kind, set), JSON.stringify(pick)); } catch (er) {}
+        fin(pick);
+      });
+      /* number keys 1-3 tick and untick, Enter prints */
+      cpDlg.onkeydown = function (e) { var n = +e.key; if (n >= 1 && n <= boxes.length && !e.ctrlKey && !e.altKey) { e.preventDefault(); boxes[n - 1].checked = !boxes[n - 1].checked; boxes[n - 1].focus(); } };
+      cpDlg.addEventListener('close', function () { fin(null); }, { once: true });
+      cpDlg.showModal();
+      var pb = $('button[value=ok]', cpDlg); if (pb) pb.focus();
+    });
+  }
+  A.chooseCopies = choose;
   var KTYPE = { sale: 'invoice', pbill: 'pbill', pret: 'pbill', min: 'receipt', mout: 'voucher', contra: 'contra', exp: 'exp', jv: 'jv', ob: 'ob' };
   function addPrint(kind, form, F) {
     var ft = $('.dlg-foot', form), sv = ft && $('button[type=submit]', ft); if (!sv || $('[data-vtprint]', ft) || !KTYPE[kind]) return;
-    var sel = NS.el('select', { 'class': 'vt-cp', 'aria-label': 'Copies to print', title: 'Copies to print' });
-    sel.innerHTML = CPL.map(function (c) { return '<option value="' + c[0] + '"' + (c[0] === cpGet(kind) ? ' selected' : '') + '>' + c[1] + '</option>'; }).join('');
-    if (kind === 'sale') sel.hidden = true;   /* the tax invoice keeps its own copies (Original for recipient, Duplicate for transporter...) */
-    sel.addEventListener('change', function () { cpSet(kind, sel.value); });
+    var pr = function (d) { choose(kind, d).then(function (cp) { if (cp) vtPrint(kind, d, cp); }); };
     var pb = NS.el('button', { type: 'button', 'class': 'btn', 'data-vtprint': '', 'data-ic': 'print' }); pb.textContent = 'Print';
     pb.addEventListener('click', function () {
       var box = dlg(), dirty = box && box.getAttribute('data-dirty');
-      if (F.rec && !dirty) { vtPrint(kind, F.rec, sel.value); return; }
+      if (F.rec && !dirty) { pr(F.rec); return; }
       /* not saved yet (or changed): save first, then print the voucher that was saved */
       var t0 = Date.now(), want = KTYPE[kind];
       sv.click();
       setTimeout(function () {
         var L = A.mine().filter(function (x) { return (x.type || 'invoice') === want && (x.updated || x.created || 0) >= t0 - 2000; }).sort(function (a, b) { return (b.updated || b.created || 0) - (a.updated || a.created || 0); });
-        if (L[0]) vtPrint(kind, L[0], sel.value); else if (!box || !box.open) NS.toast('Saved. Open it again to print.');
+        if (L[0]) pr(L[0]); else if (!box || !box.open) NS.toast('Saved. Open it again to print.');
       }, 1200);
     });
     var pv = $('[data-vtpv]', ft);
     if (pv) pv.insertAdjacentElement('afterend', pb); else sv.insertAdjacentElement('afterend', pb);
-    pb.insertAdjacentElement('afterend', sel);
     var old = $('[data-andprint]', ft); if (old) old.hidden = true;   /* the expense's own Save + Print: the new Print saves too */
   }
   A.formWire = function (kind, form, F) {
