@@ -244,10 +244,55 @@
     if (pv) pv.insertAdjacentElement('afterend', pb); else sv.insertAdjacentElement('afterend', pb);
     var old = $('[data-andprint]', ft); if (old) old.hidden = true;   /* the expense's own Save + Print: the new Print saves too */
   }
+  /* ---------- a saved voucher or document opens locked: nothing changes until Edit is pressed (owner 23 Nov: "every voucher
+     and document can't be edited without clicking the Edit button near Save"). Print, Preview, New, Back/Next, List, Cancel stay. ---------- */
+  var KEEP = '[data-vtnew], .vt-nav *, .dlg-foot [data-vtprint], .dlg-foot [data-vtpv], [data-close], [data-vtedit], .vs-back, .hp-q, [data-md-tip], [data-au-cx], .cf-gear';
+  function lockForm(box, form, F) {
+    form.classList.remove('vt-locked');   /* the same form box is used for every voucher: a new one is never locked */
+    if (!F.rec || F.quick) return;
+    var ft = $('.dlg-foot', form); if (!ft) return;
+    form.classList.add('vt-locked');
+    var put = function () {
+      if (!form.classList.contains('vt-locked')) return;
+      $$('input, select, textarea, button', form).forEach(function (x) {
+        if (x.disabled || x.matches(KEEP) || (x.tagName === 'BUTTON' && x.type !== 'submit' && x.closest('.dlg-foot'))) return;
+        x.disabled = true; x.setAttribute('data-vtlk', '');
+      });
+      $$('button[type=submit]', ft).forEach(function (x) { x.hidden = true; x.setAttribute('data-vtlkh', ''); });
+    };
+    if (!$('[data-vtedit]', ft)) {
+      var eb = NS.el('button', { type: 'button', 'class': 'btn primary', 'data-vtedit': '', 'data-ic': 'edit' }); eb.textContent = 'Edit';
+      ft.insertBefore(eb, ft.firstChild);
+      eb.addEventListener('click', function () {
+        form.classList.remove('vt-locked');
+        $$('[data-vtlk]', form).forEach(function (x) { x.disabled = false; x.removeAttribute('data-vtlk'); });
+        $$('[data-vtlkh]', ft).forEach(function (x) { x.hidden = false; x.removeAttribute('data-vtlkh'); });
+        eb.remove();
+        var f = $('input:not([type=hidden]):not([type=checkbox]):not(.vt-find), select', form); if (f) f.focus();
+      });
+    }
+    put(); setTimeout(put, 300);   /* fields some screens add a moment later */
+  }
+  /* + New in the voucher's own buttons, right after Save / Edit (owner 23 Nov: "New should be with every voucher, not outside") */
+  function addNew(kind, form, F) {
+    var isV = kind === 'vdoc' && !!vdSite(F); if ((!KIND[kind] && !isV) || F.quick) return;
+    var ft = $('.dlg-foot', form), sv = ft && $('button.primary[type=submit]', ft); if (!sv || $('[data-vtnew]', ft)) return;
+    var nb = NS.el('button', { type: 'button', 'class': 'btn', 'data-vtnew': '', 'data-ic': 'plus', title: 'New: a blank one of this kind' }); nb.textContent = 'New';
+    nb.addEventListener('click', function () { var bs = F.rec || (F.vd && F.vd.base) || {}; swap(function () { A.openForm(kind, isV ? { ty: F.vd.ty, kind: bs.kind || '', side: bs.side || '' } : {}); }, dlg()); });
+    sv.insertAdjacentElement('afterend', nb);
+  }
+  /* Save (or Ctrl+S) on a locked one: says to press Edit */
+  document.addEventListener('submit', function (e) {
+    var f = e.target; if (!f || !f.classList || !f.classList.contains('vt-locked')) return;
+    e.preventDefault(); e.stopImmediatePropagation(); NS.toast('Press Edit first to change this one.', 'bad');
+  }, true);
   A.formWire = function (kind, form, F) {
     if (prevWire) prevWire(kind, form, F);
     var box = dlg(); if (!box) return;
     addPrint(kind, form, F);
+    var mark = form.firstElementChild;   /* this drawing of the form: a later voucher in the same box draws a new one */
+    form.classList.remove('vt-locked');
+    setTimeout(function () { if (mark && mark.isConnected) { addNew(kind, form, F); lockForm(box, form, F); } }, 0);   /* after the rest of this wiring (some of it returns early) */
     /* Preview next to Save on bills and documents that print */
     var ft = $('.dlg-foot', form), sv = ft && $('button[type=submit]', ft);
     if (sv && (kind === 'sale' || F.vd) && !$('[data-vtpv]', ft)) { var pb = NS.el('button', { type: 'button', 'class': 'btn', 'data-vtpv': '', 'data-ic': 'eye' }); pb.textContent = 'Preview'; pb.addEventListener('click', preview); sv.insertAdjacentElement('afterend', pb); }
