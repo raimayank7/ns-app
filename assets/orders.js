@@ -63,7 +63,74 @@
     var docs = H.list.map(function (e) { return nameOf(e.d) + ' ' + (e.d.no || ''); });
     box.innerHTML = '<span>' + esc(t('hint', { n: H.n, lines: H.lines, docs: docs.slice(0, 3).join(', ') + (docs.length > 3 ? ' …' : '') })) + '</span> <button type="button" class="btn sm" data-orpick>' + esc(t('pick')) + '</button>';
   }
-  function soon() { clearTimeout(hintT); hintT = setTimeout(hint, 250); }
+  /* ---------- 3b. a sale bill against a delivery challan (owner 23 Nov: "if an invoice is issued against a challan there should be a picker
+     to choose that challan"): one line above the items names the open challans of every customer; picking one fills the customer and
+     brings its pending lines (all ticked, quantities can change); the bill says "Against Delivery challan <no>" ---------- */
+  function openChallans(F) {
+    var docs = A.mine(), seen = {}, out = [];
+    docs.forEach(function (d) {
+      if (d.type !== 'challan' || d.cancelled || (d.kind && d.kind !== 'sale' && d.kind !== 'approval')) return;
+      var p = d.buyer && d.buyer.name; if (!p || seen[key(p)]) return; seen[key(p)] = 1;
+      O.pickable(docs, A.bizName(), p, 'sale', { skip: F && F.rec && F.rec.id, today: today() }).forEach(function (E) {
+        if (E.d.type === 'challan' && E.lines.some(function (L) { return L.pending > 0; })) out.push(E);
+      });
+    });
+    return out.sort(function (a, b) { return String(b.d.date || '').localeCompare(String(a.d.date || '')) || String(b.d.no || '').localeCompare(String(a.d.no || ''), undefined, { numeric: true }); });
+  }
+  function chlLine(F, form) {
+    var box = $('[data-orchl-line]', form);
+    var L = F && F.kind === 'sale' && !F.rec ? openChallans(F) : [];
+    if (!L.length && !(F && F.chl && F.chl.length)) { if (box) box.remove(); return; }
+    if (!box) {
+      box = document.createElement('p'); box.className = 'note or-hint or-chl'; box.setAttribute('data-orchl-line', '');
+      var fs = $('[data-lines]', form); fs = fs && fs.closest('fieldset');
+      if (fs) fs.parentNode.insertBefore(box, fs); else return;
+    }
+    var on = F.chl && F.chl.length;
+    box.innerHTML = '<span>' + (on ? '<b>' + esc('Against delivery challan ' + F.chl.join(', ')) + '</b>' : esc(L.length === 1 ? '1 delivery challan is not billed yet.' : L.length + ' delivery challans are not billed yet.')) + '</span> <button type="button" class="btn sm" data-orchl>' + (on ? 'Add another challan' : 'Bill against a challan') + '</button>';
+  }
+  function addPicked(lines, F, form) {
+    var h = A.vh(), used = {}; (F.lines || []).forEach(function (L) { if (L.src) used[L.src.id + '|' + L.src.lid] = 1; });
+    F.lines = (F.lines || []).filter(function (L) { return String(L.desc || '').trim() || num(L.rate); });
+    var added = 0;
+    lines.forEach(function (it) { if (used[it.src.id + '|' + it.src.lid]) return; F.lines.push(it); added++; });
+    if (!F.lines.length) F.lines.push({ desc: '', hsn: '', qty: 1, rate: '', gst: 18 });
+    h.drawLines(); if (form.closest('dialog')) form.closest('dialog').setAttribute('data-dirty', '1');
+    NS.toast(t('added', { n: added }));
+    return added;
+  }
+  function chlDlg(L, done) {
+    var dlg = document.createElement('dialog'); dlg.className = 'or-pick b2-dlg';
+    dlg.innerHTML = '<form method="dialog"><header class="dlg-hd"><h3>Bill against a delivery challan</h3></header><p class="soft">Pick the challan this bill is for. Its lines still to bill come in next, all ticked: change a quantity for a part bill.</p>' +
+      '<table class="tbl or-tbl"><thead><tr><th>Challan</th><th>Date</th><th>Customer</th><th class="n">Lines to bill</th><th></th></tr></thead><tbody>' +
+      L.map(function (E, i) {
+        var n = E.lines.filter(function (x) { return x.pending > 0; }).length;
+        return '<tr><td class="mono">' + esc(E.d.no || '') + '</td><td>' + esc(A.ldate(E.d.date)) + '</td><td>' + esc(E.d.buyer && E.d.buyer.name || '') + '</td><td class="n">' + n + '</td><td><button type="button" class="btn sm primary" data-orchli="' + i + '">Choose</button></td></tr>';
+      }).join('') + '</tbody></table><div class="dlg-foot"><button type="button" class="btn" data-orx>' + esc(A.T('cancel')) + '</button></div></form>';
+    document.body.appendChild(dlg);
+    var close = function () { dlg.close(); dlg.remove(); };
+    dlg.addEventListener('click', function (e) {
+      if (e.target.closest('[data-orx]')) return close();
+      var b = e.target.closest('[data-orchli]'); if (b) { var E = L[+b.getAttribute('data-orchli')]; close(); done(E); }
+    });
+    dlg.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); } });
+    dlg.showModal(); var f = $('[data-orchli]', dlg); if (f) f.focus();
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-orchl]'); if (!b) return;
+    e.preventDefault();
+    var h = A.vh(), F = h.cur(), form = h.form(); if (!F || !form) return;
+    chlDlg(openChallans(F), function (E) {
+      var pi = $('#f-party', form), name = E.d.buyer && E.d.buyer.name || '';
+      if (pi && key(pi.value) !== key(name)) { pi.value = name; pi.dispatchEvent(new Event('input', { bubbles: true })); pi.dispatchEvent(new Event('change', { bubbles: true })); }
+      pickDlg([E], function (lines) {
+        if (!addPicked(lines, F, form)) return;
+        F.chl = (F.chl || []).filter(function (x) { return x !== E.d.no; }).concat([E.d.no]);
+        chlLine(F, form); var hb = $('[data-orhint]', form); if (hb) hb.remove();
+      }, { all: true });
+    });
+  });
+  function soon() { clearTimeout(hintT); hintT = setTimeout(function () { hint(); var h = A.vh(), F = h.cur(), form = h.form(); if (F && form) chlLine(F, form); }, 250); }
   /* I-14 per line: on a purchase bill, every line that is not goods (freight, cartage, loading, packing ...) gets a tick
      "add to the goods' cost"; it.lc true / false (stockcore.js); untouched lines follow the name rule (NSStock.LC_WORDS) */
   var lcT = 0;
@@ -115,7 +182,7 @@
     });
   });
   /* the list of open lines: tick the lines, change the quantity (part delivery / part bill) */
-  function pickDlg(list, done) {
+  function pickDlg(list, done, opt) {
     var dlg = document.createElement('dialog'); dlg.className = 'or-pick b2-dlg';
     var body = list.map(function (e) {
       return '<section class="or-src"><h4>' + esc(nameOf(e.d)) + ' ' + esc(e.d.no || '') + ' <span class="soft">· ' + esc(A.ldate(e.d.date)) + (e.due ? ' · ' + esc(t('due', { d: A.ldate(e.due) })) : '') + '</span>' +
@@ -147,6 +214,7 @@
       close(); if (out.length) done(out);
     });
     dlg.showModal();
+    if (opt && opt.all) $$('[data-ork]', dlg).forEach(function (c) { c.checked = true; });
     var first = $('[data-ork]', dlg); if (first) first.focus();
   }
 

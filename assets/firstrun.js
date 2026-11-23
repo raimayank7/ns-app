@@ -428,7 +428,15 @@
       var before = HIDESEL; menuLink(); apply();
       /* the screen was drawn before the data home answered: its tool buttons are drawn again now that some are hidden */
       if (HIDESEL !== before && /^#(tools|day)/.test(location.hash) && !(dlg && dlg.open)) A.show();
-      if (INST && !(CUR && CUR.sample) && (!CUR || !ENTRY || ENTRY.derived && !(SET.features && SET.features[CUR.id])) && !(dlg && dlg.open) && !laterSet() && !busy()) openSetup(true);
+      /* owner 23 Nov: the setup is for a NEW user only: it never opens while any business is saved (one that skipped the setup keeps
+         every screen, and Settings › Additional features is there). With no business it waits 3 s and asks the data home again, because
+         a slow data home answers "nothing yet" for a moment; and it closes by itself if a business turns up after it opened. */
+      if (BIZL.length && dlg && dlg.open && firstRun) { firstRun = false; dlg.close(); }
+      if (INST && !BIZL.length && !(dlg && dlg.open) && !laterSet() && !busy()) {
+        clearTimeout(refresh._t); refresh._t = setTimeout(function () {
+          NSStore.list('biz').then(function (L) { if (!(L && L.length) && !(dlg && dlg.open) && !laterSet() && !busy() && (!NSStore.mode || NSStore.mode())) openSetup(true); }, function () {});
+        }, 3000);
+      }
       if (redraw) return A.show();
     }).catch(function () {});
     return queue;

@@ -246,7 +246,7 @@
   }
   /* ---------- a saved voucher or document opens locked: nothing changes until Edit is pressed (owner 23 Nov: "every voucher
      and document can't be edited without clicking the Edit button near Save"). Print, Preview, New, Back/Next, List, Cancel stay. ---------- */
-  var KEEP = '[data-vtnew], .vt-nav *, .dlg-foot [data-vtprint], .dlg-foot [data-vtpv], [data-close], [data-vtedit], .vs-back, .hp-q, [data-md-tip], [data-au-cx], .cf-gear';
+  var KEEP = '[data-sdopen], [data-sdok], [data-vtnew], .vt-nav *, .dlg-foot [data-vtprint], .dlg-foot [data-vtpv], [data-close], [data-vtedit], .vs-back, .hp-q, [data-md-tip], [data-au-cx], .cf-gear';
   function lockForm(box, form, F) {
     form.classList.remove('vt-locked');   /* the same form box is used for every voucher: a new one is never locked */
     if (!F.rec || F.quick) return;
