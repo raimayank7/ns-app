@@ -87,9 +87,10 @@
     var d = x.data || {}, b = '<div class="card ai-card" data-ai="' + esc(x.id) + '">';
     if (x.kind === 'party') {
       b += '<h3>New party</h3>' + src(x) + '<div class="ai-grid">' + f('ai-n-' + x.id, 'Name', d.name, ' required') + f('ai-g-' + x.id, 'GSTIN', d.gstin) + f('ai-p-' + x.id, 'Phone', d.phone) +
+        f('ai-e-' + x.id, 'Email', d.email, ' type="email"') + f('ai-a-' + x.id, 'Address', d.addr) + f('ai-c-' + x.id, 'City / town', d.city) + f('ai-pn-' + x.id, 'PIN code', d.pin, ' inputmode="numeric" maxlength="6"') +
         '<label class="ai-f"><span>Is a</span><select id="ai-r-' + x.id + '"><option value="customer">Customer</option><option value="supplier"' + (d.role === 'supplier' ? ' selected' : '') + '>Supplier</option><option value="both">Both</option></select></label></div>' +
         (d.note ? '<p class="note">' + esc(d.note) + '</p>' : '') +
-        '<div class="row"><button type="button" class="btn primary" data-ai-party>Add party</button><button type="button" class="btn" data-ai-drop>Remove</button></div>';
+        '<div class="row"><button type="button" class="btn primary" data-ai-party>Add party (all details)</button><button type="button" class="btn" data-ai-drop>Remove</button></div>';
     } else if (x.kind === 'item') {
       b += '<h3>New item</h3>' + src(x) + '<div class="ai-grid">' + f('ai-d-' + x.id, 'Item name', d.desc, ' required') + f('ai-h-' + x.id, 'HSN / SAC', d.hsn) + f('ai-u-' + x.id, 'Unit', d.unit || 'Nos') +
         f('ai-rt-' + x.id, 'Sale rate', d.rate, ' inputmode="decimal"') + f('ai-gs-' + x.id, 'GST %', d.gst != null ? d.gst : 18, ' inputmode="decimal"') + '</div>' +
@@ -145,9 +146,15 @@
       var v = function (p) { var el = document.getElementById(p + id); return el ? el.value.trim() : ''; };
       if (e.target.closest('[data-ai-drop]')) return done(id);
       if (e.target.closest('[data-ai-party]')) {
-        var r = partyRec({ name: v('ai-n-'), gstin: v('ai-g-'), phone: v('ai-p-'), role: v('ai-r-'), pan: x.data.pan });
-        if (!r.name) { NS.toast('Type the party name.', 'bad'); return; }
-        return addMany('party', [r]).then(function (n) { NS.toast(n ? 'Party added: ' + r.name : r.name + ' is already saved.', n ? '' : 'bad'); return done(id); });
+        /* owner 23 Nov: the full party box (address, PIN, email, distance, agent, credit, opening balance), filled with what the card holds */
+        var r = partyRec({ name: v('ai-n-'), gstin: v('ai-g-'), phone: v('ai-p-'), email: v('ai-e-'), addr: v('ai-a-'), city: v('ai-c-'), pin: v('ai-pn-'), role: v('ai-r-'), pan: x.data.pan });
+        return NSStore.list('party').then(function (L) {
+          var have = {}, gs = {}; (L || []).forEach(function (p) { have[key(p.name)] = 1; if (p.gstin) gs[p.gstin] = p.name; });
+          if (r.gstin && gs[r.gstin]) { NS.toast(gs[r.gstin] + ' already has GSTIN ' + r.gstin + '.', 'bad'); return; }
+          var i = NS.el('input', { 'data-qa': 'party', value: r.name });
+          i._qa = { kind: 'party', pre: r, known: function (n) { return !!have[key(n)]; }, done: function () { done(id); } };
+          NS.quickAdd(i);
+        });
       }
       if (e.target.closest('[data-ai-item]')) {
         var it = itemRec({ desc: v('ai-d-'), hsn: v('ai-h-'), unit: v('ai-u-'), rate: v('ai-rt-'), gst: v('ai-gs-') });

@@ -17,8 +17,14 @@
   };
   var MONEY = { min: 1, mout: 1, contra: 1, exp: 1 }, COPY = { sale: 1, pbill: 1, pret: 1 };
   var VREG = { sale: 'sale', pbill: 'purchase', pret: 'pret', min: 'receipt', mout: 'payment', contra: 'contra', exp: 'expense' };   /* List: the register of each voucher */
-  function listOf(kind) {
-    var f = KIND[kind]; if (!f) return [];
+  /* owner 23 Nov: proforma, quotation, order, challan, note... screens (vdocs.js) move through their own saved documents too */
+  function vdSite(F) { var V = window.NSVDocs, b = F && (F.rec || (F.vd && F.vd.base)); return V && b ? V.siteOf(b) : ''; }
+  var VDREG = { quote: 'quote', proforma: 'proforma', so: 'so', po: 'po', challan: 'challan' };
+  function vdReg(F) { var b = F && (F.rec || (F.vd && F.vd.base)) || {}; return b.type === 'note' ? (b.kind === 'debit' ? 'dnote' : 'cnote') : VDREG[b.type] || ''; }
+  function listOf(kind, F) {
+    var f = KIND[kind];
+    if (kind === 'vdoc') { var st = vdSite(F); if (!st) return []; f = function (d) { return window.NSVDocs.mine(d) && window.NSVDocs.siteOf(d) === st; }; }
+    if (!f) return [];
     return (A.mine ? A.mine() : []).filter(function (d) { return d && d.id && f(d); })
       .sort(function (a, b) { return String(a.date || '').localeCompare(String(b.date || '')) || String(a.no || '').localeCompare(String(b.no || ''), undefined, { numeric: true }) || (a.created || 0) - (b.created || 0); });
   }
@@ -265,8 +271,11 @@
       form.insertAdjacentHTML('afterbegin', '<p class="vt-cash"><span>Cash in hand <b>' + esc(money(cash)) + '</b></span><span>Bank <b>' + esc(money(bank)) + '</b></span></p>');
     }
     /* 1 + 7: move through the saved vouchers, find one by number, copy the one on screen */
-    if (!KIND[kind] || F.quick) return;
-    var L = listOf(kind), at = F.rec ? L.map(function (d) { return d.id; }).indexOf(F.rec.id) : L.length;
+    /* a bar left by the screen before (a sale bill's "1 of 1") never stays on a screen that has none of its own (owner 23 Nov) */
+    var hd0 = $('.dlg-h, .dlg-hd', box), old0 = hd0 && $('.vt-nav', hd0); if (old0) old0.remove();
+    var isV = kind === 'vdoc' && !!vdSite(F);
+    if ((!KIND[kind] && !isV) || F.quick) return;
+    var L = listOf(kind, F), at = F.rec ? L.map(function (d) { return d.id; }).indexOf(F.rec.id) : L.length;
     var hd = $('.dlg-h, .dlg-hd', box); if (!hd || $('.vt-nav', hd)) { var old = hd && $('.vt-nav', hd); if (old) old.remove(); }
     if (!hd) return;
     var btn = function (k, label, title, off) { return '<button type="button" class="btn sm" data-vtnav="' + k + '" title="' + esc(title) + '" aria-label="' + esc(title) + '"' + (off ? ' disabled' : '') + '>' + label + '</button>'; };
@@ -275,14 +284,14 @@
       '<span class="vt-pos soft">' + (F.rec && at >= 0 ? (at + 1) + ' of ' + L.length : 'New · ' + L.length + ' saved') + '</span>' +
       btn('next', '▶', 'Next voucher', at >= L.length - 1) + btn('last', '▶|', 'Last voucher', !L.length || at === L.length - 1) +
       '<input class="vt-find" type="search" placeholder="Find no." aria-label="Find a voucher by its number" autocomplete="off">' +
-      btn('list', 'List', 'List: the register of these vouchers') +
+      (isV && !vdReg(F) ? '' : btn('list', 'List', 'List: the register of these vouchers')) +
       (COPY[kind] && F.rec ? btn('copy', 'Copy', 'Copy: a new voucher made from this one') : '') +
       (kind === 'sale' ? btn('einv', 'E-invoice / E-way bill', 'Make the e-invoice or e-way bill JSON of this bill', !F.rec) : ''));
     hd.appendChild(nav);
     nav.addEventListener('click', function (e) {
       var b = e.target.closest('[data-vtnav]'); if (!b || b.disabled) return;
       var w = b.getAttribute('data-vtnav');
-      if (w === 'list') { var reg = VREG[kind]; var bx = dlg(); if (bx && bx.open) bx.close(); if (A.vregOf) A.vregOf(reg); if (location.hash === '#vreg' && A.show) A.show(); else location.hash = '#vreg'; return; }
+      if (w === 'list') { var reg = isV ? vdReg(F) : VREG[kind]; var bx = dlg(); if (bx && bx.open) bx.close(); if (A.vregOf) A.vregOf(reg); if (location.hash === '#vreg' && A.show) A.show(); else location.hash = '#vreg'; return; }
       if (w === 'einv') { var u = A.docUrl && F.rec ? A.docUrl(F.rec) : ''; if (!u) { NS.toast('Save the bill first', 'bad'); return; } var bx2 = dlg(); if (bx2 && bx2.open) bx2.close(); u += '&ei=1'; if (!(A.openUrl && A.openUrl(u))) location.href = u; return; }
       if (w === 'copy') {
         var c = JSON.parse(JSON.stringify(F.rec)); ['id', 'no', 'created', 'updated', 'status', 'paidBy', 'cancelled', 'irn', 'ewb', 'idate', 'vno'].forEach(function (x) { delete c[x]; }); c.date = NS.today();
