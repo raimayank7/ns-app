@@ -124,6 +124,8 @@
   }
   function vtPrint(kind, d, cp) {
     if (!d) return;
+    /* owner 23 Nov: printing a bill keeps its screen open (the maker prints in a frame nobody sees, as for the other documents) */
+    if (((d.type || 'invoice') === 'invoice' || d.type === 'cashmemo' || d.type === 'expinv') && window.NSVDocs && NSVDocs.siteOf(d) && NSVDocs.out(d, 'print', Array.isArray(cp) ? cp : null)) return;
     if ((d.type || 'invoice') === 'invoice' || d.type === 'cashmemo' || d.type === 'expinv') { var u = A.docUrl && A.docUrl(d); if (u) { var bx = dlg(); if (bx && bx.open) bx.close(); u += '&print=1' + (Array.isArray(cp) && cp.length ? '&cp=' + cp.join(',') : ''); if (!(A.openUrl && A.openUrl(u))) location.href = u; } return; }
     var host = $('#vch-print'); if (!host) { host = document.createElement('div'); host.id = 'vch-print'; host.className = 'vch-print'; document.body.appendChild(host); }
     host.innerHTML = (Array.isArray(cp) && cp.length ? cp : CP[cp] || CP.o).map(function (t) { return vtSheet(d, t); }).join('<div class="vt-pb"></div>');
@@ -230,10 +232,12 @@
       if (F.rec && !dirty) { pr(F.rec); return; }
       /* not saved yet (or changed): save first, then print the voucher that was saved */
       var t0 = Date.now(), want = KTYPE[kind];
+      A._noAsk = t0;   /* the save below is for printing: no "Print it now?" box as well */
       sv.click();
       setTimeout(function () {
         var L = A.mine().filter(function (x) { return (x.type || 'invoice') === want && (x.updated || x.created || 0) >= t0 - 2000; }).sort(function (a, b) { return (b.updated || b.created || 0) - (a.updated || a.created || 0); });
-        if (L[0]) pr(L[0]); else if (!box || !box.open) NS.toast('Saved. Open it again to print.');
+        /* owner 23 Nov: the saved voucher stays on screen (the save closed it), then it prints */
+        if (L[0]) { if (!box || !box.open) A.openForm(kind, { rec: L[0] }); pr(L[0]); } else if (!box || !box.open) NS.toast('Saved. Open it again to print.');
       }, 1200);
     });
     var pv = $('[data-vtpv]', ft);
