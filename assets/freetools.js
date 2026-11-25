@@ -936,29 +936,78 @@
 
   /* ---------- the screen: tabs; each tool is built once and kept, so a redraw of the App never loses pictures or work ---------- */
   var MAKE = { img: imNode, sign: sgNode, pdf: pdNode, scan: scNode, steel: stNode }, lastArg = null;
-  function tabBar() {
-    return '<div class="fz-groups" role="group" aria-label="Tools">' + GROUPS.map(function (g) {
-      var L = TABS.filter(function (t) { return t[2] === g[0]; }); if (!L.length) return '';
-      return '<div class="fz-grp"><span class="fz-gl">' + g[1] + '</span><div class="pr-bar fz-tabs">' + L.map(function (t) { return '<button type="button" class="btn' + (t[0] === cur ? ' primary' : '') + '" data-fzt="' + t[0] + '" aria-pressed="' + (t[0] === cur) + '">' + t[1] + '</button>'; }).join('') + '</div></div>';
-    }).join('') + '</div>';
+  /* owner 25 Nov: branches, not one long page. #ftools = branch cards; #ftools/g/<branch> = that branch's tools;
+     #ftools/<tool> = the tool on its own screen, with Back to its branch and its sister tools. */
+  var GINFO = {
+    pdf: ['file', 'Join, split, unlock, convert, hide text and more'],
+    pic: ['camera', 'Photos for forms, signatures, scanning'],
+    money: ['money', 'UPI QR, interest, late fees, cash, tax'],
+    legal: ['scale', 'Dates, limitation, cheque bounce, court fee'],
+    data: ['list', 'Compare and clean Excel lists'],
+    share: ['send', 'Send files, WhatsApp, zip'],
+    trade: ['calc', 'Calculators for your trade']
+  };
+  var DESC = {
+    pdf: 'Turn, delete, reorder pages; page numbers; watermark; pictures to PDF; make smaller.',
+    pdflock: 'Remove the password from a PDF, or add one.', pdfxl: 'Tables and bank statements from a PDF into Excel.',
+    pdfpic: 'Each page of a PDF as a JPG or PNG picture.', pdfhide: 'Black out words so they are really gone.',
+    pdfocr: 'Make a scanned PDF searchable and copyable.', doccompare: 'See what changed between two drafts.',
+    img: 'Make a photo smaller than 20, 50, 100 KB for portals.', sign: 'A clean see-through signature from a photo.',
+    scan: 'Phone camera to a straight, clean PDF.', passport: 'Passport photos on a 4x6 or A4 sheet to print.',
+    heic: 'iPhone photos to JPG.', upiqr: 'A QR that asks for the exact amount.',
+    lateint: 'GST, TDS, income tax and MSME interest and late fees.', cashcount: 'Count notes and coins; match the cash book.',
+    paytax: 'Gratuity, professional tax, depreciation, capital gains.', chequebounce: 'Last dates for notice and complaint.',
+    limitation: 'Last day to file a suit, appeal or complaint.', datecalc: 'Days between dates, due dates, age, working days.',
+    courtfee: 'Court fee by state on the claim value.', listcompare: 'What is in one list and not the other.',
+    excelhelp: 'Join files, split by party, remove duplicates, CSV.', walink: 'Message a number without saving it.',
+    zip: 'Make or open a zip file.', send: 'Phone to computer and back, no cable, no upload.',
+    steel: 'Weight of bars, pipes, sheets, tubes and angles.'
+  };
+  function ic(n) { return NS.icSvg ? NS.icSvg(n) : ''; }
+  function gName(g) { var x = GROUPS.filter(function (y) { return y[0] === g; })[0]; return x ? x[1] : ''; }
+  function toolsOf(g) { return TABS.filter(function (t) { return t[2] === g; }); }
+  function toolCard(t) { return '<a class="fz-tc" href="#ftools/' + t[0] + '"><b>' + NS.esc(t[1]) + '</b><span>' + NS.esc(DESC[t[0]] || '') + '</span></a>'; }
+  function findBox(q) { return '<div class="fz-find"><input type="search" data-fz-q placeholder="Find a tool: PDF to Excel, passport, court fee…" value="' + NS.esc(q || '') + '" aria-label="Find a tool" autocomplete="off"></div>'; }
+  function homeHtml() {
+    return '<div class="pane-hd"><h2>Free tools</h2></div><p class="soft">Everyday tools that work in this browser, also without the internet. Your files are not uploaded anywhere.</p>' + findBox('') +
+      '<div class="fz-found" data-fz-found hidden></div><div class="fz-cards" data-fz-home>' + GROUPS.map(function (g) {
+        var L = toolsOf(g[0]); if (!L.length) return '';
+        return '<a class="fz-gc" href="#ftools/g/' + g[0] + '"><span class="fz-gi">' + ic((GINFO[g[0]] || [])[0] || 'tool') + '</span><span class="fz-gt"><b>' + g[1] + '</b><small>' + L.length + (L.length === 1 ? ' tool' : ' tools') + '</small></span>' +
+          '<span class="fz-gd">' + NS.esc((GINFO[g[0]] || [, ''])[1]) + '</span><span class="fz-gn">' + L.slice(0, 4).map(function (t) { return NS.esc(t[1]); }).join(' · ') + (L.length > 4 ? ' …' : '') + '</span></a>';
+      }).join('') + '</div>';
+  }
+  function groupHtml(g) {
+    return '<div class="pane-hd fz-hd"><a class="btn sm" href="#ftools" data-ic="back">Free tools</a><h2>' + NS.esc(gName(g)) + '</h2></div>' +
+      '<p class="soft">' + NS.esc((GINFO[g] || [, ''])[1]) + '. Your files stay on this device.</p><div class="fz-tools">' + toolsOf(g).map(toolCard).join('') + '</div>';
+  }
+  function toolHtml(k) {
+    var t = TABS.filter(function (x) { return x[0] === k; })[0], g = t[2], sis = toolsOf(g);
+    return '<div class="pane-hd fz-hd"><a class="btn sm" href="#ftools/g/' + g + '" data-ic="back">' + NS.esc(gName(g)) + '</a><h2>' + NS.esc(t[1]) + '</h2></div>' +
+      (sis.length > 1 ? '<nav class="fz-sis" aria-label="Other ' + NS.esc(gName(g)) + ' tools">' + sis.map(function (x) { return '<a href="#ftools/' + x[0] + '" class="btn sm' + (x[0] === k ? ' primary' : '') + '"' + (x[0] === k ? ' aria-current="page"' : '') + '>' + NS.esc(x[1]) + '</a>'; }).join('') + '</nav>' : '') +
+      '<div class="fz-root" data-fz-root data-nosp></div>';
   }
   function nodeOf(k) { return NODES[k] || (NODES[k] = MAKE[k]()); }
+  var view = 'home';
   A.addSection('ftools', function (arg) {
-    var a = String(arg || '').split('/')[0]; if (a !== lastArg) { lastArg = a; if (MAKE[a]) cur = a; }   /* a link such as #ftools/steel picks the tab; a redraw keeps the one in use */
-    return '<div class="pane-hd"><h2>Free tools</h2></div><p class="soft">Everyday tools that work in this browser, also without the internet. Your files are not uploaded anywhere.</p>' +
-      tabBar() +
-      '<div class="fz-root" data-fz-root data-nosp></div>';
+    var a = String(arg || '').split('?')[0], m = /^g\/([a-z]+)/.exec(a), k = a.split('/')[0];
+    if (m && toolsOf(m[1]).length) { view = 'g:' + m[1]; return groupHtml(m[1]); }
+    if (MAKE[k]) { view = 't:' + k; cur = k; return toolHtml(k); }
+    view = 'home'; return homeHtml();
   }, function (pane) {
-    var root = $('[data-fz-root]', pane); if (!root) return;
-    root.appendChild(nodeOf(cur));
-    if (cur !== 'scan') stopCam();
-    $$('[data-fzt]', pane).forEach(function (b) { b.addEventListener('click', function () {
-      var k = b.getAttribute('data-fzt'); if (k === cur) return;
-      cur = k; if (k !== 'scan') stopCam();
-      $$('[data-fzt]', pane).forEach(function (x) { var on = x === b; x.classList.toggle('primary', on); x.setAttribute('aria-pressed', on); });
-      root.textContent = ''; root.appendChild(nodeOf(k));
-      try { history.replaceState(history.state, '', '#ftools/' + k); } catch (e) {}   /* a reload opens the same tool; no new Recently opened line per tab */
-    }); });
+    if (view.indexOf('t:') !== 0) stopCam();
+    var root = $('[data-fz-root]', pane); if (root) { root.appendChild(nodeOf(cur)); if (cur !== 'scan') stopCam();
+      /* the tool's own first heading repeats the name already in the header: hidden here (it stays in the tool for other uses) */
+      var t0 = TABS.filter(function (x) { return x[0] === cur; })[0], hd = $('h2,h3,h4', root);
+      if (hd && t0 && hd.textContent.trim().toLowerCase() === t0[1].toLowerCase()) hd.classList.add('fz-dup');
+      var on = $('.fz-sis [aria-current]', pane); if (on && on.scrollIntoView) try { on.scrollIntoView({ block: 'nearest', inline: 'center' }); } catch (e) {} }
+    var q = $('[data-fz-q]', pane), found = $('[data-fz-found]', pane), home = $('[data-fz-home]', pane);
+    if (q) q.addEventListener('input', function () {
+      var w = q.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      if (!w.length) { found.hidden = true; home.hidden = false; return; }
+      var hit = TABS.filter(function (t) { var hay = (t[1] + ' ' + (DESC[t[0]] || '') + ' ' + gName(t[2])).toLowerCase(); return w.every(function (x) { return hay.indexOf(x) >= 0; }); });
+      found.innerHTML = hit.length ? '<div class="fz-tools">' + hit.map(toolCard).join('') + '</div>' : '<p class="soft">No tool found. Try another word.</p>';
+      found.hidden = false; home.hidden = true;
+    });
   });
   window.addEventListener('hashchange', function () { if (!/^#ftools\/scan/.test(location.hash) && !(cur === 'scan' && /^#ftools\/?$/.test(location.hash))) stopCam(); });
   window.NSFreeTools = { add: function (key, label, group, make) { if (MAKE[key]) return; MAKE[key] = make; TABS.push([key, label, group]); }, warp: warp, homography: homography, zip: zip, steel: function (o) { var keep = JSON.parse(JSON.stringify(ST)); Object.assign(ST, o); var r = steelCalc(); ST = keep; return r; }, toPage: toPage };   /* for the tests */

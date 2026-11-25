@@ -66,3 +66,18 @@
 
 /* tools in groups (25 Nov) */
 .fz-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px 18px;margin:8px 0 14px}.fz-grp{min-width:0}.fz-gl{display:block;font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;opacity:.7;margin:0 0 4px}.fz-grp .fz-tabs{display:flex;flex-wrap:wrap;gap:6px}
+/* branches (25 Nov) */
+.fz-find{margin:10px 0 14px}.fz-find input{width:100%;max-width:560px;min-height:42px}
+.fz-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.fz-gc{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;text-decoration:none;color:inherit;background:var(--card,transparent)}
+.fz-gc:hover,.fz-gc:focus-visible{border-color:var(--accent,#0E746A);box-shadow:0 2px 10px rgba(0,0,0,.08)}
+.fz-gi{grid-row:span 2;display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:10px;background:rgba(14,116,106,.12);color:var(--accent,#0E746A)}.fz-gi svg{width:24px;height:24px}
+.fz-gt b{display:block;font-size:1.02rem}.fz-gt small{opacity:.7}.fz-gd{grid-column:1/-1;font-size:.9rem;margin-top:4px}.fz-gn{grid-column:1/-1;font-size:.8rem;opacity:.7}
+.fz-tools{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-top:8px}
+.fz-tc{display:block;padding:12px 14px;border:1px solid var(--line);border-radius:10px;text-decoration:none;color:inherit}.fz-tc:hover,.fz-tc:focus-visible{border-color:var(--accent,#0E746A)}.fz-tc b{display:block;margin-bottom:3px}.fz-tc span{font-size:.86rem;opacity:.8}
+.fz-hd{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.fz-hd h2{margin:0}
+.fz-sis{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 14px}
+
+.fz-gi svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.fz-dup{display:none!important}
+@media (max-width:620px){.fz-sis{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;padding-bottom:4px;-webkit-overflow-scrolling:touch}.fz-sis .btn{flex:none}}
