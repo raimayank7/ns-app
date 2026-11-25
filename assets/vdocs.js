@@ -71,6 +71,7 @@
     if (ty === 'exp') { d.exp = { cur: 'USD', fx: '', country: '', port: '', sbNo: '', sbDate: '', lut: '', lutDate: '', refund: 'N' }; if (/^exp/.test(k)) d.pos = '96'; }
     NS.vtApply(d, vtc(d));   /* C-11 / C-14 */
     if (T.gstFlag && !NS.bizMode(A().biz(), A().cfg()).gst) d.withGst = false;   /* C-9: no GST for an unregistered / composition business */
+    else if (ty === 'cashmemo' && NS.bizMode(A().biz(), A().cfg()).gst && !c.gstSet) d.withGst = true;   /* sales check 24 Nov: a GST-registered business charges GST on a cash memo, as the cash-memo maker does (docs.js) */
     if (d.side === undefined) delete d.side;
     if (d.withGst === undefined) delete d.withGst;
     return d;
