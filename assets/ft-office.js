@@ -2,7 +2,6 @@
    1. Cheque bounce dates     (legal)  s.138 / s.142 Negotiable Instruments Act timeline, with a reminder note.
    2. Limitation dates        (legal)  last day for common suits, appeals and consumer cases (Limitation Act 1963 Schedule, CPA 2019).
    3. Date calculator         (legal)  days between dates, date after N days/weeks/months/years, age, working days.
-   4. Court fee               (legal)  ad valorem fee on money suits in Punjab (Court-fees Act 1870 as applicable to Punjab) + P&H High Court fixed fees.
    5. Compare two lists       (data)   two Excel/CSV lists matched by key columns: in both, only in one, amount differs; result as .xlsx.
    6. Excel helpers           (data)   join files/sheets, split by a column, remove duplicate rows, CSV <-> Excel.
    7. WhatsApp link           (share)  wa.me link from a number and a message, with ready messages and a QR code.
@@ -23,11 +22,7 @@
      day the period runs from is excluded; for appeals the time to get a copy of the decree is excluded), THE SCHEDULE (India Code file
      sch_196336.pdf): Articles 1, 14, 15, 18, 19, 20, 21, 22, 25, 26, 31, 35, 55, 113, 116(a)/(b), 117, 118, 136, 137.
    - Consumer Protection Act 2019 (India Code): s.69(1) two years; s.41 forty-five days; s.51(1) thirty days; s.67 thirty days.
-   - Court fee: "Court Fee Table" of the Punjab and Haryana High Court (highcourtchd.gov.in > Court Fees > Court Fee Table.pdf, linked
-     from the home page "last reviewed 25 November 2026"; the PDF was made in 2016). Its ad valorem table is "as prescribed in the
-     Court-fees Act, 1870" as applicable to Punjab (un-amended); it says Schedules I and II of the Court Fees (Punjab Second Amendment)
-     Act 2009 were stayed on 27.11.2013 in RSA No. 3311 of 2013. Haryana's own ad valorem table and Delhi's and other states' current
-     schedules could NOT be read from an official source in this session, so they are left out. */
+   - Court fee: moved to engine/ft-courtfee.js (every state and union territory, 25 Nov 2026). */
 (function () {
   'use strict';
   var W = typeof window !== 'undefined' ? window : this;
@@ -141,31 +136,6 @@
     return { art: a, last: end, closed: shut, file: file, copy: copy, left: ok(o.today) ? diff(o.today, file) : null };
   }
 
-  /* ---- court fee: ad valorem, Court-fees Act 1870 as applicable to Punjab (P&H High Court table, read 25 Nov 2026) ----
-     The table rises in steps: [up to value, fee where the band starts, step, fee per step, band starts at]. Above Rs 4,00,000:
-     Rs 6,248 + Rs 48.80 for each Rs 5,000 or part (the note under the table); the last band carries on with the same rule. The table
-     gives no upper limit. Rs 500-1,000: the first step above Rs 500 is Rs 76.50 = 75 + 1.50.
-     All 280 rows of the table were checked against this rule (scripts/test_ft-office.js has samples). One row breaks the series:
-     the PDF prints Rs 995.20 for Rs 8,000-8,250 (Rs 930.80 before it, Rs 979.60 after it): a typing slip for Rs 955.20, which this uses. */
-  var PB = [[100, 0, 5, 0.5, 0], [500, 10, 10, 1, 100], [1000, 75, 10, 1.5, 500], [5000, 150, 100, 12.2, 1000], [10000, 638, 250, 24.4, 5000], [20000, 1126, 500, 36.5, 10000],
-    [30000, 1856, 1000, 48.8, 20000], [50000, 2344, 2000, 48.8, 30000], [Infinity, 2832, 5000, 48.8, 50000]];
-  function feePunjab(v) {
-    v = +v; if (!(v > 0)) return 0;
-    for (var i = 0; i < PB.length; i++) {
-      var r = PB[i]; if (v > r[0]) continue;
-      return Math.round((r[1] + Math.ceil((v - r[4]) / r[2] - 1e-9) * r[3]) * 100) / 100;
-    }
-    return 0;
-  }
-  /* fixed fees from the same P&H High Court table (cases in the High Court) */
-  var HCFEE = [
-    ['Civil Writ Petition (CWP)', '₹50 per petitioner'], ['Letters Patent Appeal (LPA)', '₹5.25'], ['Execution First Appeal (EFA)', '₹25'],
-    ['Regular First Appeal (RFA), land acquisition', '₹100 (other RFAs: ad valorem)'], ['Civil Revision under section 115 CPC', '₹5.25'],
-    ['Civil Revision under Article 227', '₹2.65'], ['Civil Misc. Application (CM)', '₹2.65'], ['Caveat petition', '₹6.50'],
-    ['Power of attorney', '₹2.65'], ['Annexures', '₹0.65 per page'], ['Review application', 'Half the court fee within 90 days of the order, full fee after'],
-    ['FAO in matrimonial cases', '₹19.50 (Punjab, UT Chandigarh), ₹24.50 (Haryana)'], ['Anticipatory bail (CRM-M)', '₹2.65'], ['Regular bail (CRM-M)', 'Nil'],
-    ['Quashing petition (CRM-M)', '₹2.65'], ['Criminal revision (CRR)', '₹2.65 (nil if the petitioner is in custody)'], ['Company petition: winding up', '₹260']
-  ];
 
   /* ---- lists: keys and matching ---- */
   function normKey(v, o) {
@@ -238,7 +208,7 @@
   function waLink(num, text) { return 'https://wa.me/' + (num || '') + (text ? '?text=' + encodeURIComponent(text) : ''); }
 
   var CORE = { pd: pd, iso: iso, ok: ok, addDays: addDays, addMonths: addMonths, diff: diff, age: age, closed: closed, nextOpen: nextOpen, workDays: workDays, holidays: holidays,
-    cheque: cheque, LIM: LIM, limitation: limitation, feePunjab: feePunjab, HCFEE: HCFEE, normKey: normKey, amount: amount, compare: compare, dedupe: dedupe, splitBy: splitBy,
+    cheque: cheque, LIM: LIM, limitation: limitation, normKey: normKey, amount: amount, compare: compare, dedupe: dedupe, splitBy: splitBy,
     joinTables: joinTables, csv: csv, waNumber: waNumber, waLink: waLink };
   W.NSFtOffice = CORE;
 
@@ -371,25 +341,6 @@
     }
     n.addEventListener('input', run); n.addEventListener('change', run);
     run(); return n;
-  }
-
-  /* ---------- 4. court fee ---------- */
-  function feeNode() {
-    var n = tool('<h3>Court fee</h3><p class="soft">Court fee on a suit or appeal for money (ad valorem fee), worked out from the value of the claim.</p>' +
-      '<div class="fz-card"><div class="fz-row"><label class="fz-wide">State <select data-st><option value="pb">Punjab (Court-fees Act 1870 as applicable to Punjab)</option></select></label>' +
-      '<label>Value of the claim ₹ <input type="number" min="0" step="any" inputmode="decimal" data-v placeholder="e.g. 250000"></label></div>' +
-      '<div class="fz-res" data-res aria-live="polite"></div><p class="fz-note" data-how></p></div>' +
-      '<p class="fz-note">States included now: Punjab only. Haryana, Chandigarh, Delhi and other states are not included yet, because their current fee tables could not be read from a government source when this tool was made. Courts may also charge process fees and other small fees; ask at the court’s filing counter.</p>' +
-      '<div class="fz-card"><h3>Fixed fees in the Punjab and Haryana High Court</h3><div class="fo-tbl"><table><thead><tr><th scope="col">Case or paper</th><th scope="col">Court fee</th></tr></thead><tbody>' +
-      HCFEE.map(function (f) { return '<tr><td>' + esc(f[0]) + '</td><td>' + esc(f[1]) + '</td></tr>'; }).join('') + '</tbody></table></div></div>' +
-      '<details class="fo-src" open><summary>Where these fees come from (' + READ + ')</summary><p>The "Court Fee Table" published by the Punjab and Haryana High Court on highcourtchd.gov.in (Court Fees section). Its ad valorem table follows the Court-fees Act 1870 as applicable to Punjab (the un-amended Act). The High Court notes that Schedules I and II of the Court Fees (Punjab Second Amendment) Act 2009 were stayed on 27 November 2013 in RSA No. 3311 of 2013, and that the chart may change without notice. Please confirm with the court before you pay.</p></details>');
-    function run() {
-      var v = +$('[data-v]', n).value, res = $('[data-res]', n);
-      if (!(v > 0)) { res.innerHTML = ''; $('[data-how]', n).textContent = 'Type the value of the claim.'; return; }
-      res.innerHTML = '<div><span>Court fee</span><b>₹' + fmt(feePunjab(v), 2) + '</b></div><div><span>Value of the claim</span><b>₹' + fmt(v, 2) + '</b></div>';
-      $('[data-how]', n).textContent = v > 400000 ? 'Above ₹4,00,000: ₹6,248 plus ₹48.80 for each ₹5,000 or part of it above ₹4,00,000. The table gives no upper limit.' : 'From the table of ad valorem fees: the fee goes up in steps, and a part of a step counts as a full step.' + (v > 8000 && v <= 8250 ? ' The printed table shows ₹995.20 for this step; the steps around it (₹930.80 before, ₹979.60 after) show it should be ₹955.20, which is used here. Please confirm at the court.' : '');
-    }
-    n.addEventListener('input', run); run(); return n;
   }
 
   /* ---------- reading Excel / CSV (SheetJS) ---------- */
@@ -614,7 +565,6 @@
   FT.add('chequebounce', 'Cheque bounce dates', 'legal', chqNode);
   FT.add('limitation', 'Limitation dates', 'legal', limNode);
   FT.add('datecalc', 'Date calculator', 'legal', dateNode);
-  FT.add('courtfee', 'Court fee', 'legal', feeNode);
   FT.add('listcompare', 'Compare two lists', 'data', cmpNode);
   FT.add('excelhelp', 'Excel helpers', 'data', xhNode);
   FT.add('walink', 'WhatsApp link', 'share', waNode);

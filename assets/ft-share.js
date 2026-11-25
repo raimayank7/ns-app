@@ -288,6 +288,40 @@
   P.CODE_RE = /^[23456789ABCDEFGHJKMNPQRSTUVWXYZ]{6}$/;
   P.cleanCode = function (s) { return String(s || '').toUpperCase().replace(/[^0-9A-Z]/g, '').slice(0, 6); };   /* codes never use 0, 1, I, L or O, so a mix-up shows as a wrong code */
 
+  /* ---------- NSBiz Send: trusted devices (the Worker's workers/ns-send/src/trust.js builds the same texts) ---------- */
+  P.ID_RE = /^[A-Za-z0-9_-]{32}$/;
+  P.b64u = function (bytes) { var s = '', u = new Uint8Array(bytes); for (var i = 0; i < u.length; i++) s += String.fromCharCode(u[i]); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+  P.b64uDec = function (s) { s = String(s || '').replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '='; var b = atob(s), u = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; };
+  /* a device id = first 32 characters of base64url(SHA-256(its raw public key)): it cannot be claimed without the key */
+  P.idOf = function (raw) { return crypto.subtle.digest('SHA-256', raw).then(function (h) { return P.b64u(h).slice(0, 32); }); };
+  P.helloText = function (nonce, id, trust) { return 'ns-send-presence-v1|' + nonce + '|' + id + '|' + (trust || []).join(','); };
+  /* what each trusted device signs once connected: both DTLS fingerprints, sorted. A device in between changes one of them */
+  P.dtlsText = function (fps) { return 'ns-send-dtls-v1|' + fps.slice().sort().join('|'); };
+  P.verify = function (pubB64, text, sigB64) {
+    try {
+      var raw = P.b64uDec(pubB64), sig = P.b64uDec(sigB64);
+      if (raw.length !== 65 || raw[0] !== 4 || sig.length !== 64) return Promise.resolve(false);
+      return crypto.subtle.importKey('raw', raw, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify'])
+        .then(function (k) { return crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, k, sig, new TextEncoder().encode(text)); })
+        .catch(function () { return false; });
+    } catch (e) { return Promise.resolve(false); }
+  };
+  P.deviceKind = function (ua, touch) {
+    ua = String(ua || '');
+    if (/iPhone/.test(ua)) return 'iPhone';
+    if (/iPad/.test(ua) || (/Macintosh/.test(ua) && touch > 1)) return 'iPad';
+    if (/Android/.test(ua)) return /Mobile/.test(ua) ? 'Android phone' : 'Android tablet';
+    if (/CrOS/.test(ua)) return 'Chromebook';
+    if (/Windows/.test(ua)) return 'Windows PC';
+    if (/Macintosh|Mac OS X/.test(ua)) return 'Mac';
+    if (/Linux/.test(ua)) return 'Linux PC';
+    return 'Device';
+  };
+  P.cleanName = function (s) { return String(s == null ? '' : s).replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40); };
+  P.defaultName = function (ua, touch, biz) { return P.cleanName(P.deviceKind(ua, touch) + (biz ? ' · ' + biz : '')); };
+  /* "bill.pdf" -> "bill (2).pdf", used when a file of that name is already in the folder */
+  P.numbered = function (name, n) { var m = /^(.*?)(\.[^.]{1,10})?$/.exec(String(name)); return m[1] + ' (' + n + ')' + (m[2] || ''); };
+
   if (typeof module !== 'undefined' && module.exports && !root.document) { module.exports = P; return; }
 
   /* =====================================================================================================================
@@ -932,11 +966,13 @@
       '<div class="fs-tabs" role="group" aria-label="Send or receive"><button type="button" class="btn primary" data-sm="send" aria-pressed="true">Send</button><button type="button" class="btn" data-sm="recv" aria-pressed="false">Receive</button></div>' +
       '<div data-sp="send"><div class="fz-card" data-sdrop><div class="fz-row">' + fileBtn('fs-sd-file', 'Choose files to send', '', true, true) + '</div><ul class="fs-files" data-sfiles></ul>' +
         '<div class="pr-bar"><button type="button" class="btn primary" data-code' + (on ? '' : ' disabled') + '>Get a code</button></div></div>' +
+        '<div class="fz-card" data-tdev></div>' +
         '<div data-sbox hidden></div></div>' +
       '<div data-sp="recv" hidden><div class="fz-card"><div class="fz-row"><label>Code from the other device <input type="text" class="fs-codein" data-rcode maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABC234"></label>' +
         '<button type="button" class="btn primary" data-join' + (on ? '' : ' disabled') + '>Connect</button></div>' +
         '<p class="fz-note">Or scan the QR code on the sending device with this phone’s camera.</p></div><div data-rbox hidden></div></div>' +
-      '<p class="fz-note">How it works: the two devices find each other with a 6-letter code that ends after 10 minutes and works for one pair only. Both screens then show four safety words; when the words are the same, nobody is in between. If the devices cannot reach each other (some office networks block this), put both on the same Wi-Fi.</p>';
+      '<p class="fz-note">How it works: the two devices find each other with a 6-letter code that ends after 10 minutes and works for one pair only. Both screens then show four safety words; when the words are the same, nobody is in between. If the devices cannot reach each other (some office networks block this), put both on the same Wi-Fi.</p>' +
+      '<div class="fz-card fs-man" data-tman></div>';
     var sbox = $('[data-sbox]', n), rbox = $('[data-rbox]', n);
     function mode(m) {
       $$('[data-sm]', n).forEach(function (x) { var o2 = x.getAttribute('data-sm') === m; x.classList.toggle('primary', o2); x.setAttribute('aria-pressed', o2); });
@@ -994,6 +1030,8 @@
         dc.onopen = function () {
           clearTimeout(t); clearInterval(SD.tick); SD.connected = true; SD.stop = false;
           var ws = SD.ws; SD.ws = null; try { if (ws) ws.close(); } catch (e) {}   /* the meeting point is not needed any more */
+          SD.fps = P.fingerprints(SD.pc.localDescription.sdp).concat(P.fingerprints(SD.pc.remoteDescription.sdp));
+          TR.pairStart(dc, SD.fps, box());   /* before any message can arrive: the other side may offer "Trust this device" */
           safety().then(function () { if (SD.role === 'host') { if (SD.files.length) offer(); else say(connectedLine() + '<p>Connected. Choose the files to send.</p>'); } else say(connectedLine() + '<p>Connected. Waiting for the other device to send files…</p>'); });
         };
         dc.onclose = function () { if (SD.dc !== dc || !SD.connected) return; var was = SD.sending || (SD.recv && SD.recv.on); end(); if (was) say('<p class="fz-bad">The connection closed before everything arrived.</p><div class="pr-bar"><button type="button" class="btn" data-again>Start again</button></div>'); else disconnected(); };
@@ -1064,6 +1102,7 @@
     function onData(d) {
       if (typeof d !== 'string') { if (SD.recv && SD.recv.on) recvChunk(d); return; }
       var m; try { m = JSON.parse(d); } catch (e) { return; }
+      if (m.t === 'dev' || m.t === 'trusted') { TR.pairMsg(m); return; }   /* trusting each other (older NSBiz never sends these) */
       if (SD.role === 'host') {
         if (m.t === 'accept') pushFiles();
         else if (m.t === 'decline') { SD.sending = false; SD.files = SD.batch.concat(SD.files); SD.batch = []; paintFiles(); say(connectedLine() + '<p class="fz-bad">The other device said no to these files.</p>' + afterBtns()); }
@@ -1161,8 +1200,496 @@
     window.addEventListener('hashchange', fromHash);
     setTimeout(fromHash, 0);
     paintFiles();
+    TR.view(n, { take: function () { var L = SD.files; SD.files = []; paintFiles(); return L; }, giveBack: function (L) { SD.files = L.concat(SD.files); paintFiles(); } });
     return n;
   }
+
+  /* =====================================================================================================================
+     4b. NSBiz SEND: TRUSTED DEVICES (office devices that send to each other without a code)
+     Each device makes its own key pair once (ECDSA P-256; the private key cannot be copied out of the browser) and keeps it
+     in IndexedDB 'ns-send'. Its id is made from the public key. After one normal code pairing, each side may tick "Trust
+     this device"; the two exchange id, public key and a signature over the connection's DTLS fingerprints.
+     While NSBiz is open (setting), the device joins the Worker's Lobby and proves its key; the Lobby introduces two devices
+     only when EACH lists the other. Every transfer then signs the DTLS fingerprints again, so nobody in between (not even
+     the meeting point) can pose as a trusted device. Files still go straight from device to device.
+     ===================================================================================================================== */
+  var TR = (function () {
+    var T = { me: null, peers: [], forget: [], dir: null, online: {}, ws: null, st: 'off', holding: false, waiting: false, release: null, retry: 0, ping: 0, sess: {}, views: [], loaded: null, pair: null };
+    var LS_VIS = 'ns-send-vis', LS_AUTO = 'ns-send-auto', LS_NAME = 'ns-send-name';
+    function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+    function lsSet(k, v) { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+    function vis() { return lsGet(LS_VIS) !== '0'; }
+    function auto() { return lsGet(LS_AUTO) !== '0'; }
+    function bizName() { try { var b = A.biz && A.biz(); return b && b.name || ''; } catch (e) { return ''; } }
+    function myName() { return P.cleanName(lsGet(LS_NAME)) || P.defaultName(navigator.userAgent, navigator.maxTouchPoints || 0, bizName()); }
+    /* ---- storage on this device ---- */
+    var dbp = null;
+    function idb() {
+      if (dbp) return dbp;
+      dbp = new Promise(function (res, rej) {
+        if (!root.indexedDB) { rej(new Error('no idb')); return; }
+        var r = indexedDB.open('ns-send', 1);
+        r.onupgradeneeded = function () { r.result.createObjectStore('kv'); };
+        r.onsuccess = function () { var d = r.result; d.onversionchange = function () { d.close(); dbp = null; }; res(d); };
+        r.onerror = function () { dbp = null; rej(r.error); };
+      });
+      return dbp;
+    }
+    function kv(mode, fn) { return idb().then(function (d) { return new Promise(function (res, rej) { var t = d.transaction('kv', mode), q = fn(t.objectStore('kv')); t.oncomplete = function () { res(q && q.result); }; t.onerror = function () { rej(t.error); }; }); }); }
+    function get(k) { return kv('readonly', function (s) { return s.get(k); }); }
+    function set(k, v) { return kv('readwrite', function (s) { return v === undefined ? s.delete(k) : s.put(v, k); }); }
+    function me() {
+      if (T.me) return T.me;
+      T.me = get('me').then(function (m) {
+        if (m && m.id && m.priv) return m;
+        return crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign', 'verify']).then(function (k) {
+          return crypto.subtle.exportKey('raw', k.publicKey).then(function (raw) {
+            return P.idOf(raw).then(function (id) { var m2 = { id: id, pub: P.b64u(raw), priv: k.privateKey, made: Date.now() }; return set('me', m2).then(function () { return m2; }); });
+          });
+        });
+      });
+      T.me.catch(function () { T.me = null; });
+      return T.me;
+    }
+    function sign(text) { return me().then(function (m) { return crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, m.priv, new TextEncoder().encode(text)); }).then(function (s) { return P.b64u(s); }); }
+    function peer(id) { for (var i = 0; i < T.peers.length; i++) if (T.peers[i].id === id) return T.peers[i]; return null; }
+    function savePeers() { paint(); listChanged(); return set('peers', T.peers).catch(function () {}); }
+    function load() {
+      if (T.loaded) return T.loaded;
+      T.loaded = Promise.all([get('peers'), get('forget'), get('dir')]).then(function (r) { T.peers = Array.isArray(r[0]) ? r[0] : []; T.forget = Array.isArray(r[1]) ? r[1] : []; T.dir = r[2] || null; }, function () {});
+      return T.loaded;
+    }
+    /* ---- presence: one NSBiz tab per device holds it (Web Locks); a tab with NSBiz Send open takes it over ---- */
+    function toolOpen() { return T.views.some(function (v) { return v.node.isConnected; }); }
+    function want() { return (T.peers.length > 0 || T.forget.length > 0) && !!sendApi() && (vis() || toolOpen()); }
+    function kick(steal) {
+      if (!want()) { stop(); return; }
+      if (T.holding) { if (!T.ws) connect(); return; }
+      if (T.waiting && !steal) return;
+      grab(steal);
+    }
+    function grab(steal) {
+      if (!navigator.locks) { T.holding = true; connect(); return; }
+      var g = T.gen = (T.gen || 0) + 1;
+      T.waiting = true;
+      navigator.locks.request('ns-send-presence', steal ? { steal: true } : {}, function () {
+        if (g !== T.gen) return;   /* an older request, replaced by a newer one */
+        T.waiting = false;
+        if (!want()) return;
+        T.holding = true; connect();
+        return new Promise(function (r) { T.release = r; });
+      }).catch(function () {}).then(function () {
+        if (g !== T.gen) return;
+        var was = T.holding; T.holding = false; T.waiting = false; T.release = null; closeWs();
+        if (was && want()) setTimeout(function () { kick(false); }, 1500);
+      });
+    }
+    function stop() { if (T.release) T.release(); else closeWs(); }
+    function closeWs() { var ws = T.ws; T.ws = null; clearInterval(T.ping); T.online = {}; T.st = 'off'; if (ws) try { ws.close(1000); } catch (e) {} paint(); }
+    function devTip() { if (!/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return ''; var t = lsGet('ns-send-tip'); return t ? '&tip=' + encodeURIComponent(t) : ''; }   /* tests only */
+    function connect() {
+      if (T.ws || !T.holding) return;
+      me().then(function (m) {
+        if (T.ws || !T.holding || !want()) return;
+        var ws; try { ws = new WebSocket(sendApi().replace(/^http/, 'ws') + '/presence?id=' + m.id + devTip()); } catch (e) { return; }
+        T.ws = ws; T.st = 'wait'; paint();
+        ws.onmessage = function (e) { var x; try { x = JSON.parse(e.data); } catch (er) { return; } if (T.ws === ws) onPres(ws, m, x); };
+        ws.onclose = function () {
+          if (T.ws !== ws) return;
+          T.ws = null; clearInterval(T.ping); T.online = {}; T.st = 'off'; paint();
+          Object.keys(T.sess).forEach(function (k) { var s = T.sess[k]; if (!s.open) sessFail(s, 'The connection to the NSBiz meeting point dropped. Try again.'); });
+          if (T.holding && want()) { T.retry = Math.min(60000, Math.max(3000, T.retry * 2)); setTimeout(connect, T.retry); }
+        };
+      }, function () {});
+    }
+    function trustIds() { return T.peers.map(function (p) { return p.id; }); }
+    function onPres(ws, m, x) {
+      if (x.t === 'challenge') sign(P.helloText(x.n, m.id, trustIds())).then(function (sig) { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'hello', pub: m.pub, trust: trustIds(), forget: T.forget.slice(0, 50), sig: sig })); });
+      else if (x.t === 'ready') { T.st = 'on'; T.retry = 0; clearInterval(T.ping); T.ping = setInterval(function () { if (ws.readyState === 1) ws.send('{"t":"ping"}'); }, 45000); paint(); }
+      else if (x.t === 'online') { var p = peer(x.id); if (p) { T.online[x.id] = { near: !!x.near }; if (!p.them) { p.them = true; savePeers(); } else paint(); } }
+      else if (x.t === 'offline') { delete T.online[x.id]; paint(); }
+      else if (x.t === 'told') { T.forget = T.forget.filter(function (i) { return i !== x.id; }); set('forget', T.forget).catch(function () {}); kick(false); }
+      else if (x.t === 'removed') { var p2 = peer(x.id); if (p2) { T.peers = T.peers.filter(function (q) { return q.id !== x.id; }); delete T.online[x.id]; savePeers(); NS.toast(p2.name + ' removed this device from its trusted devices. Connect with a code to trust each other again.'); } }
+      else if (x.t === 'from') onSig(x.id, x.d);
+      else if (x.t === 'nope') Object.keys(T.sess).forEach(function (k) { var s = T.sess[k]; if (s.peer === x.id && !s.open) sessFail(s, nameOf(x.id) + ' is not online any more.'); });
+      else if (x.t === 'err' && x.why === 'proof') NS.toast('NSBiz Send could not prove this device to the meeting point.', 'bad');
+    }
+    function listChanged() {
+      if (T.ws && T.st === 'on') { T.ws.send(JSON.stringify({ t: 'list', trust: trustIds() })); if (T.forget.length) T.ws.send(JSON.stringify({ t: 'forget', ids: T.forget.slice(0, 50) })); }
+      Object.keys(T.online).forEach(function (id) { if (!peer(id)) delete T.online[id]; });
+      kick(false);
+    }
+    function nameOf(id) { var p = peer(id); return p ? p.name : 'The other device'; }
+    function where(id) { var o = T.online[id]; return o ? (o.near ? 'On this network' : 'Online, on another network') : 'Not online'; }
+    /* ---- one transfer between two trusted devices = one WebRTC connection ---- */
+    function sigTo(id, d) { if (T.ws && T.ws.readyState === 1) T.ws.send(JSON.stringify({ t: 'to', id: id, d: d })); }
+    function rid() { var r = new Uint8Array(9); crypto.getRandomValues(r); return P.b64u(r); }
+    function newSess(peerId, out, sid) {
+      var s = { sid: sid || rid(), peer: peerId, out: out, pc: null, dc: null, open: false, done: false, words: '', chain: Promise.resolve(), files: [], recv: null, box: el('div', 'fs-tsess'), t: 0 };
+      s.themP = new Promise(function (r) { s.themR = r; });
+      T.sess[s.sid] = s;
+      return s;
+    }
+    function startPc(s) {
+      var pc = s.pc = new RTCPeerConnection({ iceServers: ICE });
+      pc.onicecandidate = function (e) { if (e.candidate) sigTo(s.peer, { s: s.sid, k: 'ice', d: e.candidate.toJSON() }); };
+      pc.onconnectionstatechange = function () { if (pc.connectionState === 'failed' && !s.done) sessFail(s, 'The two devices could not reach each other. Put both on the same Wi-Fi and try again.'); };
+      s.t = setTimeout(function () { if (!s.open && !s.done) sessFail(s, 'The two devices could not reach each other in time.'); }, 40000);
+      function wire(dc) {
+        s.dc = dc; dc.binaryType = 'arraybuffer'; dc.bufferedAmountLowThreshold = LOW;
+        dc.onopen = function () {
+          clearTimeout(s.t); s.open = true;
+          var fps = P.fingerprints(pc.localDescription.sdp).concat(P.fingerprints(pc.remoteDescription.sdp));
+          s.fpText = P.dtlsText(fps);
+          crypto.subtle.digest('SHA-256', new TextEncoder().encode(fps.slice().sort().join('|'))).then(function (h) { s.words = P.words(new Uint8Array(h)).join(' '); draw(s); });
+          me().then(function (m) { return sign(s.fpText).then(function (sig) { dc.send(JSON.stringify({ t: 'who', id: m.id, sig: sig })); }); });
+        };
+        dc.onmessage = function (e) { onDc(s, e.data); };
+        dc.onclose = function () { if (!s.done) sessFail(s, s.recv && s.recv.on || s.sending ? 'The connection closed before everything arrived.' : 'The connection closed.'); };
+      }
+      if (s.out) {
+        wire(pc.createDataChannel('files', { ordered: true }));
+        s.chain = s.chain.then(function () { return pc.createOffer(); }).then(function (o) { return pc.setLocalDescription(o); }).then(function () { sigTo(s.peer, { s: s.sid, k: 'sdp', d: pc.localDescription }); });
+      } else pc.ondatachannel = function (e) { wire(e.channel); };
+      return s;
+    }
+    function onSig(from, d) {
+      if (!d || typeof d.s !== 'string' || d.s.length > 40) return;
+      var p = peer(from); if (!p) return;   /* only trusted devices; the Lobby already checked both lists */
+      var s = T.sess[d.s];
+      if (!s) {
+        if (d.k !== 'sdp' || !d.d || d.d.type !== 'offer') return;
+        if (Object.keys(T.sess).filter(function (k) { return !T.sess[k].out; }).length >= 3) return;
+        s = startPc(newSess(from, false, d.s)); inboxAdd(s);
+      }
+      if (s.peer !== from) return;
+      if (d.k === 'sdp' && d.d) s.chain = s.chain.then(function () { return s.pc.setRemoteDescription(d.d); }).then(function () {
+        if (d.d.type === 'offer') return s.pc.createAnswer().then(function (a) { return s.pc.setLocalDescription(a); }).then(function () { sigTo(from, { s: s.sid, k: 'sdp', d: s.pc.localDescription }); });
+      }).catch(function () { sessFail(s, 'The two devices could not agree how to connect.'); });
+      else if (d.k === 'ice' && d.d) s.chain = s.chain.then(function () { return s.pc.addIceCandidate(d.d); }).catch(function () {});
+      else if (d.k === 'bye') { if (!s.open) sessFail(s, nameOf(from) + ' stopped.'); }
+    }
+    function dcSend(s, o) { try { if (s.dc && s.dc.readyState === 'open') s.dc.send(JSON.stringify(o)); } catch (e) {} }
+    function onDc(s, d) {
+      if (typeof d !== 'string') { if (s.recv && s.recv.on && s.them === true) chunk(s, d); return; }
+      var m; try { m = JSON.parse(d); } catch (e) { return; }
+      if (m.t === 'who') {
+        var p = peer(s.peer);
+        (p && m.id === s.peer && s.fpText ? P.verify(p.pub, s.fpText, m.sig) : Promise.resolve(false)).then(function (ok) {
+          s.them = ok; s.themR(ok);
+          if (!ok) { sessFail(s, 'This device could not prove it is ' + nameOf(s.peer) + '. Nothing was sent. Someone may be in between: connect with a code again.'); return; }
+          if (s.out) { s.sending = true; dcSend(s, { t: 'offer', files: s.files.map(function (f) { return { name: f.name, size: f.size, type: f.type }; }) }); s.stage = 'asked'; draw(s); }
+        });
+        return;
+      }
+      if (s.out) {
+        if (m.t === 'accept') push(s);
+        else if (m.t === 'decline') { s.stage = 'declined'; finish(s); }
+        else if (m.t === 'got' || m.t === 'bad') { s.res = s.res || {}; s.res[m.i] = m.t; draw(s); }
+        else if (m.t === 'all') { s.stage = 'all'; finish(s); }
+        else if (m.t === 'stop') { s.stage = 'stopped'; finish(s); }
+      } else {
+        if (m.t === 'offer') s.themP.then(function (ok) { if (ok) offered(s, m.files); });
+        else if (s.them !== true) return;
+        else if (m.t === 'file') rStart(s, m.i);
+        else if (m.t === 'end') rEnd(s, m.i);
+        else if (m.t === 'done') rDone(s);
+        else if (m.t === 'stop') { if (s.recv) s.recv.on = false; s.stage = 'stopped'; finish(s); }
+      }
+    }
+    function finish(s) { s.done = true; s.sending = false; clearTimeout(s.t); draw(s); setTimeout(function () { try { if (s.dc) s.dc.close(); } catch (e) {} try { if (s.pc) s.pc.close(); } catch (e) {} }, 800); }
+    function sessFail(s, msg) { if (s.done) return; s.done = true; s.sending = false; s.err = msg; clearTimeout(s.t); sigTo(s.peer, { s: s.sid, k: 'bye' }); try { if (s.dc) s.dc.close(); } catch (e) {} try { if (s.pc) s.pc.close(); } catch (e) {} draw(s); }
+    /* ---- sender ---- */
+    function sendTo(id, files) {
+      if (!files.length) { NS.toast('Choose the files to send first.', 'bad'); return null; }
+      if (!T.online[id]) { NS.toast(nameOf(id) + ' is not online. Open NSBiz on it.', 'bad'); return null; }
+      var s = newSess(id, true); s.files = files.slice(); s.stage = 'link'; draw(s); startPc(s); return s;
+    }
+    function push(s) {
+      var dc = s.dc, L = s.files, t0 = Date.now(), sent = 0, total = L.reduce(function (a, f) { return a + f.size; }, 0);
+      s.stage = 'send'; s.prog = []; s.tot = total; s.t0 = t0; draw(s);
+      return L.reduce(function (p, f, i) {
+        return p.then(function () {
+          if (s.done) throw new Error('stop');
+          dcSend(s, { t: 'file', i: i });
+          var off = 0;
+          function more() {
+            if (s.done || s.dc !== dc) return Promise.reject(new Error('stop'));
+            if (off >= f.size) return Promise.resolve();
+            return f.slice(off, Math.min(f.size, off + 16 * CHUNK)).arrayBuffer().then(function (buf) {
+              var p2 = Promise.resolve();
+              for (var o = 0; o < buf.byteLength; o += CHUNK) (function (piece) { p2 = p2.then(function () { return waitLowDc(dc).then(function () { if (s.done) throw new Error('stop'); dc.send(piece); }); }); })(buf.slice(o, o + CHUNK));
+              return p2.then(function () { off += buf.byteLength; sent += buf.byteLength; s.prog[i] = off; s.sent = sent; drawProg(s); return more(); });
+            });
+          }
+          return more().then(function () { dcSend(s, { t: 'end', i: i }); });
+        });
+      }, Promise.resolve()).then(function () { dcSend(s, { t: 'done' }); s.stage = 'wait'; draw(s); }, function () {});
+    }
+    function waitLowDc(dc) { return dc.bufferedAmount < HIGH ? Promise.resolve() : new Promise(function (r) { var f = function () { dc.removeEventListener('bufferedamountlow', f); r(); }; dc.addEventListener('bufferedamountlow', f); }); }
+    /* ---- receiver ---- */
+    function dirOk() { return T.dir && T.dir.queryPermission ? T.dir.queryPermission({ mode: 'readwrite' }).then(function (p) { return p === 'granted'; }, function () { return false; }) : Promise.resolve(false); }
+    function offered(s, files) {
+      if (!Array.isArray(files) || !files.length || s.recv) return;
+      var F = files.slice(0, 5000).map(function (f) { return { name: String(f && f.name || 'file').slice(0, 200), size: Math.max(0, +(f && f.size) || 0), type: String(f && f.type || '').slice(0, 100) }; });
+      s.recv = { files: F, on: false, cur: -1, parts: [], got: 0, all: 0, tot: F.reduce(function (a, f) { return a + f.size; }, 0), dir: null, w: null, wq: Promise.resolve(), t0: 0 };
+      NS.toast(F.length + ' file' + (F.length === 1 ? '' : 's') + ' coming from ' + nameOf(s.peer) + '.');
+      if (auto()) accept(s); else { s.stage = 'ask'; draw(s); }
+    }
+    function accept(s) {
+      var R = s.recv; if (!R || R.on) return;
+      dirOk().then(function (ok) { R.dir = ok ? T.dir : null; R.on = true; R.t0 = Date.now(); s.stage = 'recv'; s.prog = []; draw(s); dcSend(s, { t: 'accept' }); });
+    }
+    function freeName(dir, name) {
+      var base = P.safeParts(name).pop() || 'file';
+      function tryN(n) { var nm = n ? P.numbered(base, n) : base; return dir.getFileHandle(nm).then(function () { return n > 200 ? nm : tryN(n ? n + 1 : 2); }, function () { return nm; }); }
+      return tryN(0);
+    }
+    function rStart(s, i) {
+      var R = s.recv; if (!R || !R.on || !R.files[i]) return; R.cur = i; R.parts = []; R.got = 0;
+      if (R.dir) R.wq = R.wq.then(function () { return freeName(R.dir, R.files[i].name); }).then(function (nm) { R.files[i].saved = nm; return R.dir.getFileHandle(nm, { create: true }); }).then(function (h) { return h.createWritable(); }).then(function (w) { R.w = w; });
+    }
+    function chunk(s, buf) {
+      var R = s.recv; if (R.cur < 0) return;
+      R.got += buf.byteLength; R.all += buf.byteLength; s.prog[R.cur] = R.got; s.sent = R.all;
+      if (R.dir) R.wq = R.wq.then(function () { return R.w.write(buf); }); else R.parts.push(buf);
+      drawProg(s);
+    }
+    function rEnd(s, i) {
+      var R = s.recv; if (!R || i !== R.cur) return; var f = R.files[i], ok = R.got === f.size;
+      f.ok = ok;
+      if (R.dir) R.wq = R.wq.then(function () { return R.w.close(); });
+      else { f.blob = new Blob(R.parts, { type: f.type || 'application/octet-stream' }); R.parts = []; }
+      dcSend(s, { t: ok ? 'got' : 'bad', i: i }); R.cur = -1; s.res = s.res || {}; s.res[i] = ok ? 'got' : 'bad'; draw(s);
+    }
+    function rDone(s) {
+      var R = s.recv; if (!R) return;
+      R.wq.then(function () { R.on = false; dcSend(s, { t: 'all' }); s.stage = 'all'; finish(s); NS.toast('Files from ' + nameOf(s.peer) + ' arrived.'); },
+        function () { R.on = false; s.stage = 'folderbad'; finish(s); });
+    }
+    function saveIntoFolder(s, btn) {
+      if (!T.dir) return;
+      T.dir.requestPermission({ mode: 'readwrite' }).then(function (p) {
+        if (p !== 'granted') return;
+        var L = s.recv.files.filter(function (f) { return f.blob && f.ok && !f.saved; });
+        busy(btn, true, 'Saving…');
+        return L.reduce(function (pr, f) { return pr.then(function () { return freeName(T.dir, f.name).then(function (nm) { return T.dir.getFileHandle(nm, { create: true }).then(function (h) { return h.createWritable(); }).then(function (w) { return w.write(f.blob).then(function () { return w.close(); }); }).then(function () { f.saved = nm; }); }); }); }, Promise.resolve())
+          .then(function () { busy(btn, false); draw(s); NS.toast('Saved into the folder ' + T.dir.name + '.'); });
+      }, function () {});
+    }
+    /* ---- drawing a transfer (in the tool for sending, in the small inbox for receiving) ---- */
+    function plural(n, w) { return n + ' ' + w + (n === 1 ? '' : 's'); }
+    function draw(s) {
+      var who = esc(nameOf(s.peer)), L = s.out ? s.files : (s.recv ? s.recv.files : []), h = '';
+      var words = s.words ? '<p class="fz-note">Safety words: <span class="fs-words" data-twords>' + esc(s.words) + '</span> (the same on both screens; checked by the devices themselves too)</p>' : '';
+      if (s.out) {
+        if (s.err) h = '<p class="fz-bad" data-tfail>' + esc(s.err) + '</p>';
+        else if (s.stage === 'link') h = '<p>Connecting to ' + who + '…</p>';
+        else if (s.stage === 'asked') h = '<p>Connected and checked. Waiting for ' + who + ' to take ' + plural(L.length, 'file') + '…</p>';
+        else if (s.stage === 'declined') h = '<p class="fz-bad">' + who + ' said no to these files.</p>';
+        else if (s.stage === 'stopped') h = '<p class="fz-bad">The transfer was stopped.</p>';
+        else if (s.stage === 'all') h = '<p class="fz-ok" data-tdone>All ' + plural(L.length, 'file') + ' arrived on ' + who + '.</p>';
+        else h = '<p data-tprog>Sending to ' + who + '…</p>';
+      } else {
+        var n2 = T.online[s.peer] ? ' <span class="soft">(' + esc(where(s.peer).toLowerCase()) + ')</span>' : '';
+        h = '<p><b>From ' + who + '</b>' + n2 + '</p>';
+        if (s.err) h += '<p class="fz-bad" data-tfail>' + esc(s.err) + '</p>';
+        else if (!s.recv) h += '<p>Connecting and checking the device…</p>';
+        else if (s.stage === 'ask') h += '<p>' + who + ' wants to send you ' + plural(L.length, 'file') + ' (' + kb(s.recv.tot) + ').</p><div class="pr-bar"><button type="button" class="btn primary" data-tacc>Accept</button><button type="button" class="btn" data-tdec>Say no</button></div>';
+        else if (s.stage === 'declined') h += '<p>You said no. Nothing was sent.</p>';
+        else if (s.stage === 'stopped') h += '<p class="fz-bad">The transfer was stopped.</p>';
+        else if (s.stage === 'folderbad') h += '<p class="fz-bad">The files could not be written into the folder.</p>';
+        else if (s.stage === 'all') h += '<p class="fz-ok" data-tdone>' + plural(L.length, 'file') + ' arrived' + (s.recv.dir ? ' and were saved into the folder ' + esc(s.recv.dir.name) + '.' : '.') + '</p>';
+        else h += '<p data-tprog>Receiving…</p>';
+      }
+      if (L.length && (s.stage !== 'ask' || s.out)) {
+        h += '<ul class="fs-files">' + L.slice(0, 200).map(function (f, i) {
+          var r = s.res && s.res[i], act = '';
+          if (!s.out && r === 'got' && f.saved) act = '<span class="fz-ok">Saved as ' + esc(f.saved) + '</span>';
+          else if (!s.out && r === 'got' && f.blob) act = '<button type="button" class="btn sm" data-tsave="' + i + '" data-ic="download">Save</button>';
+          else if (r === 'got') act = '<span class="fz-ok">Arrived</span>';
+          else if (r === 'bad') act = '<span class="fz-bad">Arrived damaged</span>';
+          return '<li><div class="fs-row2"><span class="fs-nm">' + esc(f.name) + '</span><span class="soft">' + kb(f.size) + '</span></div>' + (s.stage === 'send' || s.stage === 'recv' ? '<div class="fs-bar"><i data-tpb="' + i + '"></i></div>' : '') + (act ? '<div>' + act + '</div>' : '') + '</li>';
+        }).join('') + '</ul>';
+      }
+      var btns = [];
+      if (!s.out && s.stage === 'all' && s.recv && !s.recv.dir) {
+        btns.push('<button type="button" class="btn primary" data-tsaveall data-ic="download">Save all</button>');
+        if (T.dir && root.showDirectoryPicker && s.recv.files.some(function (f) { return f.blob && !f.saved; })) btns.push('<button type="button" class="btn" data-tfolder>Save into the folder ' + esc(T.dir.name) + '</button>');
+      }
+      if (!s.done && (s.stage === 'send' || s.stage === 'recv' || s.stage === 'asked' || s.stage === 'link')) btns.push('<button type="button" class="btn" data-tstop>Stop</button>');
+      if (s.done) btns.push('<button type="button" class="btn" data-tclose>Close</button>');
+      s.box.innerHTML = h + words + (btns.length ? '<div class="pr-bar">' + btns.join('') + '</div>' : '');
+      s.box.setAttribute('data-tsess', s.sid);
+      drawProg(s);
+    }
+    function drawProg(s) {
+      (s.prog || []).forEach(function (v, i) { var b = s.box.querySelector('[data-tpb="' + i + '"]'), f = (s.out ? s.files : s.recv.files)[i]; if (b && f) b.style.width = (f.size ? Math.min(100, v / f.size * 100) : 100) + '%'; });
+      var P2 = s.box.querySelector('[data-tprog]'), t = (Date.now() - (s.t0 || s.recv && s.recv.t0 || Date.now())) / 1000;
+      if (P2 && s.sent != null) P2.textContent = (s.out ? 'Sending to ' : 'Receiving from ') + nameOf(s.peer) + '… ' + kb(s.sent) + ' of ' + kb(s.out ? s.tot : s.recv.tot) + (t > 1 ? ' (' + kb(s.sent / t) + '/s)' : '');
+    }
+    function sessClick(e) {
+      var b = e.target.closest('button'), box = e.target.closest('[data-tsess]'); if (!b || !box) return;
+      var s = T.sess[box.getAttribute('data-tsess')]; if (!s) return;
+      if (b.hasAttribute('data-tacc')) accept(s);
+      else if (b.hasAttribute('data-tdec')) { dcSend(s, { t: 'decline' }); s.stage = 'declined'; finish(s); }
+      else if (b.hasAttribute('data-tstop')) { dcSend(s, { t: 'stop' }); if (s.recv) s.recv.on = false; s.stage = 'stopped'; finish(s); }
+      else if (b.hasAttribute('data-tsave')) { var f = s.recv.files[+b.getAttribute('data-tsave')]; if (f && f.blob) NS.saveFile(f.blob, f.name); }
+      else if (b.hasAttribute('data-tsaveall')) s.recv.files.filter(function (x) { return x.blob && x.ok; }).reduce(function (p, f2) { return p.then(function () { NS.saveFile(f2.blob, f2.name); return new Promise(function (r) { setTimeout(r, 350); }); }); }, Promise.resolve());
+      else if (b.hasAttribute('data-tfolder')) saveIntoFolder(s, b);
+      else if (b.hasAttribute('data-tclose')) { delete T.sess[s.sid]; if (s.box.parentNode) s.box.parentNode.removeChild(s.box); inboxTidy(); paint(); }
+    }
+    /* the small inbox in the corner of the App: files arriving from trusted devices, wherever you are in NSBiz */
+    function inbox() {
+      var b = document.getElementById('fs-inbox');
+      if (!b) {
+        css(); tcss();
+        b = el('section', ''); b.id = 'fs-inbox'; b.setAttribute('aria-label', 'Files from trusted devices'); b.setAttribute('aria-live', 'polite');
+        b.innerHTML = '<div class="fs-ibh"><b>NSBiz Send</b><button type="button" class="btn sm" data-ihide aria-label="Hide">✕</button></div><div data-ilist></div>';
+        b.addEventListener('click', function (e) { if (e.target.closest('[data-ihide]')) b.hidden = true; else sessClick(e); });
+        document.body.appendChild(b);
+      }
+      return b;
+    }
+    function inboxAdd(s) { var b = inbox(); b.hidden = false; $('[data-ilist]', b).appendChild(s.box); draw(s); }
+    function inboxTidy() { var b = document.getElementById('fs-inbox'); if (b && !$('[data-ilist]', b).children.length) b.hidden = true; }
+    /* ---- pairing inside a normal code connection (the code flow calls these) ---- */
+    function pairStart(dc, fps, holder) {
+      var c = T.pair = { dc: dc, text: P.dtlsText(fps), holder: holder, other: null, mine: false, theirs: false };
+      load().then(me).then(function (m) { return sign(c.text).then(function (sig) { if (dc.readyState === 'open') dc.send(JSON.stringify({ t: 'dev', id: m.id, pub: m.pub, name: myName(), sig: sig })); }); }).catch(function () {});
+    }
+    function pairMsg(m) {
+      var c = T.pair; if (!c) return;
+      if (m.t === 'dev' && typeof m.pub === 'string' && typeof m.sig === 'string') {
+        var raw; try { raw = P.b64uDec(m.pub); } catch (e) { return; }
+        Promise.all([P.idOf(raw), P.verify(m.pub, c.text, m.sig), load()]).then(function (r) {
+          if (T.pair !== c || r[0] !== m.id || !r[1]) return;   /* not proven: no trust box */
+          c.other = { id: m.id, pub: m.pub, name: P.cleanName(m.name) || 'Other device' };
+          var p = peer(m.id); if (p && p.pub === m.pub) { c.mine = true; dcSendRaw(c.dc, { t: 'trusted', yes: true }); }
+          pairPaint();
+        });
+      } else if (m.t === 'trusted') {
+        c.theirs = !!m.yes;
+        var p2 = c.other && peer(c.other.id); if (p2 && p2.them !== c.theirs) { p2.them = c.theirs; savePeers(); }
+        pairPaint();
+      }
+    }
+    function dcSendRaw(dc, o) { try { if (dc.readyState === 'open') dc.send(JSON.stringify(o)); } catch (e) {} }
+    function pairPaint() {
+      var c = T.pair; if (!c || !c.other || !c.holder) return;
+      var p = peer(c.other.id), tb = c.holder.querySelector('[data-trustbox]');
+      if (!tb) { tb = el('div', 'fz-card'); tb.setAttribute('data-trustbox', ''); c.holder.appendChild(tb); tb.addEventListener('click', pairClick); }
+      tb.innerHTML = '<h4 class="fs-h4">Trust this device?</h4>' +
+        '<p class="soft">Then next time the two can send files to each other without a code. Only trust your own devices or your office’s.</p>' +
+        '<label class="fs-chk"><input type="checkbox" data-tchk' + (c.mine ? ' checked' : '') + '> <span>Trust this device</span></label>' +
+        '<div class="fz-row"><label>Name it <input type="text" data-tname maxlength="40" value="' + esc(p ? p.name : c.other.name) + '"></label>' +
+        '<button type="button" class="btn primary" data-tok>Save</button></div>' +
+        '<p class="fz-note" data-tstate>' + (c.mine && c.theirs ? '<span class="fz-ok">Both devices trust each other now. Next time choose it under “Your trusted devices”.</span>' :
+          c.mine ? 'Saved on this device. The other device must tick “Trust this device” too.' : c.theirs ? 'The other device has trusted this one. Tick “Trust this device” here too.' : 'Both devices must tick it.') + '</p>';
+    }
+    function pairClick(e) {
+      var c = T.pair; if (!c || !c.other || !e.target.closest('[data-tok]')) return;
+      var tb = c.holder.querySelector('[data-trustbox]'), yes = $('[data-tchk]', tb).checked, nm = P.cleanName($('[data-tname]', tb).value) || c.other.name;
+      var p = peer(c.other.id);
+      if (yes) {
+        if (p) { p.name = nm; p.pub = c.other.pub; } else { T.peers.push({ id: c.other.id, name: nm, pub: c.other.pub, added: Date.now(), them: c.theirs }); T.forget = T.forget.filter(function (i) { return i !== c.other.id; }); set('forget', T.forget).catch(function () {}); }
+        c.mine = true; savePeers(); NS.toast(nm + ' is now a trusted device.');
+      } else if (p) { removePeer(c.other.id); c.mine = false; }
+      dcSendRaw(c.dc, { t: 'trusted', yes: c.mine });
+      pairPaint();
+    }
+    function pairEnd() { T.pair = null; }
+    function removePeer(id) {
+      T.peers = T.peers.filter(function (q) { return q.id !== id; }); delete T.online[id];
+      if (T.forget.indexOf(id) < 0) T.forget.push(id);
+      set('forget', T.forget).catch(function () {}); savePeers();
+    }
+    /* ---- the "Your trusted devices" part of the NSBiz Send screen ---- */
+    function tcss() {
+      if (document.getElementById('fs-tcss')) return;
+      var s = document.createElement('style'); s.id = 'fs-tcss';
+      s.textContent =
+        '.fs-tlist{list-style:none;padding:0;margin:8px 0}.fs-tlist>li{padding:10px 0;border-bottom:1px solid var(--line);min-width:0}' +
+        '.fs-dev{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.fs-dev .fs-nm{flex:1 1 160px;min-width:0;overflow-wrap:anywhere}' +
+        '.fs-dot{width:12px;height:12px;border-radius:50%;flex:0 0 12px;background:var(--line);border:1px solid var(--muted,#888)}.fs-dot.on{background:#16A34A;border-color:#16A34A}.fs-dot.far{background:#D97706;border-color:#D97706}' +
+        '.fs-tsess{margin:8px 0 0;min-width:0}.fs-h4{margin:0 0 4px;font-size:1rem}' +
+        '.fs-chk{display:flex;gap:8px;align-items:center;min-height:40px;cursor:pointer}.fs-chk input{width:20px;height:20px;flex:0 0 auto}' +
+        '.fs-man input[type=text]{max-width:100%;min-width:0}.fs-man .fz-row{flex-wrap:wrap}.fs-man details>summary{cursor:pointer;min-height:40px;display:flex;align-items:center;font-weight:600}' +
+        '#fs-inbox{position:fixed;right:12px;bottom:12px;z-index:9000;width:min(380px,calc(100vw - 24px));max-height:min(70vh,560px);overflow:auto;background:var(--surface,#fff);color:var(--ink,inherit);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.25);padding:10px 12px;box-sizing:border-box}' +
+        '#fs-inbox .fs-ibh{display:flex;justify-content:space-between;align-items:center;gap:8px}#fs-inbox .fs-tsess{border-top:1px solid var(--line);padding-top:6px}' +
+        '[data-tdev] .btn,[data-tman] .btn,[data-trustbox] .btn,#fs-inbox .btn{min-height:40px!important}#fs-inbox .btn.sm{min-width:40px}@media print{#fs-inbox{display:none!important}}';
+      document.head.appendChild(s);
+    }
+    function view(node, hooks) {
+      tcss();
+      var v = { node: node, hooks: hooks, list: $('[data-tdev]', node), man: $('[data-tman]', node) };
+      T.views.push(v);
+      v.list.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-tsend]');
+        if (b) { var L = hooks.take(); if (!L.length) { NS.toast('Choose the files to send first (above).', 'bad'); return; } var s = sendTo(b.getAttribute('data-tsend'), L); if (!s) hooks.giveBack(L); else paint(); return; }
+        sessClick(e);
+      });
+      v.man.addEventListener('change', function (e) {
+        var t = e.target;
+        if (t.hasAttribute('data-tvis')) { lsSet(LS_VIS, t.checked ? null : '0'); kick(false); }
+        else if (t.hasAttribute('data-tauto')) lsSet(LS_AUTO, t.checked ? null : '0');
+        else if (t.hasAttribute('data-tmyname')) { var n2 = P.cleanName(t.value); lsSet(LS_NAME, n2 || null); t.value = myName(); }
+        else if (t.hasAttribute('data-trn')) { var p = peer(t.getAttribute('data-trn')), nm = P.cleanName(t.value); if (p && nm) { p.name = nm; savePeers(); } }
+      });
+      v.man.addEventListener('click', function (e) {
+        var b = e.target.closest('button'); if (!b) return;
+        if (b.hasAttribute('data-trm')) { var id = b.getAttribute('data-trm'); ask('Remove ' + nameOf(id) + ' from your trusted devices? It will be told the next time both are online.').then(function (y) { if (y) removePeer(id); }); }
+        else if (b.hasAttribute('data-trmall')) ask('Remove all trusted devices? Each will be told the next time both are online.').then(function (y) { if (y) { T.peers.slice().forEach(function (p) { if (T.forget.indexOf(p.id) < 0) T.forget.push(p.id); }); T.peers = []; T.online = {}; set('forget', T.forget).catch(function () {}); savePeers(); } });
+        else if (b.hasAttribute('data-tdir')) root.showDirectoryPicker({ mode: 'readwrite', id: 'ns-send' }).then(function (d) { T.dir = d; return set('dir', d); }).then(function () { paint(); }, function () {});
+        else if (b.hasAttribute('data-tdirok')) T.dir.requestPermission({ mode: 'readwrite' }).then(function () { paint(); }, function () {});
+        else if (b.hasAttribute('data-tdirx')) { T.dir = null; set('dir', undefined).catch(function () {}); paint(); }
+      });
+      load().then(function () { paint(); kick(true); });
+      return v;
+    }
+    function paint() {
+      T.views.forEach(function (v) {
+        if (!v.node.isConnected && !v.painted) { /* first paint still wanted */ }
+        v.painted = true;
+        var on = !!sendApi(), st = T.st === 'on' ? 'Visible to your trusted devices.' : T.st === 'wait' ? 'Joining…' : (T.holding || T.waiting) && T.peers.length ? (T.holding ? 'Not connected. Trying again…' : 'Visible from another NSBiz tab on this device.') : T.peers.length ? 'Not visible.' : '';
+        var h = '<h4 class="fs-h4">Send to a trusted device</h4>';
+        if (!T.peers.length) h += '<p class="soft">No trusted devices yet. Connect two devices once with a code (below), then tick “Trust this device” on both. After that they send to each other without a code.</p>';
+        else {
+          h += '<p class="soft" data-tstat>' + esc(st) + '</p><ul class="fs-tlist">' + T.peers.map(function (p) {
+            var o = T.online[p.id];
+            return '<li data-tid="' + esc(p.id) + '"><div class="fs-dev"><span class="fs-dot' + (o ? (o.near ? ' on' : ' far') : '') + '" aria-hidden="true"></span><span class="fs-nm"><b>' + esc(p.name) + '</b><br><span class="soft" data-twhere>' + esc(where(p.id)) + (p.them ? '' : ' · waiting for it to trust this device too') + '</span></span>' +
+              '<button type="button" class="btn' + (o ? ' primary' : '') + '" data-tsend="' + esc(p.id) + '"' + (o && on ? '' : ' disabled') + '>Send the chosen files</button></div><div data-tout="' + esc(p.id) + '"></div></li>';
+          }).join('') + '</ul>';
+        }
+        v.list.innerHTML = h;
+        Object.keys(T.sess).forEach(function (k) { var s = T.sess[k], c = s.out && v.list.querySelector('[data-tout="' + s.peer + '"]'); if (c) c.appendChild(s.box); });
+        var fs = !!root.showDirectoryPicker, ae = document.activeElement;
+        if (ae && v.man.contains(ae) && ae.type === 'text') return;   /* do not redraw under someone typing a name */
+        v.man.innerHTML = '<details' + (v.open ? ' open' : '') + '><summary>Trusted devices and settings</summary>' +
+          '<div class="fz-row"><label>This device’s name <input type="text" data-tmyname maxlength="40" value="' + esc(myName()) + '"></label></div>' +
+          '<label class="fs-chk"><input type="checkbox" data-tvis' + (vis() ? ' checked' : '') + '> <span>Be visible to my trusted devices while NSBiz is open</span></label>' +
+          '<label class="fs-chk"><input type="checkbox" data-tauto' + (auto() ? ' checked' : '') + '> <span>Receive from trusted devices without asking</span></label>' +
+          (fs ? '<div class="fz-row"><span>' + (T.dir ? 'Received files go into the folder <b>' + esc(T.dir.name) + '</b>.' : 'Received files wait with a Save button.') + '</span>' +
+            '<button type="button" class="btn" data-tdir>' + (T.dir ? 'Choose another folder' : 'Save received files into a folder automatically') + '</button>' + (T.dir ? '<button type="button" class="btn" data-tdirok hidden>Allow the folder again</button><button type="button" class="btn" data-tdirx>Stop using the folder</button>' : '') + '</div>' +
+            '<p class="fz-note">After NSBiz is closed and opened again, the browser asks once more (one click on “Allow the folder again”, or on “Save into the folder” under arrived files) before NSBiz may write into the folder. Until then, files wait with a Save button.</p>'
+            : '<p class="fz-note">On this browser received files wait with a Save button. Chrome or Edge on a computer can save them into a folder automatically.</p>') +
+          (T.peers.length ? '<p><b>Trusted devices</b></p><ul class="fs-tlist">' + T.peers.map(function (p) {
+            return '<li><div class="fz-row"><label>Name <input type="text" data-trn="' + esc(p.id) + '" maxlength="40" value="' + esc(p.name) + '"></label><button type="button" class="btn" data-trm="' + esc(p.id) + '">Remove</button></div><p class="fz-note">Trusted since ' + esc(new Date(p.added || Date.now()).toLocaleDateString('en-IN')) + '</p></li>';
+          }).join('') + '</ul><div class="pr-bar"><button type="button" class="btn" data-trmall>Remove all trusted devices</button></div>' : '') +
+          '<p class="fz-note">How it works: each device has its own secret key that never leaves it. The NSBiz meeting point lets two devices find each other only when each has trusted the other, and every transfer is checked with those keys, so nobody can pretend to be one of your devices. “On this network” is only a hint; files go straight between the devices either way, never through a server.</p></details>';
+        $('details', v.man).addEventListener('toggle', function (e) { v.open = e.target.open; });
+        if (T.dir) dirOk().then(function (ok) { var b = $('[data-tdirok]', v.man); if (b) b.hidden = ok; });
+      });
+    }
+    function init() {
+      load().then(function () { kick(false); });
+      window.addEventListener('hashchange', function () { setTimeout(function () { kick(false); }, 300); });
+      setInterval(function () { if (want() !== !!(T.holding || T.waiting)) kick(false); }, 20000);
+    }
+    return { view: view, pairStart: pairStart, pairMsg: pairMsg, pairEnd: pairEnd, init: init, kick: kick, T: T };
+  })();
+  FT.trust = TR;   /* for the browser tests */
+  if (root.WebSocket && root.crypto && crypto.subtle && root.RTCPeerConnection) setTimeout(TR.init, 1500);
 
   FT.add('passport', 'Passport photo sheet', 'pic', ppNode);
   FT.add('heic', 'iPhone photos to JPG', 'pic', hcNode);

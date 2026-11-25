@@ -1,6 +1,6 @@
 /* Free tools batch 2: Money and tax (branch ft-money, 25 Nov 2026). Registers with NSFreeTools.add(key, label, group, make):
      upiqr     UPI QR with an amount: upi://pay link, QR as PNG, a printed table card, share.
-     lateint   Late payment interest and late fees, four tabs: GST (s.50 interest, GSTR-3B / GSTR-1 late fee), TDS (s.398(3),
+     lateint   Late payment interest and late fees, four tabs: GST (s.50(1) interest, s.50(3) interest on wrongly used ITC, late fee for GSTR-3B, 1, 4, 7, 9, 10 as CGST + SGST), TDS (s.398(3),
                s.427 fee), income tax (s.423, 424, 425) and MSME late payment (MSMED Act s.15-16). Working shown month by month.
      cashcount Cash counter: notes and coins by count, total in words, difference from the cash in hand.
      paytax    Gratuity, professional tax by state, depreciation (block of assets) and capital gains, one tab each.
@@ -13,12 +13,13 @@
      s.112 WITH EFFECT FROM 1 JULY 2017, in force 1 Jun 2021 by Notification 16/2021-CT): for a return filed late, interest only on the
      tax paid by debiting the electronic cash ledger (not when the return is filed after s.73/74/74A proceedings start); s.50(2) from the
      day after the due date. Notification 13/2017-CT (28 Jun 2017, gstcouncil.gov.in PDF): rate per annum 18% for s.50(1).
-     s.50(3) (wrongly availed and utilised ITC): that notification says 24%, but its later amendments could not be read in full, so the
-     tool leaves s.50(3) out.
+     s.50(3) (wrongly availed and utilised ITC): 18% from 1 Jul 2017 (Finance Act 2022 s.116 + Sixth Schedule changed 13/2017's 24 to 18);
+     rule 88B (Notification 14/2022-CT). Branch ft-gst2 added it; full sources next to C.gstItc below.
    - CGST Act s.47(1) (taxinformation.cbic.gov.in): Rs 100 a day, at most Rs 5,000. Notification 76/2018-CT: GSTR-3B fee above Rs 25 a
      day (Rs 10 when the central tax payable is nil) waived. Notification 4/2018-CT: the same for GSTR-1 (Rs 10 when no outward
      supplies). Notifications 19/2021-CT and 20/2021-CT (1 Jun 2021): for tax periods from June 2021 the total fee is capped at Rs 250
      (nil), Rs 1,000 (turnover up to Rs 1.5 crore), Rs 2,500 (above 1.5 up to 5 crore); above 5 crore the Act's Rs 5,000. All central tax.
+     GSTR-4, GSTR-7, GSTR-9, GSTR-10 and the equal State tax part (no IGST late fee): sources next to C.gstLateFee below (ft-gst2).
    - Income-tax Act, 2025 (incometaxindia.gov.in section pages): s.398(3)(a) interest 1% (not deducted / late deduction) and 1.5% (deducted,
      paid late) for every month or part of a month [old 201(1A)]; s.427 fee Rs 200 a day, at most the tax deductible [old 234E];
      s.423 return late: 1% x tax x number of months from the day after the due date [old 234A]; s.424 advance tax below 90%: 1% for every
@@ -84,16 +85,94 @@
     var i = base * rate / 100 * d / 365;
     return { days: d, base: r2(base), rate: rate, interest: r2(i), rounded: Math.round(i), formula: r2(base) + ' × ' + rate + '% × ' + d + ' days ÷ 365' };
   };
-  /* o: { form '3b'|'1', nil, band 'a' (up to 1.5 crore) | 'b' (1.5 to 5 crore) | 'c' (above 5 crore), due, filed, period 'YYYY-MM' } */
-  C.GSTFEE = { day: 25, dayNil: 10, act: 100, actMax: 5000, cap: { nil: 250, a: 1000, b: 2500, c: 5000 } };
+  /* Interest on input tax credit wrongly availed AND utilised, s.50(3) CGST Act with rule 88B(3) CGST Rules (read 25 Nov 2026):
+     - s.50(3) as substituted by Finance Act 2022 s.111 "deemed ... with effect from the 1st day of July, 2017" (in force 5 Jul 2022,
+       Notification 9/2022-Central Tax): interest "at such rate not exceeding twenty-four per cent. as may be notified".
+       Text confirmed in the CGST Act on indiacode.nic.in (copy "As on the 11th June, 2026").
+     - Rate: Notification 13/2017-Central Tax (G.S.R. 661(E), 28 Jun 2017) serial 2 said 24; the Finance Act 2022 s.116(1) with the
+       SIXTH SCHEDULE substituted "18" for "24" against serial number 2, with effect from 1 July 2017 (Finance Act 2022, Gazette
+       30 Mar 2022, copy on thc.nic.in). So 18% a year.
+     - Rule 88B(3) (Notification 14/2022-Central Tax, 5 Jul 2022, inserted with effect from 1 July 2017): interest on the amount
+       wrongly availed and utilised, from the date of utilisation till the date of reversal or payment. Explanation: credit is used
+       when the electronic credit ledger balance falls below the amount wrongly availed, to the extent it falls below; the date of
+       use is (a) the due date of the return or the date it was filed, whichever is earlier, when it fell because of tax paid in that
+       return, or (b) the date of the debit in all other cases.
+     o: { amt, low (lowest balance after availing; '' = not known, all treated as used), how 'return'|'debit', rdue, rfiled, ddate, rev, rate } */
+  C.GSTITC = { rate: 18, read: '25 Nov 2026' };
+  C.gstItc = function (o) {
+    var rate = o.rate == null || o.rate === '' ? C.GSTITC.rate : num(o.rate), amt = num(o.amt);
+    if (!(amt > 0)) return { err: 'Type the input tax credit wrongly availed.' };
+    var known = !(o.low == null || String(o.low).trim() === ''), low = known ? Math.max(0, num(o.low)) : 0;
+    var used = known ? Math.min(amt, Math.max(0, amt - low)) : amt;
+    if (!(used > 0)) return { none: true, used: 0, note: 'The credit ledger never fell below the wrong credit, so it was not used: no interest under section 50(3). Reverse the credit all the same.' };
+    var util;
+    if (o.how === 'debit') { if (!okDate(o.ddate)) return { err: 'Type the date of the debit that took the credit ledger below the wrong credit.' }; util = o.ddate; }
+    else {
+      if (!okDate(o.rdue)) return { err: 'Type the due date of the return in which the credit was used.' };
+      util = okDate(o.rfiled) && utc(o.rfiled) < utc(o.rdue) ? o.rfiled : o.rdue;   /* rule 88B Explanation (2)(a): the earlier date */
+    }
+    if (!okDate(o.rev)) return { err: 'Type the date the credit was reversed or the tax paid.' };
+    var d = days(util, o.rev);
+    if (d <= 0) return { used: r2(used), util: util, days: 0, interest: 0, rate: rate, note: 'Reversed on or before the date of use: no interest.' };
+    var i = used * rate / 100 * d / 365;
+    return { used: r2(used), util: util, days: d, rate: rate, interest: r2(i), rounded: Math.round(i), partial: known && used < amt, formula: r2(used) + ' × ' + rate + '% × ' + d + ' days ÷ 365' };
+  };
+
+  /* Late fee, s.47 CGST Act (indiacode.nic.in copy "As on the 11th June, 2026"): (1) GSTR-1 (s.37), returns under s.39 (GSTR-3B,
+     GSTR-4), s.45 (GSTR-10) and s.52: Rs 100 a day, at most Rs 5,000; (2) annual return s.44 (GSTR-9): Rs 100 a day, at most 0.25%
+     of the turnover in the State or Union territory. These are the CENTRAL tax amounts; each State GST Act has the same s.47.
+     Waivers under s.128 (all read 25 Nov 2026 on gstcouncil.gov.in, the State copies on mahagst.gov.in and comtax.wb.gov.in):
+     - GSTR-3B: 76/2018-CT (Rs 25 a day, Rs 10 when central tax payable is nil) + 19/2021-CT (tax period / quarter June 2021 on, total
+       at most Rs 250 nil, Rs 1,000 turnover up to 1.5 crore, Rs 2,500 above 1.5 up to 5 crore; above 5 crore the Act's Rs 5,000).
+     - GSTR-1: 4/2018-CT (Rs 25 a day, Rs 10 with no outward supplies) + 20/2021-CT (same caps from June 2021).
+     - GSTR-4: 73/2017-CT (Rs 25 a day, Rs 10 when central tax payable is nil) + 21/2021-CT (FY 2021-22 on: at most Rs 250 nil, Rs 1,000 others).
+     - GSTR-7: 23/2024-CT (in force 1 Nov 2024, supersedes 22/2021-CT): from June 2021 Rs 25 a day, at most Rs 1,000; nil when the
+       central tax deducted in the month is nil.
+     - GSTR-9: 7/2023-CT (FY 2022-23 on): aggregate turnover up to 5 crore Rs 25 a day, 5 to 20 crore Rs 50 a day, each at most 0.02%
+       of the turnover in the State/UT; above 20 crore no waiver (the Act).
+     - GSTR-10: no standing waiver found; the 2023 amnesty (8/2023-CT, extended by 26/2023-CT) ended on 31 Aug 2023.
+     State tax: Maharashtra 19/2021, 20/2021, 21/2021-State Tax (9 Jun 2021) and 07/2023-State Tax (24 May 2023), and West Bengal 634-F.T.
+     (14 Jun 2021) repeat the same amounts word for word for State tax; the Punjab Excise and Taxation Department's own "GST Update
+     March 2023" (taxation.punjab.gov.in) states the annual return fee as "25 CGST+25 SGST" and "0.02+0.02" per cent. So the State tax
+     fee equals the central tax fee. IGST Act s.20(viii) applies the CGST provisions on "returns, other than late fee": no IGST late fee.
+     UTGST Act s.21(ix) applies the CGST provisions on returns to Union territory tax.
+     o: { form '3b'|'1'|'4'|'7'|'9'|'10', nil, band 'a'|'b'|'c' (3B/1), band9 'a' (up to 5 crore) | 'b' (5-20) | 'c' (above 20),
+          turn (turnover in the State/UT, GSTR-9), fy (first year of the financial year, GSTR-4 / GSTR-9), period 'YYYY-MM', due, filed } */
+  C.GSTFEE = { day: 25, dayNil: 10, act: 100, actMax: 5000, cap: { nil: 250, a: 1000, b: 2500, c: 5000 }, read: '25 Nov 2026',
+    gstr4: { nil: 250, other: 1000, fromFy: 2021 }, gstr7: { day: 25, cap: 1000, from: '2021-06', nilFrom: '2024-11-01' },
+    gstr9: { fromFy: 2022, a: 25, b: 50, pct: 0.02, actPct: 0.25 } };
   C.gstLateFee = function (o) {
+    var F = C.GSTFEE, form = o.form || '3b';
     if (!okDate(o.due) || !okDate(o.filed)) return { err: 'Type the due date and the date you filed.' };
-    var d = days(o.due, o.filed); if (d <= 0) return { days: 0, fee: 0, note: 'Filed on or before the due date: no late fee.' };
-    var F = C.GSTFEE, per = o.nil ? F.dayNil : F.day, cap = o.nil ? F.cap.nil : F.cap[o.band] || F.actMax;
-    var old = o.period && /^\d{4}-\d{2}$/.test(o.period) && o.period < '2021-06';   /* caps of 19/2021 and 20/2021 apply from tax period June 2021 */
-    if (old) cap = F.actMax;
-    var raw = per * d, fee = Math.min(raw, cap, F.actMax);
-    return { days: d, per: per, cap: cap, raw: raw, fee: fee, old: !!old };
+    var fy = parseInt(o.fy, 10);
+    if ((form === '4' || form === '9') && !(fy > 2016)) return { err: 'Pick the financial year of the return.' };
+    var turn = num(o.turn);
+    if (form === '9' && !(turn > 0)) return { err: 'Type the turnover in this State or Union territory for the year.' };
+    var d = days(o.due, o.filed); if (d <= 0) return { days: 0, fee: 0, sgst: 0, total: 0, note: 'Filed on or before the due date: no late fee.' };
+    var per, cap, old = false, rule, okPeriod = o.period && /^\d{4}-\d{2}$/.test(o.period);
+    if (form === '3b' || form === '1') {
+      per = o.nil ? F.dayNil : F.day; cap = o.nil ? F.cap.nil : F.cap[o.band] || F.actMax;
+      old = okPeriod && o.period < '2021-06';   /* caps of 19/2021 and 20/2021 apply from tax period June 2021 */
+      if (old) cap = F.actMax;
+      rule = form === '3b' ? (old ? '76/2018-CT; the 2021 caps start with June 2021' : '76/2018-CT and 19/2021-CT') : (old ? '4/2018-CT; the 2021 caps start with June 2021' : '4/2018-CT and 20/2021-CT');
+    } else if (form === '4') {
+      per = o.nil ? F.dayNil : F.day; old = fy < F.gstr4.fromFy;
+      cap = old ? F.actMax : o.nil ? F.gstr4.nil : F.gstr4.other;
+      rule = old ? '73/2017-CT; the 2021 caps start with FY 2021-22' : '73/2017-CT and 21/2021-CT';
+    } else if (form === '7') {
+      old = okPeriod && o.period < F.gstr7.from;
+      if (o.nil && !old && o.filed >= F.gstr7.nilFrom) return { days: d, per: 0, cap: 0, raw: 0, fee: 0, sgst: 0, total: 0, rule: '23/2024-CT',
+        note: 'No tax deducted in the month: the whole late fee is waived (Notification 23/2024-Central Tax, from 1 Nov 2024).' };
+      per = old ? F.act : F.gstr7.day; cap = old ? F.actMax : F.gstr7.cap;
+      rule = old ? 'section 47(1); the 2021 waiver starts with June 2021' : '23/2024-CT (earlier 22/2021-CT)';
+    } else if (form === '9') {
+      var G = F.gstr9; old = fy < G.fromFy;
+      if (old || o.band9 === 'c') { per = F.act; cap = r2(turn * G.actPct / 100); rule = old ? 'section 47(2); 7/2023-CT starts with FY 2022-23' : 'section 47(2), no waiver above ₹20 crore'; }
+      else { per = o.band9 === 'b' ? G.b : G.a; cap = r2(turn * G.pct / 100); rule = '7/2023-CT'; }
+    } else if (form === '10') { per = F.act; cap = F.actMax; rule = 'section 47(1)'; }
+    else return { err: 'Pick the return.' };
+    var raw = per * d, fee = r2(Math.min(raw, cap, form === '9' ? Infinity : F.actMax));
+    return { days: d, per: per, cap: cap, raw: raw, fee: fee, sgst: fee, total: r2(fee * 2), old: !!old, rule: rule };
   };
 
   /* ---------- TDS (Income-tax Act, 2025) ---------- */
@@ -414,15 +493,29 @@
   function lateNode() {
     css();
     var n = el('div', 'fz-tool');
+    var FYS = []; for (var y = 2017; y <= 2026; y++) FYS.push([String(y), y + '-' + String(y + 1).slice(2)]);
     var gst = '<div data-pane="gst">' +
       '<h4>Interest on GST paid late (section 50 of the CGST Act)</h4><div class="fz-card" data-box="gi"><div class="fz-row">' + f('tax', 'Tax paid late ₹') + f('due', 'Due date', 'date') + f('paid', 'Date paid', 'date') + f('rate', 'Rate % a year') + '</div>' +
       '<div class="fz-row">' + f('late', 'The tax was declared in a return filed late (GSTR-3B)', 'check') + '<label data-cashl hidden>Part paid from the cash ledger ₹ <input type="number" step="any" min="0" inputmode="decimal" data-k="cash"></label></div>' +
       '<div class="fz-res" data-out aria-live="polite"></div></div>' +
-      note('Read ' + READ + ' on taxinformation.cbic.gov.in and gstcouncil.gov.in: section 50(1) allows up to 18% a year and Notification 13/2017-Central Tax fixes 18%. Interest runs from the day after the due date (section 50(2)). When a return is filed late, interest is only on the tax paid from the electronic cash ledger (proviso to section 50(1), in force from 1 July 2017 by the Finance Act 2021), unless the return is filed after proceedings under section 73, 74 or 74A have started. Worked out by days ÷ 365. Interest on wrongly used input tax credit (section 50(3)) is not worked out here. Work out each tax (CGST, SGST, IGST) on its own amount the same way.') +
-      '<h4>Late fee for GSTR-3B or GSTR-1</h4><div class="fz-card" data-box="gf"><div class="fz-row">' + sel('form', 'Return', [['3b', 'GSTR-3B'], ['1', 'GSTR-1']]) + f('period', 'Tax period (month)', 'text', ' placeholder="2026-10" inputmode="numeric" maxlength="7"') + f('due', 'Due date', 'date') + f('filed', 'Date filed', 'date') + '</div>' +
-      '<div class="fz-row">' + sel('band', 'Turnover last year', [['a', 'Up to ₹1.5 crore'], ['b', '₹1.5 crore to ₹5 crore'], ['c', 'Above ₹5 crore']]) + f('nil', 'Nil return (no tax payable in GSTR-3B / no outward supplies in GSTR-1)', 'check') + '</div>' +
-      '<div class="fz-res" data-out aria-live="polite"></div></div>' +
-      note('Read ' + READ + ': section 47(1) of the CGST Act (₹100 a day, at most ₹5,000); Notifications 76/2018 and 4/2018-Central Tax keep it at ₹25 a day (₹10 for a nil return); Notifications 19/2021 and 20/2021-Central Tax cap the whole fee, for tax periods from June 2021, at ₹250 for a nil return, ₹1,000 up to ₹1.5 crore turnover and ₹2,500 up to ₹5 crore. These are central tax (CGST) amounts; the GST portal also charges the late fee under your State GST law, so check the total it shows.') + '</div>';
+      note('Read ' + READ + ' on taxinformation.cbic.gov.in, indiacode.nic.in and gstcouncil.gov.in: section 50(1) allows up to 18% a year and Notification 13/2017-Central Tax fixes 18%. Interest runs from the day after the due date (section 50(2), rule 88B(2)). When a return is filed late, interest is only on the tax paid from the electronic cash ledger (proviso to section 50(1) and rule 88B(1), in force from 1 July 2017), unless the return is filed after proceedings under section 73, 74 or 74A have started. Worked out by days ÷ 365. Work out each tax (CGST, SGST, IGST) on its own amount the same way.') +
+      '<h4>Interest on input tax credit wrongly availed and used (section 50(3))</h4><div class="fz-card" data-box="gc"><div class="fz-row">' + f('amt', 'Credit wrongly availed ₹') +
+        f('low', 'Lowest balance of the credit ledger after it was availed ₹ (leave empty if not known)') + f('rate', 'Rate % a year') + '</div>' +
+      '<div class="fz-row">' + sel('how', 'The ledger went below the wrong credit because of', [['return', 'Tax paid in a return (GSTR-3B)'], ['debit', 'Another debit of the credit ledger']], 'fz-wide') +
+        f('rdue', 'Due date of that return', 'date') + f('rfiled', 'Date that return was filed', 'date') + f('ddate', 'Date of that debit', 'date') + f('rev', 'Date reversed or paid', 'date') + '</div>' +
+      '<div class="fz-res" data-out aria-live="polite"></div><div data-work></div></div>' +
+      note('Read ' + READ + ': section 50(3) of the CGST Act as put in by the Finance Act 2022 with effect from 1 July 2017 (interest only on credit wrongly availed AND used, at a notified rate up to 24%); the Finance Act 2022 (section 116 and Sixth Schedule) changed the rate in Notification 13/2017-Central Tax from 24% to 18% from 1 July 2017; rule 88B(3) of the CGST Rules (Notification 14/2022-Central Tax): interest on the amount used, from the date of use until the date it is reversed or paid. The credit counts as used only when the credit ledger balance falls below the wrong credit, and only by the amount it falls below. The date of use is the due date of the return or the date it was filed, whichever is earlier, when the balance fell because of tax paid in that return; otherwise the date of that debit. Days are counted from the date of use to the date of reversal (days between the two dates) ÷ 365. Credit wrongly availed but never used carries no interest under section 50(3), but must still be reversed. Work out IGST, CGST and SGST credit each on its own ledger.') +
+      '<h4>Late fee for a GST return (section 47)</h4><div class="fz-card" data-box="gf"><div class="fz-row">' +
+        sel('form', 'Return', [['3b', 'GSTR-3B'], ['1', 'GSTR-1'], ['4', 'GSTR-4 (composition, yearly)'], ['7', 'GSTR-7 (TDS deductor)'], ['9', 'GSTR-9 (annual return)'], ['10', 'GSTR-10 (final return)']]) +
+        f('period', 'Tax period (month)', 'text', ' placeholder="2026-10" inputmode="numeric" maxlength="7"') +
+        '<label data-fyl hidden>Financial year <select data-k="fy">' + FYS.map(function (x) { return '<option value="' + x[0] + '"' + (x[0] === '2025' ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select></label>' +
+        f('due', 'Due date', 'date') + f('filed', 'Date filed', 'date') + '</div>' +
+      '<div class="fz-row">' + sel('band', 'Turnover last year', [['a', 'Up to ₹1.5 crore'], ['b', '₹1.5 crore to ₹5 crore'], ['c', 'Above ₹5 crore']]) +
+        sel('band9', 'Aggregate turnover in that year', [['a', 'Up to ₹5 crore'], ['b', '₹5 crore to ₹20 crore'], ['c', 'Above ₹20 crore']]) +
+        f('turn', 'Turnover in this State or UT that year ₹') +
+        f('nil', '<span data-niltx>Nil return</span>', 'check') + '</div>' +
+      '<div class="fz-res" data-out aria-live="polite"></div><div data-work></div></div>' +
+      note('Read ' + READ + ' on gstcouncil.gov.in, indiacode.nic.in, mahagst.gov.in, comtax.wb.gov.in and taxation.punjab.gov.in. Section 47 of the CGST Act: ₹100 a day, at most ₹5,000 (GSTR-1, GSTR-3B, GSTR-4, GSTR-7, GSTR-10); for GSTR-9 at most 0.25% of the turnover in the State or UT. Lower amounts by notification (Central Tax): GSTR-3B 76/2018 and 19/2021, GSTR-1 4/2018 and 20/2021 (₹25 a day, ₹10 for a nil return; from tax period June 2021 at most ₹250 nil, ₹1,000 up to ₹1.5 crore turnover, ₹2,500 up to ₹5 crore); GSTR-4 73/2017 and 21/2021 (₹25 / ₹10 a day; from 2021-22 at most ₹250 nil, ₹1,000 others); GSTR-7 23/2024 (₹25 a day, at most ₹1,000, nothing when no tax was deducted); GSTR-9 7/2023 (from 2022-23: ₹25 a day up to ₹5 crore turnover, ₹50 a day up to ₹20 crore, at most 0.02% of the turnover in the State or UT). These are central tax amounts. Each State GST Act and its notifications charge the same amount again as State tax (read: Maharashtra 19, 20, 21/2021 and 07/2023-State Tax, West Bengal 634-F.T. of 2021, and the Punjab Taxation Department\'s GST Update of March 2023, "25 CGST + 25 SGST"). There is no late fee under the IGST Act (section 20 applies the CGST rules on returns "other than late fee"). One-time amnesties (2020 to 2023) are not counted. Annual return exemptions for small taxpayers are not checked here.') + '</div>';
     var tds = '<div data-pane="tds" hidden>' +
       '<h4>Interest on TDS deducted or paid late (section 398(3), old 201(1A))</h4><div class="fz-card" data-box="ti"><div class="fz-row">' + f('tax', 'TDS amount ₹') + f('due', 'Date the tax was to be deducted', 'date') + f('ded', 'Date actually deducted', 'date') + f('paid', 'Date paid to the Government', 'date') + '</div>' +
       '<div class="fz-row">' + sel('mode', 'How to count months', MODES, 'fz-wide') + '</div><div class="fz-res" data-out aria-live="polite"></div><div data-work></div></div>' +
@@ -448,6 +541,7 @@
     var t0 = today(); $$('input[type=date]', n).forEach(function (i) { if (/^(paid|filed|upto)$/.test(i.getAttribute('data-k'))) i.value = t0; });
     $('[data-box="mi"] [data-k="bank"]', n).value = C.MSME.bankRate;
     $('[data-box="gi"] [data-k="rate"]', n).value = C.GST.rate;
+    $('[data-box="gc"] [data-k="rate"]', n).value = C.GSTITC.rate;
     function box(k) { return $('[data-box="' + k + '"]', n); }
     function mode() { return $('[data-pane="it"] > .fz-row [data-k="mode"]', n).value; }
     function bad(r) { return '<p class="fm-bad">' + esc(r.err) + '</p>'; }
@@ -455,8 +549,20 @@
       var b, o, r;
       b = box('gi'); o = vals(b); $('[data-cashl]', b).hidden = !o.late; r = C.gstInterest(o);
       $('[data-out]', b).innerHTML = r.err ? bad(r) : r.note ? '<p>' + esc(r.note) + '</p>' : res([['Days late', fmt(r.days, 0)], ['Interest on', money(r.base)], ['Interest', money(r.interest)], ['Rounded', money(r.rounded)]]) + '<p class="fz-note">' + esc(r.formula) + '</p>';
+      b = box('gc'); o = vals(b); r = C.gstItc(o);
+      [['rdue', o.how !== 'debit'], ['rfiled', o.how !== 'debit'], ['ddate', o.how === 'debit']].forEach(function (x) { $('[data-k="' + x[0] + '"]', b).closest('label').hidden = !x[1]; });
+      $('[data-out]', b).innerHTML = r.err ? bad(r) : r.none ? '<p class="fm-ok">' + esc(r.note) + '</p>' : r.note ? '<p>' + esc(r.note) + '</p>' :
+        res([['Credit used', money(r.used)], ['Date of use', fd(r.util)], ['Days', fmt(r.days, 0)], ['Interest at ' + r.rate + '%', money(r.interest)], ['Rounded', money(r.rounded)]]);
+      $('[data-work]', b).innerHTML = r.err || r.none || !r.formula ? '' : '<p class="fz-note">' + esc(r.formula) + (r.partial ? '. Only the part by which the ledger fell below the wrong credit is used (rule 88B).' : '') + '</p>';
       b = box('gf'); o = vals(b); r = C.gstLateFee(o);
-      $('[data-out]', b).innerHTML = r.err ? bad(r) : r.note ? '<p>' + esc(r.note) + '</p>' : res([['Days late', fmt(r.days, 0)], ['₹' + r.per + ' a day', money(r.raw)], ['Cap', money(r.cap)], ['Late fee, central tax', money(r.fee)]]) + (r.old ? '<p class="fz-note">Tax period before June 2021: the 2021 caps do not apply, the Act\'s ₹5,000 is used. Earlier one-time waivers are not counted.</p>' : '');
+      var fm = o.form, show = { period: /^(3b|1|7)$/.test(fm), band: /^(3b|1)$/.test(fm), band9: fm === '9', turn: fm === '9', nil: /^(3b|1|4|7)$/.test(fm) };
+      Object.keys(show).forEach(function (k) { $('[data-k="' + k + '"]', b).closest('label').hidden = !show[k]; });
+      $('[data-fyl]', b).hidden = !/^(4|9)$/.test(fm);
+      $('[data-niltx]', b).textContent = fm === '1' ? 'No outward supplies in the period' : fm === '7' ? 'No tax deducted in the month' : 'Nil return (no central tax payable)';
+      $('[data-out]', b).innerHTML = r.err ? bad(r) : r.note && !r.rule ? '<p>' + esc(r.note) + '</p>' : r.note ? '<p class="fm-ok">' + esc(r.note) + '</p>' :
+        res([['Days late', fmt(r.days, 0)], ['₹' + r.per + ' a day', money(r.raw)], ['Cap', money(r.cap)], ['Central tax (CGST)', money(r.fee)], ['State or UT tax (SGST / UTGST)', money(r.sgst)], ['Total late fee', money(r.total)]]);
+      $('[data-work]', b).innerHTML = r.err || !r.rule || r.note ? '' : '<p class="fz-note">' + esc('Each part: lower of ₹' + r.per + ' × ' + r.days + ' days = ' + fmt(r.raw) + ' and the cap ' + fmt(r.cap) + '. Rule used: ' + r.rule + '. The same amount is charged again under the State or UT GST law; no late fee under IGST.') + '</p>' +
+        (r.old && fm !== '9' && fm !== '4' ? '<p class="fz-note">Tax period before June 2021: the 2021 caps do not apply. Earlier one-time waivers are not counted.</p>' : '');
       b = box('ti'); o = vals(b); r = C.tdsInterest(o);
       $('[data-out]', b).innerHTML = r.err ? bad(r) : res([['Late deduction: months × 1%', r.m1 + ' → ' + money(r.a)], ['Late payment: months × 1.5%', r.m2 + ' → ' + money(r.b)], ['Interest', money(r.total)], ['Rounded', money(r.rounded)]]);
       $('[data-work]', b).innerHTML = r.err ? '' : '<p class="fz-note">' + esc(fmt(num(o.tax)) + ' × 1% × ' + r.m1 + ' + ' + fmt(num(o.tax)) + ' × 1.5% × ' + r.m2) + '</p>';

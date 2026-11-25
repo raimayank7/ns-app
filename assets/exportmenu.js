@@ -24,7 +24,7 @@
       var box = document.createElement('div'); box.style.cssText = 'position:fixed;left:-12000px;top:0;background:#fff;width:1000px';
       document.body.appendChild(box);
       var cv = [], p = Promise.resolve();
-      list.forEach(function (n) { p = p.then(function () { var c = n.cloneNode(true); c.classList.add('lg-paper'); c.removeAttribute('hidden'); c.style.cssText += ';position:static;display:block;visibility:visible;width:1000px;max-width:none'; if (NS.dropHints) NS.dropHints(c); box.appendChild(c); return window.html2canvas(c, { scale: 2, backgroundColor: '#ffffff', logging: false }).then(function (x) { cv.push(x); }); }); });
+      list.forEach(function (n) { p = p.then(function () { var c = n.cloneNode(true); c.classList.add('lg-paper'); c.removeAttribute('hidden'); c.style.cssText += ';position:static;display:block;visibility:visible;width:1000px;max-width:none'; if (NS.dropHints) NS.dropHints(c); box.appendChild(c); if (NS.pdfPlain) NS.pdfPlain(c); return window.html2canvas(c, { scale: 2, backgroundColor: '#ffffff', logging: false }).then(function (x) { cv.push(x); }); }); });
       return p.then(function () {
         document.body.removeChild(box);
         var w = Math.max.apply(null, cv.map(function (x) { return x.width; })), h = cv.reduce(function (s, x) { return s + x.height; }, 0) + (cv.length - 1) * 24;

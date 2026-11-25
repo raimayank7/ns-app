@@ -51,7 +51,7 @@
   function invoice(n, p, date, items) {
     return { sample: 1, type: 'invoice', kind: 'tax', no: 'INV/' + fy(date) + '/S0' + n, date: date, due: day(-15), deliv: '', pos: '', rc: false, ref: '', recv: '',
       seller: seller(), buyer: buyer(p), ship: null, einv: null, irn: null, items: items, round: false, comp: true, notes: '', terms: '', status: 'unpaid',
-      copyLabel: '', withGst: true, valid: '', paper: 'a4', design: 'classic', copies: 1, total: total(items) };
+      copyLabel: 'orig', withGst: true, valid: '', paper: 'a4', design: 'classic', copies: 1, total: total(items) };
   }
   function receipt(n, p, date, amt, mode, bill) {
     return { sample: 1, type: 'receipt', app: 1, kind: 'pay', no: 'RCT/' + fy(date) + '/S0' + n, date: date, seller: seller(), buyer: { name: p.name, addr: '', phone: p.phone, gstin: p.gstin, pan: '' },
