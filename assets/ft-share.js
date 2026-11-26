@@ -964,8 +964,8 @@
     n.innerHTML = '<h3>NSBiz Send</h3><p class="soft">Send files straight from one device to another, for example from your phone to your computer. Both devices need the internet and this screen open. The files go directly between the two devices, locked (encrypted) on the way; no server keeps them.</p>' +
       (on ? '' : '<div class="fz-card fs-off" data-off><p><b>NSBiz Send is not switched on yet.</b> It needs NSBiz’s small meeting-point service, which is not online yet. Until then you can share files with the Zip tool, by e-mail or by WhatsApp.</p></div>') +
       '<div class="fs-tabs" role="group" aria-label="Send or receive"><button type="button" class="btn primary" data-sm="send" aria-pressed="true">Send</button><button type="button" class="btn" data-sm="recv" aria-pressed="false">Receive</button></div>' +
-      '<div data-sp="send"><div class="fz-card" data-sdrop><div class="fz-row">' + fileBtn('fs-sd-file', 'Choose files to send', '', true, true) + '</div><ul class="fs-files" data-sfiles></ul>' +
-        '<div class="pr-bar"><button type="button" class="btn primary" data-code' + (on ? '' : ' disabled') + '>Get a code</button></div></div>' +
+      '<div data-sp="send"><div class="fz-card" data-sdrop><div class="fz-row">' + fileBtn('fs-sd-file', 'Choose files to send', '', true, true) +
+        '<button type="button" class="btn" data-code' + (on ? '' : ' disabled') + '>Get a code</button></div><ul class="fs-files" data-sfiles></ul></div>' +
         '<div class="fz-card" data-tdev></div>' +
         '<div data-sbox hidden></div></div>' +
       '<div data-sp="recv" hidden><div class="fz-card"><div class="fz-row"><label>Code from the other device <input type="text" class="fs-codein" data-rcode maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ABC234"></label>' +

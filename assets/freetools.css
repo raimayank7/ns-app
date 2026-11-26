@@ -6,7 +6,7 @@
 .fz-tool.fz-drop{outline:2px dashed var(--accent);outline-offset:4px;border-radius:var(--r)}
 .fz-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin:12px 0;min-width:0}
 .fz-row{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:flex-end;margin:6px 0}
-.fz-row label{display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:.9rem;min-width:0;max-width:100%}
+.fz-row label:not(.btn){display:flex;flex-direction:column;gap:4px;font-weight:600;font-size:.9rem;min-width:0;max-width:100%}
 .fz-row input,.fz-row select{min-height:40px;max-width:100%;box-sizing:border-box}
 .fz-row input[type=number]{width:120px}
 .fz-row .fz-wide{flex:1 1 220px}
@@ -55,7 +55,7 @@
 .fz-res b{display:block;font-size:1.2rem;overflow-wrap:anywhere}
 .fz-res p{grid-column:1/-1;margin:0}
 @media (max-width:520px){
-  .fz-row label{flex:1 1 130px}
+  .fz-row label:not(.btn){flex:1 1 130px}
   .fz-row input[type=number]{width:100%}
   .fz-row label.fz-chk{flex:1 1 100%}
   .fz-list{grid-template-columns:1fr}
@@ -81,3 +81,13 @@
 .fz-gi svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .fz-dup{display:none!important}
 @media (max-width:620px){.fz-sis{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin;padding-bottom:4px;-webkit-overflow-scrolling:touch}.fz-sis .btn{flex:none}}
+/* alignment pass (owner screenshot 25 Nov): even padding in cards, an arrow on every folding part, buttons in one row line up */
+.fz-card>:first-child{margin-top:0}.fz-card>:last-child{margin-bottom:0}.fz-card>:last-child>:last-child{margin-bottom:0}
+.fz-card>.fz-row:first-child,.fz-card>.pr-bar:first-child{margin-top:0}
+.fz-root details>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;min-height:36px;font-weight:600}
+.fz-root details>summary::-webkit-details-marker{display:none}
+.fz-root details>summary::before{content:"";flex:none;width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .15s;margin:0 2px}
+.fz-root details[open]>summary::before{transform:rotate(45deg)}
+.fz-root details>summary.btn::before{display:none}
+.fz-row>.btn,.fz-row>label.btn{min-height:40px}
+.btn>b.nsb-in{margin-inline-end:-2px}
