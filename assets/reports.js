@@ -135,7 +135,7 @@
   })();
 
   /* ---------- R-13: bill-wise outstanding of every party ---------- */
-  var osSide = 'recv', osAs = '', osDue = true, osMin = '';
+  var osSide = 'recv', osAs = '', osDue = true, osMin = '', osAll = false, osCapped = false, OS_CAP = 300;   /* Speed (27 Nov 2026): the screen draws the first 300 bills; Print, PDF and Excel take every one */
   function ageStore(v) {
     var id = (A.biz() || {}).id || '-', o = {};
     try { o = JSON.parse(localStorage.getItem('ns-ageing') || '{}') || {}; } catch (e) {}
@@ -156,7 +156,8 @@
   }
   A.addSection('os', function (arg) {
     if (arg === 'pay' || arg === 'recv') osSide = arg;
-    var X = osData(), recv = osSide === 'recv';
+    var X = osData(), recv = osSide === 'recv', all = X.rows, nAll = all.length;
+    osCapped = !osAll && nAll > OS_CAP; if (osCapped) X.rows = all.slice(0, OS_CAP);
     var bar = '<div class="lg-bar"><div class="seg" role="group">' + [['recv', A.T('recv')], ['pay', A.T('pay')]].map(function (x) { return '<a class="btn sm" href="#os/' + x[0] + '" aria-pressed="' + (x[0] === osSide) + '">' + esc(x[1]) + '</a>'; }).join('') + '</div>' +
       '<label><span>' + esc(T('os_as')) + '</span> <input type="date" data-osas value="' + X.as + '"></label>' + A.grpSel() +
       '<label><span>' + esc(T('os_age')) + '</span> <select data-osdue><option value="1"' + (osDue ? ' selected' : '') + '>' + esc(T('os_duedt')) + '</option><option value="0"' + (osDue ? '' : ' selected') + '>' + esc(T('os_billdt')) + '</option></select></label>' +
@@ -169,14 +170,21 @@
         return '<tr data-k="' + esc(r.id) + '"' + (r.overdue > 0 ? ' class="os-late"' : '') + '><td><a href="#st/' + encodeURIComponent(r.pkey) + '">' + esc(r.party) + '</a></td><td>' + esc(A.enName(r) + ' ' + (r.no || '')) + '</td><td>' + esc(A.ldate(r.date)) + '</td><td>' + (r.due ? esc(A.ldate(r.due)) : '') + '</td>' +
           '<td class="n">' + money(r.total, false) + '</td><td class="n">' + (r.settled ? money(r.settled, false) : '') + '</td><td class="n"><b>' + money(r.left, false) + '</b></td><td class="n">' + (r.overdue || '') + '</td><td>' + esc(X.names[r.b]) + '</td>' +
           '<td class="noprint">' + (r.type === 'jv' || r.type === 'paid' ? '' : eye(r.id)) + '</td></tr>';
-      }).join('') + '</tbody><tfoot><tr><th colspan="6">Total (' + X.rows.length + ')</th><th class="n">' + money(X.tot, false) + '</th><th colspan="2"></th><th class="noprint"></th></tr></tfoot></table>'
+      }).join('') + '</tbody><tfoot><tr><th colspan="6">Total (' + nAll + ')</th><th class="n">' + money(X.tot, false) + '</th><th colspan="2"></th><th class="noprint"></th></tr></tfoot></table>' + (osCapped ? '<p class="soft noprint os-more">Showing the first ' + OS_CAP + ' of ' + nAll + ' bills. <button type="button" class="btn sm" data-osall>Show all ' + nAll + '</button> Print, PDF and Excel always include every bill.</p>' : '')
       : '<p class="soft">' + esc(A.T('nodues')) + '</p>';
     var title = recv ? 'BILL-WISE OUTSTANDING: RECEIVABLE' : 'BILL-WISE OUTSTANDING: PAYABLE';
     return '<div class="pane-hd"><h2>' + esc(T('os_t')) + '</h2><div class="quick no-print"><button type="button" class="btn" data-print>' + esc(A.T('print')) + '</button><button type="button" class="btn" data-ospdf>' + esc(A.T('pdf')) + '</button><button type="button" class="btn" data-osxl>' + esc(A.T('lg_xl')) + '</button></div></div>' +
       bar + '<p class="soft">' + esc(T('os_h')) + '</p>' +
       '<div class="tbl-wrap"><div class="lg-print"><div class="stsheet sh lg-rep wide" dir="ltr" data-sheet>' + bizHead(title, 'As on ' + esc(A.ldate(X.as)) + '<br>Age from the ' + (osDue ? 'due date' : 'bill date')) + sum + body + NS.creditLine('st-ft') + '</div></div></div>';
   }, function (pane) {
-    var a = $('[data-osas]', pane); if (a) a.addEventListener('change', function () { osAs = a.value; A.show(); });
+    var oa = $('[data-osall]', pane); if (oa) oa.addEventListener('click', function () { osAll = true; A.show(); });
+    /* Print and PDF of a capped screen: show every bill first, then press the same button again */
+    pane.addEventListener('click', function (e) {
+      var b = e.target.closest && e.target.closest('[data-print],[data-ospdf]'); if (!b || !osCapped) return;
+      e.preventDefault(); e.stopPropagation(); osAll = true; var sel = b.hasAttribute('data-ospdf') ? '[data-ospdf]' : '[data-print]';
+      A.show(); setTimeout(function () { var n = $(sel); if (n) n.click(); }, 1500);
+    }, true);
+    var a = $('[data-osas]', pane); if (a) a.addEventListener('change', function () { osAs = a.value; osAll = false; A.show(); });
     var d = $('[data-osdue]', pane); if (d) d.addEventListener('change', function () { osDue = d.value === '1'; A.show(); });
     var b = $('[data-osb]', pane); if (b) b.addEventListener('change', function () { ageStore(b.value); A.show(); });
     var m = $('[data-osmin]', pane); if (m) m.addEventListener('change', function () { osMin = m.value; A.show(); });

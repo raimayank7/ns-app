@@ -1,0 +1,60 @@
+/* NSBiz App: Print designs (#pd) and the design / paper choice in the Print box and Preview (printdesign.js, vtools.js) */
+.pd-ctl .fg{align-items:end}.pd-acc{display:flex;gap:10px;flex-wrap:wrap;padding:4px 0}
+.pd-ac{width:34px;height:34px;border-radius:50%;border:3px solid var(--surface);box-shadow:0 0 0 2px var(--line);cursor:pointer;padding:0}
+.pd-ac.on,.pd-ac[aria-checked=true]{box-shadow:0 0 0 3px var(--ink)}
+.pd-btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.pd-st{min-height:1.4em;margin:8px 0 0}
+.pd-stage{position:relative;margin-top:12px;border:1px solid var(--line);border-radius:12px;background:var(--surface2);overflow:hidden;height:min(980px,calc(100dvh - 240px));min-height:520px}
+.pd-stage>p{padding:16px;margin:0}.pd-fr{position:absolute;inset:0;width:100%;height:100%;border:0}
+.vt-dz .vt-dzr{display:flex;flex-wrap:wrap;gap:10px;align-items:end;margin-bottom:8px}.vt-dz label{display:grid;gap:3px;font-size:.85rem}.vt-dz select{min-width:150px}
+.vt-pvo{display:flex;flex-wrap:wrap;gap:8px;margin-inline-start:12px}.vt-pvl{display:flex;align-items:center;gap:6px;font-size:.85rem}.vt-pvl select{width:auto;min-height:34px;padding:3px 8px}
+@media (max-width:640px){.pd-stage{min-height:460px;height:calc(100dvh - 300px)}}
+.vt-dz .vt-cpl{display:flex;align-items:center;gap:10px}.vt-dz .vt-cpl input{width:auto;min-height:0;flex:none}
+.pd-ctl .pd-acc{flex-wrap:nowrap;gap:8px}.pd-ctl .pd-ac{width:30px;height:30px;flex:none}
+.pd-ctl .fg{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+dialog.vt-cpd.vt-wide{width:min(760px,96vw)}.vt-dzp{position:relative;height:min(420px,40dvh);margin:8px 0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#e9edf2}.vt-dzp .vt-pvf{position:absolute;inset:0;width:100%;height:100%;border:0}.vt-dzp>p{padding:12px;margin:0}
+dialog.vt-cpd.vt-wide{max-height:96dvh;overflow:auto}
+/* accounting vouchers (purchase voucher, journal, contra, expense...) printed from the App take the chosen design too (vtools.js vtSheet) */
+.vt-vch{--ac:#0B3B5B}
+.vt-vch.d-modern .st-hd{background:var(--ac);color:#fff;padding:12px 16px;margin:0 0 12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}.vt-vch.d-modern :is(.vch-biz,.vch-ttl){color:#fff}
+.vt-vch.d-modern .tbl thead th{background:var(--ac);color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.vt-vch.d-band{border-top:10px solid var(--ac)}.vt-vch.d-band .vch-ttl{color:var(--ac)}
+.vt-vch.d-compact{font-size:11px;line-height:1.3}.vt-vch.d-compact .tbl :is(th,td){padding:2px 6px}
+.vt-vch.d-elegant{font-family:Georgia,'Times New Roman',serif}.vt-vch.d-elegant .st-hd{flex-direction:column;align-items:center;text-align:center;border-bottom:3px double var(--ac);padding-bottom:8px}.vt-vch.d-elegant .st-hd .r{text-align:center}
+.vt-vch.d-elegant .tbl thead th{background:none;color:var(--ac);border-top:1px solid var(--ac);border-bottom:1px solid var(--ac);text-transform:uppercase;letter-spacing:.08em;font-size:10px}
+.vt-vch.d-grid .st-hd{border:1.5px solid #111;padding:8px 10px}.vt-vch.d-grid .tbl{border:1.5px solid #111}.vt-vch.d-grid .tbl :is(th,td){border:1px solid #111}.vt-vch.d-grid .tbl thead th{background:#F3F4F6}
+.vt-vch.d-minimal .tbl :is(th,td){border:0;border-bottom:1px solid #E5E7EB}.vt-vch.d-minimal .tbl thead th{background:none;color:#6B7280;font-weight:500}
+.vt-vch.d-ribbon{border-left:16px solid var(--ac);padding-left:24px}.vt-vch.d-ribbon .vch-ttl{display:inline-block;background:var(--ac);color:#fff;padding:3px 12px;border-radius:0 0 0 12px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.vt-vch.d-ribbon .tbl thead th{background:var(--ac);color:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.vt-vch.d-letter{border-top:12px solid var(--ac)}.vt-vch.d-letter .st-hd{flex-direction:column;align-items:center;text-align:center;border-bottom:1px solid #CBD5E1;gap:6px}.vt-vch.d-letter .st-hd .r{text-align:center}.vt-vch.d-letter .vch-biz{font-size:1.4em;text-transform:uppercase;letter-spacing:.12em}
+.vt-vch.d-letter .tbl thead th{background:none;color:var(--ac);border:0;border-bottom:2px solid var(--ac)}
+.vt-vch.d-typewriter{font-family:'Courier New',Courier,monospace}.vt-vch.d-typewriter :is(th,td,p,b){font-family:inherit}.vt-vch.d-typewriter .st-hd{border-bottom:2px dashed #111}.vt-vch.d-typewriter .tbl :is(th,td){border:0;border-bottom:1px dashed #9CA3AF;background:none}
+.vt-vch.d-typewriter .tbl thead th{border-top:2px dashed #111;border-bottom:2px dashed #111}
+
+/* an accounting voucher on a thermal roll (58 / 80 mm): one narrow column */
+@media print{
+html.vch-on .vch-print.vch-roll .stsheet{max-width:none;width:100%;padding:3mm 3mm 6mm;font-size:9pt;font-family:var(--mono,monospace)}
+html.vch-on .vch-print.vch-roll .stsheet .st-hd{display:block;text-align:center;border:0;background:none;color:#111;padding:0;margin:0 0 4px}
+html.vch-on .vch-print.vch-roll .stsheet .st-hd .r{text-align:center;margin-top:4px;border-top:1px dashed #111;border-bottom:1px dashed #111;padding:3px 0}
+html.vch-on .vch-print.vch-roll .stsheet table{font-size:8.5pt;width:100%}
+html.vch-on .vch-print.vch-roll .stsheet th,html.vch-on .vch-print.vch-roll .stsheet td{padding:1px 2px;overflow-wrap:break-word;word-break:normal}
+html.vch-on .vch-print.vch-roll .stsheet .vt-items th:nth-child(2),html.vch-on .vch-print.vch-roll .stsheet .vt-items td:nth-child(2){display:none}
+html.vch-on .vch-print.vch-roll.th58 .stsheet .vt-items th:nth-child(4),html.vch-on .vch-print.vch-roll.th58 .stsheet .vt-items td:nth-child(4){display:none}
+html.vch-on .vch-print.vch-roll .stsheet .vt-items td:first-child{min-width:34%}
+html.vch-on .vch-print.vch-roll .stsheet .ns-cl,html.vch-on .vch-print.vch-a6 .stsheet .ns-cl{font-size:11px;flex-wrap:nowrap}
+html.vch-on .vch-print.vch-roll .stsheet .vch-sign{display:block;margin-top:8px}
+html.vch-on .vch-print.vch-roll .stsheet .vch-sign>div{margin-top:14px}
+html.vch-on .vch-print.vch-roll .stsheet .vch-stamp{position:static;margin:4px 0}
+html.vch-on .vch-print.vch-a6 .stsheet{font-size:8.5pt}
+html.vch-on .vch-print.vch-a3 .stsheet{max-width:none;font-size:15pt}
+html.vch-on .vch-print.vch-letter .stsheet,html.vch-on .vch-print.vch-legal .stsheet{max-width:none}
+}
+
+/* Envelope printing (envelope.js) */
+.env-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;align-items:start}
+.env-ctl .ev-chk{display:grid;gap:6px;margin:10px 0}.env-ctl .ev-chk label{display:flex;gap:8px;align-items:center}
+.env-ctl .ev-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.env-ctl .ev-h{margin:12px 0 6px;font-size:1rem}
+.env-ctl .ev-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px}.env-ctl .ev-tabs .btn.on{background:var(--accent,#0b5f8f);color:#fff;border-color:transparent}
+.env-ctl .ev-list{max-height:260px;overflow:auto;border:1px solid var(--line,#cbd5e1);border-radius:8px;padding:6px;margin-top:6px}.env-ctl .ev-row{display:flex;gap:8px;align-items:center;padding:3px 2px}
+.env-ctl .ev-go{margin-top:12px;align-items:center;flex-wrap:wrap}
+.env-pv .ev-stage{overflow:auto;padding:6px}.env-pv .ev-sc{margin:0 auto}
+@media (max-width:900px){.env-grid{grid-template-columns:1fr}}

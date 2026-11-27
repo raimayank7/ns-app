@@ -107,7 +107,7 @@
         list.forEach(function (d) { if (eco) d.mkt.eco = d.mkt.eco || eco; });
         return addParty(party, eco);
       }).then(function () {
-        return list.reduce(function (p, d) { return p.then(function () { return NSStore.put('doc', d); }); }, Promise.resolve());
+        return NS.eachSeq(list, function (d) { return NSStore.put('doc', d); }, { label: 'Saving documents' }).then(function (r) { list.length = r.done; });
       }).then(function () {
         NS.toast(list.length + ' documents added for ' + party + '.');
         document.dispatchEvent(new CustomEvent('ns-data'));
@@ -180,7 +180,7 @@
         notes: nm + ' fee on ' + st.n + ' payments' + (st.utr ? ', settlement UTR ' + st.utr : ''), total: st.fee, gw: { src: src, utr: st.utr || ('day ' + st.date) } });
       n.f++;
     });
-    return jobs.reduce(function (p, d) { return p.then(function () { return NSStore.put('doc', d).then(function (saved) { if (d.type === 'receipt' && A.markPaid) return A.markPaid(Object.assign({}, d, { id: saved && saved.id || d.id })); }); }); }, Promise.resolve()).then(function () { return n; });
+    return NS.eachSeq(jobs, function (d) { return NSStore.put('doc', d).then(function (saved) { if (d.type === 'receipt' && A.markPaid) return A.markPaid(Object.assign({}, d, { id: saved && saved.id || d.id })); }); }, { label: 'Saving payments' }).then(function () { return n; });
   }
 
   A.addSection('mkimp', html, wire);

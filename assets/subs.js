@@ -86,7 +86,7 @@
   }
 
   K = NS.kit({
-    type: 'subs', prefix: 'SUB', digits: 3, paper: 'a5', papers: ['a5', 'a4'], copies: 0,
+    type: 'subs', prefix: 'SUB', digits: 3, paper: 'a5', papers: NS.PAPER_ALL, copies: 0,
     name: function () { return 'Subscriber Card'; },
     blank: function () { return { plan: '', amount: '', kind: 'plain', gst: '', sac: '', billDay: '1', dueDays: '7', disc: '', discType: 'amt', start: NS.today(), stop: '', billFrom: NS.today().slice(0, 7), firstMonth: 'prorata', lastMonth: 'prorata', holds: [], status: 'active', billTerms: '' }; },
     newRow: function () { return holdRow(); },

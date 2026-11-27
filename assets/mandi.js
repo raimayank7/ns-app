@@ -45,7 +45,7 @@
   }
 
   NS.kit({
-    type: 'mandi', prefix: 'MN', digits: 3, paper: 'a5', papers: ['a5', 'a4'], copies: 3, copyLabels: ['Farmer copy', 'Buyer copy', 'Office copy'],
+    type: 'mandi', prefix: 'MN', digits: 3, paper: 'a5', papers: NS.PAPER_ALL, copies: 3, copyLabels: ['Farmer copy', 'Buyer copy', 'Office copy'],
     name: function (d) { return d.print === 'weigh' ? 'Weighment Slip' : d.print === 'buyer' ? 'Sale Bill' : 'Settlement Slip'; },
     blank: function () {
       return { print: 'settle', yard: '', veh: '', lots: [lotRow()], ded: [], cust: party(), gstRate: '', adv: '', paid: '', pmode: 'cash', recv: '', rmode: 'cash' };

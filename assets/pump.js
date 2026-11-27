@@ -51,7 +51,7 @@
   }
 
   NS.kit({
-    type: 'pump', prefix: 'SR', digits: 4, paper: 'a4', papers: ['a4', 'a5'], copies: 2, copyLabels: ['Pump copy', 'Owner copy'],
+    type: 'pump', prefix: 'SR', digits: 4, paper: 'a4', papers: NS.PAPER_ALL, copies: 2, copyLabels: ['Pump copy', 'Owner copy'],
     name: function () { return 'Shift Report'; },
     blank: function () { return { shift: '', staff: '', roll: '', noz: [nozRow(), nozRow()], credit: [], card: '', upi: '', other: '', exp: '', counted: '', tanks: [] }; },
     newRow: function (n) { return n === 'credit' ? credRow() : n === 'tanks' ? tankRow() : nozRow(); },

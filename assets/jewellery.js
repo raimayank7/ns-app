@@ -72,7 +72,7 @@
   }
 
   K = NS.kit({
-    type: 'jewel', prefix: 'JW', digits: 4, paper: 'a4', papers: ['a4', 'a5'], emptyRows: true,
+    type: 'jewel', prefix: 'JW', digits: 4, paper: 'a4', papers: NS.PAPER_ALL, emptyRows: true,
     name: function (d) { return d.kind === 'tax' ? 'Invoice' : d.kind === 'supply' ? 'Bill of Supply' : 'Cash Memo'; },
     blank: function () {
       var last = boardLast(), r = last.rates || {};

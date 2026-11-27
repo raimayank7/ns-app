@@ -137,13 +137,16 @@
   var CSV = {
     biz: [['name', 'Name'], ['addr', 'Address'], ['city', 'City'], ['pin', 'PIN code'], ['state', 'State code'], ['gstin', 'GSTIN'], ['phone', 'Phone'], ['email', 'Email'], ['bankName', 'Bank'], ['bankAcc', 'Account no'], ['bankIfsc', 'IFSC'], ['bankBranch', 'Branch'], ['upi', 'UPI ID'], ['gst.legal', 'Legal name'], ['gst.trade', 'Trade name']],
     party: [['role', 'Type'], ['name', 'Name'], ['phone', 'Phone'], ['email', 'Email'], ['addr', 'Address'], ['city', 'City'], ['pin', 'PIN code'], ['state', 'State code'], ['gstin', 'GSTIN'], ['ship.addr', 'Ship-to address'], ['ship.state', 'Ship-to state code'], ['gst.legal', 'Legal name'], ['gst.trade', 'Trade name'],
-      ['ptype', 'Price type'], ['climit', 'Credit limit'], ['cdays', 'Credit days'], ['route', 'Route / beat'], ['scheme', 'Scheme'], ['msme', 'MSME size'], ['udyam', 'Udyam no'], ['agdays', 'Agreed credit days'], ['group', 'Group']],
-    item: [['desc', 'Name'], ['kind', 'Type'], ['cat', 'Group'], ['code', 'Item code'], ['hsn', 'HSN/SAC'], ['unit', 'Unit'], ['rate', 'Rate'], ['wrate', 'Wholesale rate'], ['mrp', 'MRP'], ['prate', 'Purchase price'], ['gst', 'GST %'], ['sl', 'Sales ledger'], ['pl', 'Purchase ledger']]
+      ['ptype', 'Price type'], ['climit', 'Credit limit'], ['cdays', 'Credit days'], ['route', 'Route / beat'], ['scheme', 'Scheme'], ['msme', 'MSME size'], ['udyam', 'Udyam no'], ['agdays', 'Agreed credit days'], ['group', 'Group'],
+      ['pname', 'Print name'], ['contact', 'Contact person'], ['reg', 'GST registration'], ['pan', 'PAN'], ['tdsSec', 'TDS section'], ['deductee', 'Deductee type'], ['tcsRate', 'TCS rate'], ['disc', 'Discount %'], ['int.rate', 'Interest % a year'], ['agent', 'Agent'], ['km', 'Distance km'],
+      ['bankName', 'Bank'], ['bankBranch', 'Bank branch'], ['bankAcc', 'Account no'], ['bankIfsc', 'IFSC'], ['upi', 'UPI ID'], ['tname', 'Transporter'], ['tid', 'Transporter ID'], ['notes', 'Notes']],
+    item: [['desc', 'Name'], ['kind', 'Type'], ['cat', 'Group'], ['code', 'Item code'], ['hsn', 'HSN/SAC'], ['unit', 'Unit'], ['rate', 'Rate'], ['wrate', 'Wholesale rate'], ['mrp', 'MRP'], ['prate', 'Purchase price'], ['gst', 'GST %'], ['sl', 'Sales ledger'], ['pl', 'Purchase ledger'],
+      ['pname', 'Print name'], ['barcode', 'Barcode'], ['descr', 'Description'], ['disc', 'Discount %'], ['min', 'Reorder level'], ['rq', 'Reorder quantity'], ['max', 'Maximum stock'], ['lead', 'Lead days'], ['supplier', 'Usual supplier'], ['track', 'Batch or serial'], ['src', 'Made or bought'], ['notes', 'Notes']]
   };
   var NAMEKEY = { biz: 'name', party: 'name', item: 'desc' };
-  var SECS = ['home', 'biz', 'party', 'pgroups', 'item', 'igroups', 'doc', 'settings', 'backup', 'bin', 'log'];
+  var SECS = ['home', 'c-biz', 'c-docs', 'c-ops', 'c-safe', 'c-pref', 'biz', 'party', 'pgroups', 'item', 'igroups', 'doc', 'settings', 'backup', 'bin', 'log'];
   var GSEC = { pgroups: 'party', igroups: 'item' };   /* the Groups screen of each master */
-  var NUMS = { rate: 1, wrate: 1, mrp: 1, prate: 1, climit: 1, cdays: 1, agdays: 1 };
+  var NUMS = { rate: 1, wrate: 1, mrp: 1, prate: 1, climit: 1, cdays: 1, agdays: 1, disc: 1, tcsRate: 1, km: 1, min: 1, rq: 1, max: 1, lead: 1 };
   var cur = 'home', q = '', gf = '', S = {}, RAW = {}, SB = '', cache = {}, G = { party: [], item: [] };
 
   function key(s) { return String(s || '').trim().toLowerCase(); }
@@ -207,8 +210,9 @@
     return load().then(function () {
       counts();
       var pane = $('[data-pane]');
-      pane.innerHTML = (NS.sample.has(cache) ? NS.sample.note() : '') + (GSEC[sec] ? groupsHtml(GSEC[sec]) : sec === 'home' ? homeHtml() : sec === 'settings' ? settingsHtml() : sec === 'backup' ? backupHtml() : sec === 'bin' ? binHtml() : sec === 'log' ? logHtml() : listHtml(sec));
+      pane.innerHTML = (NS.sample.has(cache) ? NS.sample.note() : '') + (GSEC[sec] ? groupsHtml(GSEC[sec]) : /^c-/.test(sec) ? catHtml(sec) : sec === 'home' ? homeHtml() : sec === 'settings' ? settingsHtml() : sec === 'backup' ? backupHtml() : sec === 'bin' ? binHtml() : sec === 'log' ? logHtml() : listHtml(sec));
       if (sec === 'home' && !cache.biz.length) wireWizard(pane);
+      if (sec === 'home' || /^c-/.test(sec)) wireLanding(pane);
       if (sec === 'settings') { wireSettings(pane); wirePin(pane); setNav(pane); }
       if (sec === 'backup') wireBackup(pane);
       if (FORM[sec] || sec === 'doc') renderList();
@@ -223,26 +227,63 @@
     });
   }
   document.addEventListener('ns-lang', function () { setTimeout(secNames, 0); });
-  /* the sections as one dropdown above the screen, on phones and computers (owner, 2026-11-06); the link list stays in the page,
-     hidden, so section links, counts and the parts other files add (hubmore, hubstaff...) keep working */
+  /* the sections as a settings tree on the left (owner 26 Nov 2026: "this section needs to branch like settings"): groups that fold,
+     an icon and a count on every line, the chosen section on the right. On phones the tree is one bar that opens the list.
+     The link list (.hub-nav) stays in the page, hidden, so section links, counts and the parts other files add keep working. */
+  var ICON = {
+    home: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>', briefcase: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/>',
+    users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.4c2.2.6 3.5 2.5 3.5 5.6"/>',
+    box: '<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>', folder: '<path d="M3 6a2 2 0 0 1 2-2h4l2 3h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+    file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>', hash: '<path d="M5 9h14M5 15h14M10 4L8 20M16 4l-2 16"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+    cloud: '<path d="M7 18a4.5 4.5 0 0 1-.6-9A6 6 0 0 1 18 9.5 4 4 0 0 1 17.5 18z"/><path d="M12 11v6M9.5 14.5L12 17l2.5-2.5"/>', trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', db: '<ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/>',
+    chev: '<path d="M6 9l6 6 6-6"/>'
+  };
+  function ic(k) { return '<svg class="ht-ic" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (ICON[k] || '') + '</svg>'; }
+  var TREE = [
+    { sec: 'home', icon: 'home', key: 'pm.t_all' },
+    { id: 'biz', k: 'pm.g_business', icon: 'briefcase', items: [['biz', 'briefcase']] },
+    { id: 'pi', k: 'pm.g_pi', icon: 'users', items: [['party', 'users'], ['pgroups', 'folder', 'pm.t_pgroups'], ['item', 'box'], ['igroups', 'folder', 'pm.t_igroups']] },
+    { id: 'docs', k: 'pm.g_docs', icon: 'file', items: [['doc', 'file'], ['numbers', 'hash', 'pm.t_numbers']] },
+    { id: 'data', k: 'pm.g_data', icon: 'db', items: [['backup', 'cloud'], ['bin', 'trash'], ['log', 'clock']] },
+    { id: 'pref', k: 'pm.g_pref', icon: 'gear', items: [['settings', 'gear']] }
+  ];
+  function treeFold(id, set) { var o = {}; try { o = JSON.parse(localStorage.getItem('ns-hubtree') || '{}') || {}; } catch (e) {} if (set !== undefined) { o[id] = set; try { localStorage.setItem('ns-hubtree', JSON.stringify(o)); } catch (e) {} } return !!o[id]; }
   function secPick() {
     var nav = $('.hub-nav'), hub = nav && nav.parentNode; if (!nav) return;
-    var box = $('.hub-pick', hub), sel;
+    var box = $('.hub-tree', hub);
     if (!box) {
-      box = NS.el('div', { 'class': 'hub-pick' });
-      box.innerHTML = '<select aria-label="' + esc(nav.getAttribute('aria-label') || '') + '"></select>';
-      hub.insertBefore(box, nav); hub.classList.add('picked');
-      $('select', box).addEventListener('change', function () { show(this.value, true); });
+      box = NS.el('nav', { 'class': 'hub-tree', 'aria-label': t('pm.tree') });
+      hub.insertBefore(box, nav); hub.classList.add('picked', 'tree');
+      box.addEventListener('click', function (e) {
+        var g = e.target.closest('[data-htg]');
+        if (g) { var id = g.getAttribute('data-htg'), shut = g.getAttribute('aria-expanded') === 'true'; treeFold(id, shut); secPick(); return; }
+        if (e.target.closest('[data-htbar]')) { box.classList.toggle('open'); $('[data-htbar]', box).setAttribute('aria-expanded', box.classList.contains('open') ? 'true' : 'false'); return; }
+        var a = e.target.closest('[data-htsec]'); if (!a) return;
+        e.preventDefault(); var sec = a.getAttribute('data-htsec'); box.classList.remove('open');
+        if (sec === 'numbers') { show('settings', true).then(function () { var nh = $$('.set-nh').filter(function (h) { return /number series/i.test(h.textContent); })[0], b = nh && nh.nextElementSibling; if (b && b.classList.contains('set-ni')) b.click(); }); return; }
+        show(sec, true);
+      });
       new MutationObserver(function () { clearTimeout(secPick.t); secPick.t = setTimeout(secPick, 30); }).observe(nav, { childList: true, subtree: true, characterData: true });
     }
-    sel = $('select', box);
-    var html = $$('[data-sec]', nav).map(function (a) {
-      var s = a.getAttribute('data-sec'), l = $('span', a), c = $('.n', a), n = c ? c.textContent.trim() : '';
-      var txt = (a.classList.contains('sub') ? ' ' : '') + (l ? l.textContent.trim() : a.textContent.trim()) + (n ? ' (' + n + ')' : '');
-      return '<option value="' + esc(s) + '"' + (s === cur ? ' selected' : '') + '>' + esc(txt) + '</option>';
-    }).join('');
-    if (sel.innerHTML !== html) sel.innerHTML = html;
-    sel.value = cur;
+    hub.classList.toggle('no-tree', cur === 'home');
+    var info = {}; $$('[data-sec]', nav).forEach(function (a) { var sp = $('span', a), c = $('.n', a); info[a.getAttribute('data-sec')] = { l: sp ? sp.textContent.trim() : a.textContent.trim(), n: c ? c.textContent.trim() : '' }; });
+    var curLabel = /^c-/.test(cur) ? (CATS.filter(function (c) { return c.id === cur; })[0] || {}).k : cur === 'pgroups' ? t('pm.t_pgroups') : cur === 'igroups' ? t('pm.t_igroups') : (info[cur] || {}).l || '';
+    var item = function (sec, icon, key, lvl) {
+      var i = info[sec === 'numbers' ? 'settings' : sec] || { l: '', n: '' }, on = sec === cur, label = key ? t(key) : i.l;
+      if (sec === 'numbers') i = { n: '' };
+      return '<a href="#' + (sec === 'numbers' ? 'settings' : sec === 'home' ? '' : sec) + '" class="ht-i' + (on ? ' on' : '') + (lvl ? ' ht-l2' : '') + '" data-htsec="' + sec + '"' + (on ? ' aria-current="page"' : '') + '>' + ic(icon) + '<span>' + esc(label) + '</span>' + (i.n ? '<i class="n">' + esc(i.n) + '</i>' : '') + '</a>';
+    };
+    var html = '<button type="button" class="ht-bar" data-htbar aria-expanded="' + (box.classList.contains('open') ? 'true' : 'false') + '"><span class="ht-barl">' + esc(t('pm.t_show')) + '</span><b>' + esc(curLabel) + '</b>' + ic('chev') + '</button><div class="ht-body">' +
+      TREE.map(function (g) {
+        if (g.sec) return item(g.sec, g.icon, g.key, 0);
+        var has = g.items.some(function (x) { return x[0] === cur; }), shut = treeFold(g.id) && !has;
+        return '<div class="ht-g"><button type="button" class="ht-gh" data-htg="' + g.id + '" aria-expanded="' + (shut ? 'false' : 'true') + '">' + ic(g.icon) + '<span>' + esc(t(g.k)) + '</span>' + ic('chev') + '</button>' +
+          '<div class="ht-gi"' + (shut ? ' hidden' : '') + '>' + g.items.map(function (x) { return item(x[0], x[1], x[2], 1); }).join('') + '</div></div>';
+      }).join('') + '</div>';
+    if (box._h !== html) { box.innerHTML = html; box._h = html; }
+    var onI = $('.ht-i.on', box); if (onI && innerWidth > 860 && box.scrollHeight > box.clientHeight && (onI.offsetTop + onI.offsetHeight > box.scrollTop + box.clientHeight || onI.offsetTop < box.scrollTop)) box.scrollTop = Math.max(0, onI.offsetTop - box.clientHeight / 2);   /* the chosen line is always in view */
   }
   function counts() {
     var n = { biz: cache.biz.length, party: cache.party.length, item: cache.item.length, doc: cache.doc.length, bin: cache.bin.length || '', pgroups: G.party.length || '', igroups: G.item.length || '' };
@@ -250,16 +291,63 @@
     secNames(); secPick();
     var m = $('[data-mode]'); if (m) m.textContent = t(NSStore.mode() === 'vault' ? 'my.vault' : 'my.local');
   }
+
+  /* ---------- the landing view: category cards like the Free tools screen (owner 26 Nov 2026) ----------
+     [label, section, settings line to open inside Settings, words the search also reads] */
+  var CATS = [
+    { id: 'c-biz', icon: 'briefcase', k: 'Business and parties', d: 'Your businesses, customers, suppliers and items.', items: [
+      ['My businesses', 'biz', '', 'gstin address bank logo company'], ['Customers and suppliers', 'party', '', 'gstin credit limit ship-to parties debtors creditors'], ['Items and services', 'item', '', 'hsn gst rate stock price products'],
+      ['Customer and supplier groups', 'pgroups', '', 'sundry debtors creditors'], ['Item groups', 'igroups', '', 'categories stock groups']] },
+    { id: 'c-docs', icon: 'file', k: 'Documents and numbering', d: 'Saved documents, invoice numbers and defaults for new ones.', items: [
+      ['Documents', 'doc', '', 'invoices bills saved list register csv'], ['Number series', 'settings', 'Accounting vouchers', 'prefix numbering invoice number'], ['Invoice defaults', 'settings', 'Invoice (Billing)', 'terms notes round off format design']] },
+    { id: 'c-ops', icon: 'box', k: 'Stock and accounts', d: 'Godowns, salesmen, stock value, final accounts and heads.', items: [
+      ['Godowns and branches', 'settings', 'Godowns and branches', 'warehouse store'], ['Salesmen', 'settings', 'Salesmen', 'agent commission'], ['Stock valuation', 'settings', 'Stock valuation', 'fifo average'],
+      ['Final accounts', 'settings', 'Final accounts', 'balance sheet profit loss t format'], ['Income and expense heads', 'settings', 'Income and expense heads', 'ledger heads'], ['Employees', 'settings', 'Employees', 'staff salary payroll']] },
+    { id: 'c-safe', icon: 'cloud', k: 'Backup and safety', d: 'Backups, other devices, the recycle bin, edit history and locks.', items: [
+      ['Backup and other devices', 'backup', '', 'restore export drive folder auto save'], ['Recycle bin', 'bin', '', 'deleted restore'], ['Edit history', 'log', '', 'audit trail changes'],
+      ['Safety', 'settings', 'Safety', 'lock period closed year'], ['PIN lock', 'settings', 'PIN lock', 'password pin'], ['Users and logins', 'settings', 'Users and logins', 'rights roles']] },
+    { id: 'c-pref', icon: 'gear', k: 'Preferences', d: 'Default business, language, reminders and custom fields.', items: [
+      ['General settings', 'settings', 'General', 'default business language reminder backup'], ['Custom fields on documents', 'settings', 'Custom fields on documents', 'extra boxes']] }
+  ];
+  function catOf(id) { return CATS.filter(function (c) { return c.id === id; })[0]; }
+  function entryAttrs(x) { return 'href="#' + x[1] + '" data-go data-sec="' + x[1] + '" data-sub="' + esc(x[2] || '') + '"'; }
+  function landingFind(q) { return '<div class="fz-find"><input type="search" data-fz-q placeholder="' + esc('Find a setting…') + '" value="' + esc(q || '') + '" aria-label="' + esc('Find a setting') + '" autocomplete="off"></div>'; }
+  function landingCards() {
+    return '<div class="fz-cards" data-fz-home>' + CATS.map(function (c) {
+      return '<a class="fz-gc" href="#' + c.id + '"><span class="fz-gi">' + ic(c.icon) + '</span><span class="fz-gt"><b>' + esc(c.k) + '</b><small>' + c.items.length + (c.items.length === 1 ? ' item' : ' items') + '</small></span>' +
+        '<span class="fz-gd">' + esc(c.d) + '</span><span class="fz-gn">' + c.items.slice(0, 4).map(function (x) { return esc(x[0]); }).join(' · ') + (c.items.length > 4 ? ' …' : '') + '</span></a>';
+    }).join('') + '</div>';
+  }
+  function catHtml(id) {
+    var c = catOf(id) || CATS[0];
+    return '<div class="pane-hd fz-hd"><a class="btn sm" href="#" data-go data-sec="home" data-ic="back">' + esc(t('hub.home') === 'Overview' ? 'All settings' : t('hub.home')) + '</a><h2>' + esc(c.k) + '</h2></div><p class="soft">' + esc(c.d) + '</p>' +
+      '<div class="fz-tools">' + c.items.map(function (x) { return '<a class="fz-tc" ' + entryAttrs(x) + '><b>' + esc(x[0]) + '</b><span>' + esc(x[3] ? x[3].split(' ').slice(0, 5).join(' · ') : '') + '</span></a>'; }).join('') + '</div>';
+  }
+  function wireLanding(pane) {
+    var q = $('[data-fz-q]', pane), found = $('[data-fz-found]', pane), home = $('[data-fz-home]', pane);
+    if (!q || !found) return;
+    q.addEventListener('input', function () {
+      var w = q.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      if (!w.length) { found.hidden = true; if (home) home.hidden = false; return; }
+      var hit = []; CATS.forEach(function (c) { c.items.forEach(function (x) { var hay = (x[0] + ' ' + x[3] + ' ' + c.k).toLowerCase(); if (w.every(function (z) { return hay.indexOf(z) >= 0; })) hit.push([x, c]); }); });
+      found.innerHTML = hit.length ? '<div class="fz-tools">' + hit.map(function (h) { return '<a class="fz-tc" ' + entryAttrs(h[0]) + '><b>' + esc(h[0][0]) + '</b><span>' + esc(h[1].k) + '</span></a>'; }).join('') + '</div>' : '<p class="soft">No setting found. Try another word.</p>';
+      found.hidden = false; if (home) home.hidden = true;
+    });
+  }
+  /* an entry: open its section, and inside Settings the line it names */
+  function goEntry(sec, sub) {
+    return show(sec, true).then(function () {
+      if (sec !== 'settings' || !sub) return;
+      var b = $$('.set-ni').filter(function (x) { return x.textContent.trim() === sub; })[0]; if (b) b.click();
+    });
+  }
   function homeHtml() {
     var c = cache, steps = [
       ['biz', c.biz.length > 0, 'hub.s1', '#biz'], ['party', c.party.length > 0, 'hub.s2', '#party'], ['item', c.item.length > 0, 'hub.s3', '#item'],
       ['settings', !!(S.invoice || S.defBiz), 'hub.s4', '#settings'], ['doc', c.doc.length > 0, 'hub.s5', BILLING], ['backup', !!S._last, 'hub.s6', '#backup']
     ];
     var done = steps.filter(function (s) { return s[1]; }).length;
-    return '<h2>' + esc(t('hub.home')) + '</h2>' + (c.biz.length ? '' : wizardHtml()) +
-      '<div class="tiles">' + ['biz', 'party', 'item', 'doc'].map(function (s) {
-        return '<a href="#' + s + '" class="tile"><b>' + c[s].length + '</b><span>' + esc(t('my.t.' + s)) + '</span></a>';
-      }).join('') + '</div>' +
+    return '<div class="pane-hd"><h2>' + esc(t('hub.home')) + '</h2></div>' + (c.biz.length ? '' : wizardHtml()) + landingFind('') + '<div class="fz-found" data-fz-found hidden></div>' + landingCards() +
       '<div class="card"><h3>' + esc(t('hub.start')) + ' <small class="soft">' + done + ' / ' + steps.length + '</small></h3><ol class="steps">' + steps.map(function (s) {
         var ext = /^http/.test(s[3]);
         return '<li class="' + (s[1] ? 'ok' : '') + '"><span class="tick" aria-hidden="true">' + (s[1] ? '✓' : '') + '</span><a href="' + s[3] + '"' + (ext ? ' target="_blank" rel="noopener"' : '') + '>' + esc(t(s[2])) + '</a>' +
@@ -344,13 +432,24 @@
     var hint = kind === 'gstin' ? '<small class="hint" data-gst-hint aria-live="polite"></small>' : x.hint ? '<small class="hint">' + esc(t(x.hint)) + '</small>' : '';
     return '<div class="' + cls + '"><label for="' + id + '">' + esc(lbl) + (x.req ? ' *' : '') + '</label>' + h + hint + '</div>';
   }
+  /* what the shared party / item form needs from this screen */
+  function pmOpts(s, r) {
+    var bz = function () { var b = cache.biz.filter(function (x) { return x.id === S.defBiz; })[0] || cache.biz[0]; if (!b) return null; var c = JSON.parse(JSON.stringify(b)); delete c.id; delete c.created; delete c.updated; return c; };
+    var gd = (S.godowns || []).slice(); Object.keys(S.byBiz || {}).forEach(function (b) { ((S.byBiz[b] || {}).godowns || []).forEach(function (x) { if (gd.indexOf(x) < 0) gd.push(x); }); });
+    var b0 = bz();
+    return { ctx: 'my', biz: cache.biz, godowns: gd, units: UNITS, multiLed: !!S.multiLed || Object.keys(S.byBiz || {}).some(function (b) { return (S.byBiz[b] || {}).multiLed; }),
+      groupHtml: function (rec) { return gSelect(s, s === 'party' ? NS.partyGroup(rec, G).id : NS.itemGroup(rec, G).id); },
+      ob: s === 'party' && r.id ? NSPM.findOb(cache.doc || [], r.name, b0 && b0.name) : null, seller: bz, side: r.role };
+  }
   function openForm(s, id) {
     var dlg = $('#hub-form'), r = id ? JSON.parse(JSON.stringify(cache[s].filter(function (x) { return x.id === id; })[0] || {})) : (s === 'party' ? { role: 'customer' } : s === 'item' ? { kind: 'goods', unit: 'Nos', gst: 18 } : {});
     var imgs = { logo: r.logo || '', sign: r.sign || '' };
     $('[data-form-title]', dlg).textContent = t(id ? 'hub.edit.' + s : 'hub.add.' + s);
     var f = $('form', dlg);
-    f.innerHTML = '<div class="fg">' + FORM[s].map(function (x) { return fieldHtml(x, r); }).join('') + '</div>' +
-      hubExt('form', s, r) +   /* sections added by other files (hubmore.js: stock tracking) */
+    var pm = (s === 'party' || s === 'item') && window.NSPM, po = pm ? pmOpts(s, r) : null;
+    /* party and item: the sectioned form shared with the App (pmforms.js, owner 26 Nov 2026); the other sections of hubExt are inside it now */
+    f.innerHTML = (pm ? NSPM.html(s, r, po) : '<div class="fg">' + FORM[s].map(function (x) { return fieldHtml(x, r); }).join('') + '</div>' +
+      hubExt('form', s, r)) +   /* sections added by other files (hubmore.js: stock tracking) */
       '<datalist id="hub-units">' + UNITS.map(function (u) { return '<option value="' + u + '">'; }).join('') + '</datalist>' +
       '<div class="dlg-foot"><button type="submit" class="btn primary">' + esc(t(id ? 'my.savech' : 'hub.save')) + '</button>' +
       (id ? '' : '<button type="submit" class="btn" data-again>' + esc(t('hub.saveadd')) + '</button>') +
@@ -372,9 +471,10 @@
       /* a valid GSTIN on a business marked "not registered": it is registered (round C) */
       var rg = $('[name=reg]', f); if (ev && c.ok && rg && rg.value === 'unreg') { rg.value = 'regular'; NS.toast(t('hub.rg.toreg')); }
     }
-    if (g) { g.addEventListener('input', gstHint); gstHint(); }
+    if (g && !pm) { g.addEventListener('input', gstHint); gstHint(); }
     wireGroupField(s, f);
-    if (g && NS.gstFetchButton) NS.gstFetchButton(g, function (d) {
+    if (pm) NSPM.wire(f, s, r, po);
+    if (g && !pm && NS.gstFetchButton) NS.gstFetchButton(g, function (d) {
       ['name', 'addr', 'city', 'pin', 'state'].forEach(function (k) { var el = f.elements[k]; if (el && d[k]) el.value = d[k]; });
       if (s === 'biz' && d.reg && f.elements.reg) f.elements.reg.value = d.reg;
       var cs = String(d.constitution || ''), bt = /limited liability|\bllp\b/i.test(cs) ? 'llp' : /partnership/i.test(cs) ? 'firm' : /company|limited/i.test(cs) ? 'co' : /trust|society|association|club/i.test(cs) ? 'npo' : /propriet/i.test(cs) ? 'prop' : '';
@@ -401,17 +501,18 @@
     var ag = $('[data-again]', f); if (ag) ag.addEventListener('click', function () { again = true; });
     f.onsubmit = function (e) {
       e.preventDefault();
-      FORM[s].forEach(function (x) {
+      if (pm) { if (NSPM.read(f, s, r, po)) { again = false; return; } }
+      else FORM[s].forEach(function (x) {
         if (x[2] === 'img') { r[x[0]] = imgs[x[0]]; return; }
         var el = f.elements[x[0]]; if (!el) return;
         var v = el.value.trim();
         if (x[2] === 'gstin' || (x[3] && x[3].upper)) v = v.toUpperCase().replace(/\s/g, '');
         set(r, x[0], v);
       });
-      if (s === 'item') { if (r.gst !== '') r.gst = +r.gst; }
+      if (s === 'item' && !pm) { if (r.gst !== '') r.gst = +r.gst; }
       if (s === 'item' && window.NSGst && r.tax) {   /* r1-gst: a rate changed here on an item with dated rates applies from today; defaults are not stored */
         if (r.tax.kind === 'taxable') delete r.tax.kind; if (r.tax.itc === 'ok') delete r.tax.itc;
-        if (r.gst !== '' && NSGst.hist(r).some(function (h) { return h.from; }) && NSGst.itemRate(r, NS.today()).rate !== r.gst) Object.assign(r, NSGst.addRate(r, NS.today(), r.gst, NS.today()));
+        if (r.gst != null && r.gst !== '' && NSGst.hist(r).some(function (h) { return h.from; }) && NSGst.itemRate(r, NS.today()).rate !== r.gst) Object.assign(r, NSGst.addRate(r, NS.today(), r.gst, NS.today()));
         if (!Object.keys(r.tax).length) delete r.tax;
       }
       if (s === 'party' && r.pan && !/^[A-Z]{5}\d{4}[A-Z]$/.test(r.pan)) { NS.toast(NS.t('ms.panbad'), 'bad'); return; }
@@ -425,24 +526,27 @@
       var nm = key(r[NAMEKEY[s]]);
       if (!nm) { NS.toast(t('hub.v.name'), 'bad'); again = false; return; }
       if (cache[s].some(function (x) { return x.id !== r.id && key(x[NAMEKEY[s]]) === nm; })) { NS.toast(t('hub.v.dup', { name: r[NAMEKEY[s]] }), 'bad'); again = false; return; }
-      if (r.gstin && !NS.gstinCheck(r.gstin).ok) { NS.toast(NS.gstinCheck(r.gstin).msg, 'bad'); g.focus(); again = false; return; }
+      if (r.gstin && !NS.gstinCheck(r.gstin).ok) { NS.toast(NS.gstinCheck(r.gstin).msg, 'bad'); if (g) g.focus(); again = false; return; }
       if (s === 'party') {   /* compliance pack: Udyam number (format only, nothing is looked up), agreed days at most 45 */
-        if (r.udyam) { var ud = udyamFmt(r.udyam); if (!ud) { NS.toast(t('cp.udbad'), 'bad'); f.elements.udyam.focus(); again = false; return; } r.udyam = ud; } else delete r.udyam;
+        if (r.udyam) { var ud = udyamFmt(r.udyam); if (!ud) { NS.toast(t('cp.udbad'), 'bad'); if (f.elements.udyam) f.elements.udyam.focus(); again = false; return; } r.udyam = ud; } else delete r.udyam;
         if (r.agdays != null && r.agdays !== '') r.agdays = Math.max(0, Math.min(45, Math.floor(r.agdays))); else delete r.agdays;
         if (!r.msme) delete r.msme;
       }
-      if (r.bankIfsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(r.bankIfsc)) { NS.toast(t('hub.v.ifsc'), 'bad'); f.elements.bankIfsc.focus(); again = false; return; }
+      if (r.bankIfsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(r.bankIfsc)) { NS.toast(t('hub.v.ifsc'), 'bad'); if (f.elements.bankIfsc) f.elements.bankIfsc.focus(); again = false; return; }
       var first = s === 'biz' && !cache.biz.length && !S.defBiz;
       NSStore.put(s, r).then(function (saved) {
         NS.toast(t('my.saved'));
-        if (first) { S.defBiz = saved.id; return saveSettings(); }
+        var p = pm ? NSPM.opening(f, s, saved && saved.id ? saved : r, po) : null;   /* opening balance / opening stock typed on the form */
+        if (first) { S.defBiz = saved.id; return Promise.resolve(p).then(saveSettings); }
+        return p;
       }).then(function () {
         var a = again; again = false;
         return show(s).then(function () { if (a) openForm(s); else dlg.close(); });
       }).catch(function (err) { NS.toast(t('nosave', { e: err.message }), 'bad'); });
     };
     if (!dlg.open) { if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', ''); }
-    var firstIn = $('input:not([type=file]),select,textarea', f); if (firstIn && !(s === 'party')) firstIn.focus(); else if ($('[name=name]', f)) $('[name=name]', f).focus();
+    var firstIn = $('input:not([type=file]),select,textarea', f); if (pm) { var nf = $('[name=' + (s === 'item' ? 'desc' : 'name') + ']', f); if (nf) nf.focus(); } else if (firstIn && !(s === 'party')) firstIn.focus(); else if ($('[name=name]', f)) $('[name=name]', f).focus();
+    if (pm) dlg.classList.add('pm-wide'); else dlg.classList.remove('pm-wide');
   }
   function udyamFmt(s) { var m = /^UDYAM([A-Z]{2})(\d{2})(\d{7})$/.exec(String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '')); return m ? 'UDYAM-' + m[1] + '-' + m[2] + '-' + m[3] : ''; }
   function shrink(file, max) {
@@ -1010,6 +1114,12 @@
         if (r.role) r.role = /supp/i.test(r.role) ? (/both|cust/i.test(r.role) ? 'both' : 'supplier') : /both/i.test(r.role) ? 'both' : 'customer';
         if (r.kind) r.kind = /serv/i.test(r.kind) ? 'service' : 'goods';
         Object.keys(NUMS).forEach(function (k) { if (r[k] != null) r[k] = NS.num(r[k]); });
+        if (r.int && r.int.rate != null) r.int.rate = NS.num(r.int.rate);
+        if (r.track && ['batch', 'serial', 'both'].indexOf(String(r.track).toLowerCase()) < 0) delete r.track; else if (r.track) r.track = String(r.track).toLowerCase();
+        if (r.src && ['made', 'bought', 'both'].indexOf(String(r.src).toLowerCase()) < 0) delete r.src; else if (r.src) r.src = String(r.src).toLowerCase();
+        if (r.reg && ['regular', 'comp', 'unreg', 'sez', 'uin', 'overseas', 'eco'].indexOf(String(r.reg).toLowerCase()) < 0) delete r.reg; else if (r.reg) r.reg = String(r.reg).toLowerCase();
+        if (r.bankIfsc) { r.bankIfsc = String(r.bankIfsc).toUpperCase().replace(/\s/g, ''); if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(r.bankIfsc)) delete r.bankIfsc; }
+        if (r.pan) { r.pan = String(r.pan).toUpperCase().replace(/\s/g, ''); if (!/^[A-Z]{5}\d{4}[A-Z]$/.test(r.pan)) delete r.pan; }
         if (r.ptype) r.ptype = /whole/i.test(r.ptype) ? 'wholesale' : 'retail';
         if (r.msme) { var mz = String(r.msme).toLowerCase().trim(); if (['micro', 'small', 'medium', 'other'].indexOf(mz) >= 0) r.msme = mz; else delete r.msme; }
         if (r.udyam) { var uz = udyamFmt(r.udyam); if (uz) r.udyam = uz; else delete r.udyam; }
@@ -1031,7 +1141,7 @@
       return (NS.ask ? NS.ask(q) : Promise.resolve(confirm(q))).then(function (ok) {
         if (!ok) { load(); return show(s); }
         var gp = made.length ? editGroups(function (m) { made.forEach(function (g) { m[s].push(g); }); }) : Promise.resolve();
-        return puts.reduce(function (p, r) { return p.then(function () { return NSStore.put(s, r); }); }, gp).then(function () {
+        return gp.then(function () { return NS.eachSeq(puts, function (r) { return NSStore.put(s, r); }, {}); }).then(function () {
           NS.toast(t('hub.imp.done', { a: add, u: upd }) + (bad.length ? ' ' + t('hub.imp.bad', { rows: bad.slice(0, 8).join(', ') + (bad.length > 8 ? '…' : '') }) : ''), bad.length ? 'bad' : '');
           return show(s);
         });
@@ -1062,6 +1172,7 @@
     window.addEventListener('hashchange', function () { var h = location.hash.slice(1) || 'home'; if (h !== cur) go(h); });
     var pane = $('[data-pane]');
     pane.addEventListener('click', function (e) {
+      var ge = e.target.closest('[data-go]'); if (ge) { e.preventDefault(); goEntry(ge.getAttribute('data-sec'), ge.getAttribute('data-sub')); return; }
       var a = e.target.closest('a[href^="#"]');
       if (a && SECS.indexOf(a.getAttribute('href').slice(1)) >= 0) { e.preventDefault(); show(a.getAttribute('href').slice(1), true); return; }
       if (e.target.closest('[data-add]')) return openForm(cur);

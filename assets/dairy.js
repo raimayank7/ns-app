@@ -115,7 +115,7 @@
   }
 
   K = NS.kit({
-    type: 'dairy', prefix: 'DY', digits: 3, paper: 'a4', papers: ['a4', 'a5'], copies: 2, copyLabels: ['Party copy', 'Office copy'], party: false,
+    type: 'dairy', prefix: 'DY', digits: 3, paper: 'a4', papers: NS.PAPER_ALL, copies: 2, copyLabels: ['Party copy', 'Office copy'], party: false,
     name: function (d) { return d.role === 'deliver' ? 'Milk Delivery Statement' : 'Milk Collection Statement'; },
     blank: function () {
       var p = D.periodOf(NS.today(), 'fn');

@@ -180,7 +180,7 @@
   }
 
   K = NS.kit({
-    type: 'garment', prefix: 'GM', digits: 4, paper: 'a4', papers: ['a4', 'a5', 'th80'],
+    type: 'garment', prefix: 'GM', digits: 4, paper: 'a4', papers: NS.PAPER_ALL,
     name: function (d) { return d.kind === 'tax' ? 'Invoice' : d.kind === 'supply' ? 'Bill of Supply' : 'Cash Memo'; },
     blank: function () { return { kind: 'plain', round: true, incl: false, status: 'paid', payMode: 'cash', items: [row()] }; },
     newRow: function () { return row(); },

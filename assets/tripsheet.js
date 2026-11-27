@@ -58,7 +58,7 @@
   }
 
   K = NS.kit({
-    type: 'tsh', prefix: 'TS', digits: 4, paper: 'a5', papers: ['a5', 'a4', 'th80'], copies: 2, copyLabels: ['Customer copy', 'Office copy'],
+    type: 'tsh', prefix: 'TS', digits: 4, paper: 'a5', papers: NS.PAPER_ALL, copies: 2, copyLabels: ['Customer copy', 'Office copy'],
     name: function (d) { return d.tmode === 'travel' ? 'Booking Bill' : d.tmode === 'courier' ? 'Courier Statement' : 'Trip Sheet'; },
     blank: function () { return { tmode: 'taxi', lines: [line('taxi')], gstOn: 'none', gst: '', status2: 'unpaid', payMode: 'cash', driverPay: '', fuel: '', otherCost: '', round: false }; },
     newRow: function () { return line(mode()); },

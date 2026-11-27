@@ -95,7 +95,7 @@
   }
 
   K = NS.kit({
-    type: 'amc', prefix: 'AMC', digits: 4, paper: 'a4', papers: ['a4'], copies: 0,
+    type: 'amc', prefix: 'AMC', digits: 4, paper: 'a4', papers: NS.PAPER_ALL, copies: 0,
     name: function () { return 'Contract'; },
     blank: function () { return { title: '', site: '', start: NS.today(), termMonths: 12, freq: 'quarter', billWhen: 'advance', amount: '', gst: 18, sac: '9987', visits: 0, credit: 15, billed0: '', kind: 'plain', status: 'active', visitsDone: [], terms: 'Visits are made during working hours on a day agreed with the customer. Parts and consumables are charged extra unless written above. The customer gives access to the equipment. Either side may end the contract with 30 days’ written notice.' }; },
     keepOnNew: function (d) { return { kind: d.kind, terms: d.terms, freq: d.freq, billWhen: d.billWhen, gst: d.gst, sac: d.sac, credit: d.credit }; },

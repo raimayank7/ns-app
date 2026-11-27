@@ -92,6 +92,28 @@
   function isHeadG(g) { return /^(dexp|iexp|dinc|oinc)$/.test(g); }
   function topOf(gid) { var L = NS.groupsOf(GRP(), 'party'), g = L.filter(function (x) { return x.id === gid; })[0]; if (!g) return 'debtors'; if (g.builtin) return g.id; var up = L.filter(function (x) { return x.id === g.under; })[0]; return up && up.builtin ? up.id : up && up.under || 'debtors'; }
   function obOf(name) { var k = key(name), b = key(A.bizName()); return C().doc.filter(function (d) { return d.type === 'ob' && key(d.buyer && d.buyer.name) === k && key(d.seller && d.seller.name) === b; })[0]; }
+  /* the flat party fields used before pmforms.js (kept in case the file cannot load) */
+  function oldPartyFields(p, g0, obv, obs, states) {
+    return '<div class="fg">' +
+      fld('ms-gstin', NS.t('l.cgstin'), inp('ms-gstin', p && p.gstin || '', { ltr: 1 })) + fld('ms-state', NS.t('l.state'), sel('ms-state', p && p.state || '', states)) +
+      partyTaxFields(p) +
+      fld('ms-phone', NS.t('l.phone'), inp('ms-phone', p && p.phone || '', { ltr: 1, mode: 'tel' })) + fld('ms-email', NS.t('l.email'), inp('ms-email', p && p.email || '', { ltr: 1 })) +
+      fld('ms-addr', NS.t('l.addr'), inp('ms-addr', p && p.addr || ''), { wide: 1 }) + fld('ms-city', NS.t('l.city'), inp('ms-city', p && p.city || '')) + fld('ms-pin', NS.t('l.pin'), inp('ms-pin', p && p.pin || '', { ltr: 1, mode: 'numeric' })) +
+      fld('ms-cdays', NS.t('b1.cdays'), inp('ms-cdays', p && p.cdays || '', { mode: 'numeric', ltr: 1 })) + fld('ms-climit', NS.t('b1.climit'), inp('ms-climit', p && p.climit || '', { mode: 'decimal', ltr: 1 })) +
+      fld('ms-ob', M('obal', { d: NS.fmtDate(fyStart()) }), inp('ms-ob', obv, { mode: 'decimal', ltr: 1 })) + fld('ms-obs', M('drcr'), sel('ms-obs', obs, [['dr', M('dr')], ['cr', M('cr')]])) +
+      inact(p) + '</div>';
+  }
+  /* what the shared party / item form (pmforms.js) needs from the Masters screen */
+  function pmOpts(p, g0, item) {
+    var multi = !!((A.cfg && A.cfg() || {}).multiLed), gd = ((A.godowns && A.godowns()) || []).slice();
+    return { ctx: 'masters', biz: C().biz || [], godowns: gd, units: UNITS, multiLed: multi, side: g0 === 'creditors' ? 'supplier' : 'customer',
+      skip: item ? ['gst', 'tax.kind', 'tax.itc'] : ['name', 'group', 'role'], ob: item ? null : (p ? obOf(p.name) : null),
+      groups: NS.groupsOf(GRP(), 'item'), meta: GRP(), seller: function () { return A.biz() ? X.sellerCopy() : null; },
+      slots: item ? { tax: slotTax(p) } : null };
+  }
+  function slotTax(it) {
+    return fld('ms-gst', NS.t('l.gst'), sel('ms-gst', String(GC && it ? (GC.itemRate(it, today()).rate == null ? 18 : GC.itemRate(it, today()).rate) : it && it.gst != null && it.gst !== '' ? it.gst : 18), ['0', '0.1', '0.25', '1.5', '3', '5', '12', '18', '28', '40'].map(function (r) { return [r, r + '%']; }))) + gstFields(it);
+  }
   function ledgerForm(row, startGroup) {
     var p = row && row.kind === 'party' ? row.rec : null, h = row && row.kind === 'head' ? row.rec : null, g0 = p ? NS.partyGroup(p, GRP()).id : h ? h.t : (startGroup || 'debtors');
     var ob = p ? obOf(p.name) : null, obv = ob ? num(ob.amount) : '', obs = ob ? (ob.side === 'pay' ? 'cr' : 'dr') : (g0 === 'creditors' ? 'cr' : 'dr');
@@ -101,14 +123,8 @@
       fld('ms-name', M('name'), inp('ms-name', (p && p.name) || (h && h.name) || '', { req: 1, list: 'ms-ready' }) + '<datalist id="ms-ready">' + ready + '</datalist>') +
       fld('ms-under', M('under'), sel('ms-under', g0, underOpts())) +
       '<div class="f wide" data-mspart><div class="fg">' +
-      fld('ms-gstin', NS.t('l.cgstin'), inp('ms-gstin', p && p.gstin || '', { ltr: 1 })) + fld('ms-state', NS.t('l.state'), sel('ms-state', p && p.state || '', states)) +
-      partyTaxFields(p) +
-      fld('ms-phone', NS.t('l.phone'), inp('ms-phone', p && p.phone || '', { ltr: 1, mode: 'tel' })) + fld('ms-email', NS.t('l.email'), inp('ms-email', p && p.email || '', { ltr: 1 })) +
-      fld('ms-addr', NS.t('l.addr'), inp('ms-addr', p && p.addr || ''), { wide: 1 }) + fld('ms-city', NS.t('l.city'), inp('ms-city', p && p.city || '')) + fld('ms-pin', NS.t('l.pin'), inp('ms-pin', p && p.pin || '', { ltr: 1, mode: 'numeric' })) +
-      fld('ms-cdays', NS.t('b1.cdays'), inp('ms-cdays', p && p.cdays || '', { mode: 'numeric', ltr: 1 })) + fld('ms-climit', NS.t('b1.climit'), inp('ms-climit', p && p.climit || '', { mode: 'decimal', ltr: 1 })) +
-      fld('ms-ob', M('obal', { d: NS.fmtDate(fyStart()) }), inp('ms-ob', obv, { mode: 'decimal', ltr: 1 })) + fld('ms-obs', M('drcr'), sel('ms-obs', obs, [['dr', M('dr')], ['cr', M('cr')]])) +
-      inact(p) +
-      '</div></div></div>' + (window.NSCF ? NSCF.formHtml('party', p) : '') + '<p class="soft" data-msnote></p>',
+      (window.NSPM ? NSPM.html('party', p || { role: g0 === 'creditors' ? 'supplier' : 'customer' }, pmOpts(p, g0)) : oldPartyFields(p, g0, obv, obs, states)) +
+      '</div></div></div>' + (!window.NSPM && window.NSCF ? NSCF.formHtml('party', p) : '') + '<p class="soft" data-msnote></p>',
     function () {
       var nm = val('ms-name').replace(/\s+/g, ' '), g = val('ms-under'), head = isHeadG(g);
       if (!nm) { NS.toast(A.T('need', { f: M('name') }), 'bad'); return; }
@@ -122,26 +138,33 @@
         }).then(done, fail);
       }
       if (h) { NS.toast(M('nomove'), 'bad'); return; }
-      var gst = val('ms-gstin').toUpperCase().replace(/\s/g, ''), gc = NS.gstinCheck(gst); if (gst && !gc.ok) { NS.toast(gc.msg || NS.t('gst.chk'), 'bad'); return; }
       var top = topOf(g), r = p ? JSON.parse(JSON.stringify(p)) : { };
-      var oldName = p && p.name;
+      var oldName = p && p.name, pmo = pmOpts(p, g);
       r.name = nm; r.role = p && p.role === 'both' ? 'both' : top === 'creditors' ? 'supplier' : 'customer';
       if (NS.groupsOf(GRP(), 'party').some(function (x) { return x.id === g && !x.builtin; })) r.group = g; else delete r.group;
-      ['gstin', 'state', 'phone', 'email', 'addr', 'city', 'pin'].forEach(function (f) { var v = f === 'gstin' ? gst : val('ms-' + f); if (v) r[f] = v; else delete r[f]; });
-      if (!r.state && gc.state) r.state = gc.state;
-      ['cdays', 'climit'].forEach(function (f) { var v = val('ms-' + f); if (v !== '') r[f] = num(v); else delete r[f]; });
-      if (partyTaxSave(r) === false) return;
-      if (val('ms-inact')) r.inactive = true; else delete r.inactive;
-      if (window.NSCF) NSCF.formRead('party', $('.acx-dlg form'), r);   /* custom fields (ERP Round 2, B-1) */
+      var pmForm = $('.acx-dlg form');
+      if (window.NSPM && $('.pm', pmForm)) { if (NSPM.read(pmForm, 'party', r, pmo)) return; }
+      else {
+        var gst = val('ms-gstin').toUpperCase().replace(/\s/g, ''), gc = NS.gstinCheck(gst); if (gst && !gc.ok) { NS.toast(gc.msg || NS.t('gst.chk'), 'bad'); return; }
+        ['gstin', 'state', 'phone', 'email', 'addr', 'city', 'pin'].forEach(function (f) { var v = f === 'gstin' ? gst : val('ms-' + f); if (v) r[f] = v; else delete r[f]; });
+        if (!r.state && gc.state) r.state = gc.state;
+        ['cdays', 'climit'].forEach(function (f) { var v = val('ms-' + f); if (v !== '') r[f] = num(v); else delete r[f]; });
+        if (partyTaxSave(r) === false) return;
+        if (val('ms-inact')) r.inactive = true; else delete r.inactive;
+        if (window.NSCF) NSCF.formRead('party', $('.acx-dlg form'), r);   /* custom fields (ERP Round 2, B-1) */
+      }
       var obAmt = r2(num(val('ms-ob'))), obSide = val('ms-obs') === 'cr' ? 'pay' : 'recv', ob0 = oldName ? obOf(oldName) : null;
       return NSStore.put('party', r).then(function () {
+        if (window.NSPM && $('.pm', pmForm)) return NSPM.opening(pmForm, 'party', r, pmo);
         if (obAmt > 0) return NSStore.put('doc', Object.assign(ob0 ? JSON.parse(JSON.stringify(ob0)) : { type: 'ob', app: 1, no: '', date: fyStart(), seller: X.sellerCopy() }, { buyer: { name: nm }, side: obSide, amount: obAmt, total: obAmt }));
         if (ob0) return NSStore.del('doc', ob0.id);
       }).then(function () { return oldName && key(oldName) !== key(nm) ? renameParty(oldName, nm) : 0; }).then(done, fail);
     }, function (form) {
       function part() { var hd = isHeadG($('#ms-under', form).value); $('[data-mspart]', form).hidden = hd; }
       $('#ms-under', form).addEventListener('change', part); part();
-      var gi = $('#ms-gstin', form); gi.addEventListener('input', function () { var c = NS.gstinCheck(gi.value); if (c.ok && c.state) $('#ms-state', form).value = c.state; var pn = $('#ms-pan', form), g15 = gi.value.trim().toUpperCase(); if (c.ok && pn && !pn.value) pn.value = g15.slice(2, 12); });
+      var pmF = window.NSPM && $('.pm', form);
+      if (pmF) { var df = $('.acx-dlg'); if (df) df.classList.add('pm-wide'); NSPM.wire(form, 'party', row && row.rec || { role: 'customer' }, pmOpts(row && row.rec, $('#ms-under', form).value)); $('#ms-under', form).addEventListener('change', function () { if (form.elements.obside && !(row && row.rec && obOf(row.rec.name))) form.elements.obside.value = topOf(this.value) === 'creditors' ? 'pay' : 'recv'; }); }
+      var gi = $('#ms-gstin', form); if (gi) gi.addEventListener('input', function () { var c = NS.gstinCheck(gi.value); if (c.ok && c.state) $('#ms-state', form).value = c.state; var pn = $('#ms-pan', form), g15 = gi.value.trim().toUpperCase(); if (c.ok && pn && !pn.value) pn.value = g15.slice(2, 12); });
       if (row && row.kind !== 'head' && row.rec) { var n = usesParty(row.rec.name); if (n) $('[data-msnote]', form).textContent = M('usedin', { n: n }); }
     });
   }
@@ -218,7 +241,7 @@
       chk('ms-fy', ser.fy, M('vt_fy')) + '</div><p>' + esc(M('nextno')) + ': <b class="mono" data-vtpv></b></p>' +
       '<details class="more"' + (Object.keys(vc).length ? ' open' : '') + '><summary>' + esc(M('vt_print')) + '</summary><div class="fg">' +
       fld('ms-cps', M('vt_copies'), sel('ms-cps', String(vc.copies || ''), [['', M('vt_tool')], ['1', '1'], ['2', '2'], ['3', '3']])) +
-      fld('ms-ppr', M('vt_paper'), sel('ms-ppr', vc.paper || '', [['', M('vt_tool')], ['a4', 'A4'], ['a5', 'A5'], ['th80', '80 mm'], ['th58', '58 mm']])) +
+      fld('ms-ppr', M('vt_paper'), sel('ms-ppr', vc.paper || '', [['', M('vt_tool')], ['a4', 'A4'], ['a5', 'A5'], ['a3', 'A3'], ['a6', 'A6'], ['letter', 'Letter'], ['legal', 'Legal'], ['th80', '80 mm roll'], ['th58', '58 mm roll']])) +
       fld('ms-dsg', NS.t('l.design'), sel('ms-dsg', vc.design || '', [['', M('vt_tool')]].concat(NS.DESIGNS.map(function (d) { return [d, NS.t('ds.' + d)]; })))) +
       fld('ms-nts', NS.t('l.notes'), inp('ms-nts', vc.notes || ''), { wide: 1 }) + fld('ms-trm', M('vt_terms'), inp('ms-trm', vc.terms || ''), { wide: 1 }) +
       chk('ms-pas', vc.printAfter, M('vt_pafter')) + chk('ms-sas', vc.shareAfter, M('vt_safter')) + '</div><p class="soft">' + esc(M('vt_printh')) + '</p></details>' +
@@ -274,47 +297,50 @@
   var UNITS = ['Nos', 'Pcs', 'Kg', 'Gm', 'Ltr', 'Ml', 'Mtr', 'Sq ft', 'Box', 'Pack', 'Set', 'Pair', 'Dozen', 'Bag', 'Ton', 'Strip', 'Bottle', 'Hrs', 'Days', 'Month', 'Job'];
   var UQC = { nos: 'NOS', pcs: 'PCS', kg: 'KGS', gm: 'GMS', ltr: 'LTR', ml: 'MLT', mtr: 'MTR', 'sq ft': 'SQF', box: 'BOX', pack: 'PAC', set: 'SET', pair: 'PRS', dozen: 'DOZ', bag: 'BAG', ton: 'TON', strip: 'STR', bottle: 'BTL', hrs: 'OTH', days: 'OTH', month: 'OTH', job: 'OTH' };
   function stockMap() { var o = {}; try { if (window.NSStock && NSStock.summary) NSStock.summary(C().doc, C().item, A.bizName(), '', today()).items.forEach(function (s) { o[s.k] = s; }); } catch (e) {} return o; }
+  function oldItemFields(it, G, gopts, cur) {
+    return fld('ms-desc', M('name'), inp('ms-desc', it && it.desc || '', { req: 1 }), { wide: 1 }) + fld('ms-kind', NS.t('l.type'), sel('ms-kind', it && it.kind || 'goods', [['goods', NS.t('hub.k.goods')], ['service', NS.t('hub.k.service')]])) +
+      fld('ms-igrp', M('under'), sel('ms-igrp', cur, gopts)) + fld('ms-unit', NS.t('l.unit'), inp('ms-unit', it && it.unit || 'Nos', { list: 'ms-units' }) + '<datalist id="ms-units">' + UNITS.map(function (u) { return '<option value="' + u + '">'; }).join('') + '</datalist>') +
+      fld('ms-hsn', NS.t('l.hsn'), inp('ms-hsn', it && it.hsn || '', { ltr: 1, mode: 'numeric' })) + slotTax(it) +
+      fld('ms-rate', NS.t('b1.retail'), inp('ms-rate', it && it.rate || '', { mode: 'decimal', ltr: 1 })) + fld('ms-wrate', NS.t('b1.whole'), inp('ms-wrate', it && it.wrate || '', { mode: 'decimal', ltr: 1 })) +
+      fld('ms-mrp', NS.t('b1.mrp'), inp('ms-mrp', it && it.mrp || '', { mode: 'decimal', ltr: 1 })) + fld('ms-prate', NS.t('b1.prate'), inp('ms-prate', it && it.prate || '', { mode: 'decimal', ltr: 1 })) +
+      fld('ms-alts', M('alts'), inp('ms-alts', altsText(it), { ltr: 1 }), { wide: 1 }) + fld('ms-track', M('track'), sel('ms-track', it && it.track || '', [['', M('tr_none')], ['batch', M('tr_batch')], ['serial', M('tr_serial')], ['both', M('tr_both')]])) +
+      inact(it);
+  }
   function itemForm(it) {
     var G = NS.groupsOf(GRP(), 'item'), gopts = [['', M('primary')]].concat(G.map(function (g) { return [g.id, g.name]; }));
     var cur = it ? NS.itemGroup(it, GRP()).id : '';
-    X.open(M(it ? 'item_alter' : 'item_new'), '<div class="fg">' +
-      fld('ms-desc', M('name'), inp('ms-desc', it && it.desc || '', { req: 1 }), { wide: 1 }) + fld('ms-kind', NS.t('l.type'), sel('ms-kind', it && it.kind || 'goods', [['goods', NS.t('hub.k.goods')], ['service', NS.t('hub.k.service')]])) +
-      fld('ms-igrp', M('under'), sel('ms-igrp', cur, gopts)) + fld('ms-unit', NS.t('l.unit'), inp('ms-unit', it && it.unit || 'Nos', { list: 'ms-units' }) + '<datalist id="ms-units">' + UNITS.map(function (u) { return '<option value="' + u + '">'; }).join('') + '</datalist>') +
-      fld('ms-hsn', NS.t('l.hsn'), inp('ms-hsn', it && it.hsn || '', { ltr: 1, mode: 'numeric' })) + fld('ms-gst', NS.t('l.gst'), sel('ms-gst', String(GC && it ? (GC.itemRate(it, today()).rate == null ? 18 : GC.itemRate(it, today()).rate) : it && it.gst != null && it.gst !== '' ? it.gst : 18), ['0', '0.1', '0.25', '1.5', '3', '5', '12', '18', '28', '40'].map(function (r) { return [r, r + '%']; }))) +
-      gstFields(it) +
-      fld('ms-rate', NS.t('b1.retail'), inp('ms-rate', it && it.rate || '', { mode: 'decimal', ltr: 1 })) + fld('ms-wrate', NS.t('b1.whole'), inp('ms-wrate', it && it.wrate || '', { mode: 'decimal', ltr: 1 })) +
-      fld('ms-mrp', NS.t('b1.mrp'), inp('ms-mrp', it && it.mrp || '', { mode: 'decimal', ltr: 1 })) + fld('ms-prate', NS.t('b1.prate'), inp('ms-prate', it && it.prate || '', { mode: 'decimal', ltr: 1 })) +
-      (A.bwLedList && (A.cfg() || {}).multiLed ? fld('ms-sl', NS.t('bw.isl'), inp('ms-sl', it && it.sl || '', { list: 'dl-sl' }) + A.bwLedList('sl'), { hint: NS.t('bw.islh') }) + fld('ms-pl', NS.t('bw.ipl'), inp('ms-pl', it && it.pl || '', { list: 'dl-pl' }) + A.bwLedList('pl')) : '') +   /* A-9 (r2-billwise) */
-      fld('ms-alts', M('alts'), inp('ms-alts', altsText(it), { ltr: 1 }), { wide: 1 }) + fld('ms-track', M('track'), sel('ms-track', it && it.track || '', [['', M('tr_none')], ['batch', M('tr_batch')], ['serial', M('tr_serial')], ['both', M('tr_both')]])) +
-      fld('ms-min', M('rlevel'), inp('ms-min', it && it.min || '', { mode: 'decimal', ltr: 1 })) + fld('ms-rq', M('rqty'), inp('ms-rq', it && it.rq || '', { mode: 'decimal', ltr: 1 })) +
-      fld('ms-max', M('rmax'), inp('ms-max', it && it.max || '', { mode: 'decimal', ltr: 1 })) + fld('ms-lead', M('rlead'), inp('ms-lead', it && it.lead || '', { mode: 'numeric', ltr: 1 })) +
-      fld('ms-sup', M('rsup'), inp('ms-sup', it && it.supplier || '')) +
-      inact(it) + (it ? '' : fld('ms-oq', M('oqty', { d: NS.fmtDate(fyStart()) }), inp('ms-oq', '', { mode: 'decimal', ltr: 1 })) + fld('ms-or', M('orate'), inp('ms-or', '', { mode: 'decimal', ltr: 1 }))) +
-      '<p class="soft wide">' + esc(M('altsh')) + '</p>' +
-      '</div>' + (window.NSCF ? NSCF.formHtml('item', it) : '') + '<p class="soft" data-msnote></p>',
+    X.open(M(it ? 'item_alter' : 'item_new'), (window.NSPM ? NSPM.html('item', it || { kind: 'goods', unit: 'Nos' }, pmOpts(it, '', true)) : '') + (window.NSPM ? '' : '<div class="fg">' + oldItemFields(it, G, gopts, cur) + '</div>') + (!window.NSPM && window.NSCF ? NSCF.formHtml('item', it) : '') + '<p class="soft" data-msnote></p>',
     function () {
-      var nm = val('ms-desc').replace(/\s+/g, ' ');
+      var nmEl = $('.acx-dlg form').elements.desc, nm = (nmEl ? nmEl.value : val('ms-desc')).trim().replace(/\s+/g, ' ');
       if (!nm) { NS.toast(A.T('need', { f: M('name') }), 'bad'); return; }
       if (C().item.some(function (x) { return key(x.desc) === key(nm) && (!it || x.id !== it.id); })) { NS.toast(M('dup', { n: nm }), 'bad'); return; }
       var hsn = val('ms-hsn').replace(/\D/g, ''); if (hsn && !/^(\d{4}|\d{6}|\d{8})$/.test(hsn)) { NS.toast(M('hsnbad'), 'bad'); return; }
       var r = it ? JSON.parse(JSON.stringify(it)) : {}, old = it && it.desc, g = val('ms-igrp');
-      r.desc = nm; r.kind = val('ms-kind'); r.unit = val('ms-unit') || 'Nos'; taxSave(r, it);
-      if (hsn) r.hsn = hsn; else delete r.hsn;
-      if (g) { r.group = g; r.cat = (G.filter(function (x) { return x.id === g; })[0] || {}).name || ''; } else { delete r.group; delete r.cat; }
-      ['rate', 'wrate', 'mrp', 'prate'].forEach(function (f) { var v = val('ms-' + f); if (v !== '') r[f] = num(v); else delete r[f]; });
-      ['sl', 'pl'].forEach(function (f) { if (!$('#ms-' + f)) return; var v = val('ms-' + f); if (v) r[f] = v; else delete r[f]; });   /* A-9: sales / purchase ledger of the item */
-      if (val('ms-inact')) r.inactive = true; else delete r.inactive;
-      var al = parseAlts(val('ms-alts'), r.unit); if (al === null) { NS.toast(M('altsbad'), 'bad'); return; }
-      if (al.length) { r.alts = al; r.alt = al[0]; } else { delete r.alts; delete r.alt; }
-      if (val('ms-track')) r.track = val('ms-track'); else delete r.track;
-      [['min', 'ms-min'], ['rq', 'ms-rq'], ['max', 'ms-max'], ['lead', 'ms-lead']].forEach(function (f) { var v = num(val(f[1])); if (v > 0) r[f[0]] = v; else delete r[f[0]]; });
-      if (val('ms-sup')) r.supplier = val('ms-sup'); else delete r.supplier;
-      if (window.NSCF) NSCF.formRead('item', $('.acx-dlg form'), r);   /* custom fields (ERP Round 2, B-1) */
-      var oq = it ? 0 : num(val('ms-oq')), orate = it ? 0 : num(val('ms-or'));
+      var itForm = $('.acx-dlg form'), usePm = window.NSPM && $('.pm', itForm), ipo = pmOpts(it, '', true);
+      if (usePm) {
+        r.desc = nm;
+        if (NSPM.read(itForm, 'item', r, ipo)) return;
+        taxSave(r, it);
+      } else {
+        r.desc = nm; r.kind = val('ms-kind'); r.unit = val('ms-unit') || 'Nos'; taxSave(r, it);
+        if (hsn) r.hsn = hsn; else delete r.hsn;
+        if (g) { r.group = g; r.cat = (G.filter(function (x) { return x.id === g; })[0] || {}).name || ''; } else { delete r.group; delete r.cat; }
+        ['rate', 'wrate', 'mrp', 'prate'].forEach(function (f) { var v = val('ms-' + f); if (v !== '') r[f] = num(v); else delete r[f]; });
+        ['sl', 'pl'].forEach(function (f) { if (!$('#ms-' + f)) return; var v = val('ms-' + f); if (v) r[f] = v; else delete r[f]; });   /* A-9: sales / purchase ledger of the item */
+        if (val('ms-inact')) r.inactive = true; else delete r.inactive;
+        var al = parseAlts(val('ms-alts'), r.unit); if (al === null) { NS.toast(M('altsbad'), 'bad'); return; }
+        if (al.length) { r.alts = al; r.alt = al[0]; } else { delete r.alts; delete r.alt; }
+        if (val('ms-track')) r.track = val('ms-track'); else delete r.track;
+        [['min', 'ms-min'], ['rq', 'ms-rq'], ['max', 'ms-max'], ['lead', 'ms-lead']].forEach(function (f) { var v = num(val(f[1])); if (v > 0) r[f[0]] = v; else delete r[f[0]]; });
+        if (val('ms-sup')) r.supplier = val('ms-sup'); else delete r.supplier;
+        if (window.NSCF) NSCF.formRead('item', $('.acx-dlg form'), r);   /* custom fields (ERP Round 2, B-1) */
+      }
       NSStore.put('item', r).then(function () {
-        if (oq > 0 && r.kind !== 'service' && A.biz()) return NSStore.put('doc', { type: 'stk', kind: 'open', date: fyStart(), no: '', seller: X.sellerCopy(), lines: [{ desc: nm, unit: r.unit, qty: oq, rate: orate || r.prate || '' }] });
+        if (usePm && !it) return NSPM.opening(itForm, 'item', r, ipo);
       }).then(function () { return old && key(old) !== key(nm) ? renameItem(old, nm) : 0; }).then(done, fail);
-    }, function (form) { if (it) { var n = usesItem(it.desc); if (n) $('[data-msnote]', form).textContent = M('usedin', { n: n }); } });
+    }, function (form) {
+      if (window.NSPM && $('.pm', form)) { var df = $('.acx-dlg'); if (df) df.classList.add('pm-wide'); NSPM.wire(form, 'item', it || { kind: 'goods', unit: 'Nos' }, pmOpts(it, '', true)); }
+      if (it) { var n = usesItem(it.desc); if (n) $('[data-msnote]', form).textContent = M('usedin', { n: n }); } });
   }
   function delItem(it) {
     var n = usesItem(it.desc); if (n) { NS.toast(M('inuse', { n: n }), 'bad'); return; }

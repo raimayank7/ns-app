@@ -95,7 +95,7 @@
   var GSTNOTE = { fwd: 'Tax invoice: GST is charged on this supply of renting of immovable property.', rcm: 'Tax on this supply is payable by the recipient under reverse charge, so none is charged on this bill.', none: '' };
 
   K = NS.kit({
-    type: 'rentb', prefix: 'RM', digits: 4, paper: 'a5', papers: ['a5', 'a4', 'th80'], copies: 2, copyLabels: ['Tenant copy', 'Landlord copy'],
+    type: 'rentb', prefix: 'RM', digits: 4, paper: 'a5', papers: NS.PAPER_ALL, copies: 2, copyLabels: ['Tenant copy', 'Landlord copy'],
     name: function (d) { return d.print === 'agr' ? 'Tenancy details' : d.gstMode === 'fwd' ? 'Rent invoice' : d.paid === 'paid' ? 'Rent receipt' : 'Rent bill'; },
     blank: function () {
       var m = R.ym(NS.today());

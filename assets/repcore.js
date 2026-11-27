@@ -88,7 +88,7 @@
      without a due date), min (smallest amount left) } -> { rows: [{ party, pkey, no, date, due, total, settled, left, days, overdue, b }], tot, buckets } */
   function outstanding(docs, biz, asOn, opt) {
     opt = opt || {};
-    var D = (docs || []).filter(function (d) { return !d.date || d.date <= asOn; }), lim = ageLimits(opt.limits), cd = opt.cdays || {};
+    var D = B.upto ? B.upto(docs || [], asOn) : (docs || []).filter(function (d) { return !d.date || d.date <= asOn; }), lim = ageLimits(opt.limits), cd = opt.cdays || {};
     var R = B.bills(D, biz), rows = [];
     R.bills.forEach(function (b) {
       if (opt.side && b.side !== opt.side) return;

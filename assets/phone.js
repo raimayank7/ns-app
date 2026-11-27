@@ -204,7 +204,7 @@
       });
       if (items.length) groups.push({ title: h ? h.textContent.replace(/\s+/g, ' ').trim() : t('m_all'), items: items });
     });
-    groups.unshift({ title: t('m_set'), items: [{ label: NS.t('my.title'), ic: 'data', href: A.myUrl() }, { label: t('m_help'), ic: 'file', run: function () { var b = $('[data-help-open]'); if (b) b.click(); } }] });
+    groups.unshift({ title: t('m_set'), items: [{ label: NS.t('my.title'), ic: 'data', href: A.myUrl() }, { label: 'Look and feel', ic: 'gear', run: function () { if (window.NSTheme) NSTheme.open(); } }, { label: 'Print designs', ic: 'file', href: '#pd' }, { label: t('m_help'), ic: 'file', run: function () { var b = $('[data-help-open]'); if (b) b.click(); } }] });
     sheet(t('more'), groups, true);
   }
 

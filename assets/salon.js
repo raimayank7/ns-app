@@ -80,7 +80,7 @@
 
   K = NS.kit({
     acctLines: true,   /* ERP C-9: particulars and value only when the business keeps no items */
-    type: 'svc', docType: 'svc', prefix: 'SV', digits: 4, paper: 'a5', papers: ['a5', 'a4', 'th80'], copies: 2, copyLabels: ['Customer copy', 'Office copy'],
+    type: 'svc', docType: 'svc', prefix: 'SV', digits: 4, paper: 'a5', papers: NS.PAPER_ALL, copies: 2, copyLabels: ['Customer copy', 'Office copy'],
     name: function (d) { return isPlan(d) ? 'Membership Receipt' : d.kind === 'tax' ? 'Tax Invoice' : d.kind === 'supply' ? 'Bill of Supply' : 'Service Bill'; },
     blank: function () { return { sell: 'bill', trade: 'salon', staff: '', apptId: '', mship: { plan: '', from: NS.today(), unit: 'months', n: '1', sessions: '', to: '' }, used: [], kind: 'plain', adv: '', status2: 'paid', payMode: 'cash', terms: '', items: [line()] }; },
     newRow: function (n, d) { return line('', '', '', d && d.trade); },

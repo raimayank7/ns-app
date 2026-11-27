@@ -136,7 +136,7 @@
   }
 
   K = NS.kit({
-    type: 'resto', prefix: 'RB', digits: 4, paper: 'th80', papers: ['th80', 'th58', 'a5', 'a4'],
+    type: 'resto', prefix: 'RB', digits: 4, paper: 'th80', papers: ['th80', 'th58', 'a5', 'a4', 'a3', 'a6', 'letter', 'legal'],
     name: function (d) { return d._kot ? 'KOT' : kindOf(d) === 'tax' ? 'Invoice' : kindOf(d) === 'supply' ? 'Bill of Supply' : 'Bill'; },
     blank: function () { return { status: 'open', otype: 'dine', table: '', waiter: '', guests: '', gstMode: '5', incl: false, disc: '', sc: false, scRate: '5', split: '', payMode: 'cash', kotNo: 0, kind: 'tax', withGst: true, items: [row()] }; },
     newRow: function (n, d) { var it = row(); it.gst = gstOf(d); return it; },
@@ -163,7 +163,7 @@
             K.f('gstMode', t('rt.gst'), { type: 'select', wide: true, opts: [['5', t('rt.g5')], ['18', t('rt.g18')], ['comp', t('rt.gcomp')], ['none', t('rt.gnone')]], hint: t('rt.gsth') }) +
             K.f('incl', t('rt.incl'), { type: 'check', show: '!gstMode=comp|none' }) +
             K.f('no', K.tw('l.no'), { max: 16, ltr: 1, hint: t('h.no2') }) + K.f('date', t('l.date'), { type: 'date' }) +
-            K.f('paper', t('l.paper'), { type: 'select', opts: ['th80', 'th58', 'a5', 'a4'].map(function (k) { return [k, t('pp.' + k)]; }) }) +
+            K.f('paper', t('l.paper'), { type: 'select', opts: ['th80', 'th58', 'a5', 'a4', 'a3', 'a6', 'letter', 'legal'].map(function (k) { return [k, NS.ppName(k)]; }) }) +
             K.f('notes', t('l.notes'), { type: 'textarea', wide: true, ph: t('rt.noteph') }) + '</div>') + '</details>';
     },
     rows: {

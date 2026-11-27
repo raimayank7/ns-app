@@ -101,7 +101,7 @@
   }
 
   K = NS.kit({
-    type: 'hotel', prefix: 'HT', digits: 4, paper: 'a5', papers: ['a5', 'a4', 'th80'], copies: 2, copyLabels: ['Guest copy', 'Hotel copy'],
+    type: 'hotel', prefix: 'HT', digits: 4, paper: 'a5', papers: NS.PAPER_ALL, copies: 2, copyLabels: ['Guest copy', 'Hotel copy'],
     name: function (d) { return d.print === 'bill' ? (d.kind === 'tax' ? 'Invoice' : d.kind === 'supply' ? 'Bill of Supply' : 'Bill') : 'Booking'; },
     blank: function () {
       var td = NS.today();

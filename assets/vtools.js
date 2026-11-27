@@ -41,32 +41,59 @@
     if (!d || !d.open || !d.getAttribute('data-dirty')) { run(); return; }
     NS.ask(NS.t('app.vs_leave'), { ok: NS.t('app.vs_discard'), no: NS.t('app.vs_stay'), danger: 1 }).then(function (y) { if (y) run(); });
   }
-  /* Preview: the bill as it prints (the maker's own paper in a frame), from what is typed now; nothing is saved */
+  /* Preview: the bill as it prints (the maker's own paper in a frame), from what is typed now; nothing is saved.
+     The header has the design and paper of this print: changing them redraws the paper (printdesign.js keeps the list). */
   var pvDlg = null;
-  function preview() {
-    var d = A.formDoc && A.formDoc(), site = d && window.NSVDocs && NSVDocs.siteOf ? NSVDocs.siteOf(d) : '';
+  /* draws the bill's paper into box (a frame of the maker, as it prints); cur = { design, paper } read fresh at every draw */
+  function mountPreview(box, d, getCur, wait) {
+    var site = window.NSPrintDesign ? NSPrintDesign.siteOf(d) : NSVDocs.siteOf(d), fr = document.createElement('iframe'), wrap = null, st = null, tries = 0;
+    fr.title = 'Preview'; fr.className = 'vt-pvf'; fr.style.visibility = 'hidden'; fr.src = '/do/' + site + '/?pv=1'; box.appendChild(fr);
+    function draw() {
+      var w = null; try { w = fr.contentWindow; if (!w || !w.NSDocOut || !w.NSDocOut.show) return; } catch (e) { return; }
+      var nodes = w.NSDocOut.show(Object.assign({}, d, getCur())), doc = w.document;
+      if (wrap) wrap.remove();
+      wrap = doc.createElement('div'); wrap.className = 'pv-only';
+      nodes.forEach(function (n) { wrap.appendChild(n.cloneNode(true)); });
+      if (!st) { st = doc.createElement('style'); st.textContent = 'body>*:not(.pv-only){display:none!important}body{background:#e9edf2!important;margin:0;padding:16px}.pv-only{display:grid;gap:16px;justify-items:center}.pv-only .sh{box-shadow:0 2px 10px rgba(0,0,0,.18);background:#fff}'; doc.head.appendChild(st); }
+      doc.body.appendChild(wrap);
+    }
+    (function on() {
+      var ok = false; try { var w = fr.contentWindow; ok = !!(w && w.NSDocOut && w.NSDocOut.show); } catch (e) {}
+      if (!ok) { if (++tries < 150 && fr.isConnected) setTimeout(on, 100); else if (fr.isConnected && wait) { wait.hidden = false; wait.textContent = 'The preview could not be made. Save and use Print instead.'; } return; }
+      draw(); fr.style.visibility = ''; if (wait) wait.hidden = true;
+    })();
+    return { draw: draw, frame: fr };
+  }
+  function previewDoc(d, ov0) {
+    var site = d && window.NSVDocs && NSVDocs.siteOf ? (window.NSPrintDesign ? NSPrintDesign.siteOf(d) : NSVDocs.siteOf(d)) : '';
     if (!d || !site) { NS.toast('Preview is for bills and documents that print', 'warn'); return; }
     if (!pvDlg) {
       pvDlg = NS.el('dialog', { 'class': 'vt-pv', 'aria-labelledby': 'vt-pv-h' });
-      pvDlg.innerHTML = '<div class="dlg-hd"><h2 id="vt-pv-h">Preview</h2><span class="soft">As it will print. Not saved yet.</span><button type="button" class="btn sm" data-pvx>Close</button></div><div class="vt-pvb"><p class="soft" data-pvw>Getting the preview ready…</p></div>';
+      pvDlg.innerHTML = '<div class="dlg-hd"><h2 id="vt-pv-h">Preview</h2><span class="soft vt-pvn">As it will print. Not saved yet.</span><span class="vt-pvo" data-pvo></span><button type="button" class="btn sm" data-pvx>Close</button></div><div class="vt-pvb"><p class="soft" data-pvw>Getting the preview ready…</p></div>';
       document.body.appendChild(pvDlg);
       pvDlg.addEventListener('click', function (e) { if (e.target.closest('[data-pvx]') || e.target === pvDlg) pvDlg.close(); });
       pvDlg.addEventListener('close', function () { var f = $('iframe', pvDlg); if (f) f.remove(); });
     }
     var box = $('.vt-pvb', pvDlg), wait = $('[data-pvw]', pvDlg); wait.hidden = false;
-    var fr = document.createElement('iframe'); fr.title = 'Preview'; fr.className = 'vt-pvf'; fr.style.visibility = 'hidden';
-    fr.src = '/do/' + site + '/?pv=1'; box.appendChild(fr); pvDlg.showModal();
-    var tries = 0;
-    (function on() {
-      var w = null; try { w = fr.contentWindow; } catch (e) {}
-      if (!(w && w.NSDocOut && w.NSDocOut.show)) { if (++tries < 150 && fr.isConnected) setTimeout(on, 100); else if (fr.isConnected) wait.textContent = 'The preview could not be made. Save and use Print instead.'; return; }
-      var nodes = w.NSDocOut.show(d), doc = w.document, wrap = doc.createElement('div'); wrap.className = 'pv-only';
-      nodes.forEach(function (n) { wrap.appendChild(n.cloneNode(true)); });
-      var st = doc.createElement('style'); st.textContent = 'body>*:not(.pv-only){display:none!important}body{background:#e9edf2!important;margin:0;padding:16px}.pv-only{display:grid;gap:16px;justify-items:center}.pv-only .sh{box-shadow:0 2px 10px rgba(0,0,0,.18);background:#fff}';
-      doc.head.appendChild(st); doc.body.appendChild(wrap); fr.style.visibility = ''; wait.hidden = true;
-    })();
+    var PD = window.NSPrintDesign, ovBox = $('[data-pvo]', pvDlg), cur = { design: (ov0 && ov0.design) || d.design || 'classic', paper: (ov0 && ov0.paper) || d.paper || 'a4' };
+    if (ovBox) ovBox.innerHTML = PD ? PD.pickers(d, cur) : '';
+    var f0 = $('iframe', pvDlg); if (f0) f0.remove();
+    pvDlg.showModal();
+    var mp = mountPreview(box, d, function () { return cur; }, wait);
+    if (ovBox) ovBox.onchange = function (e) { var t = e.target; if (t.matches('[data-dz]')) cur.design = t.value; else if (t.matches('[data-pz]')) cur.paper = t.value; else return; mp.draw(); };
   }
-  A.vtPreview = preview;
+  /* the Print box's own preview: opens under the options, inside the same box (a second dialog would sit behind it) */
+  function boxPreview(cpDlg, d, PD) {
+    var host = $('.vt-dzp', cpDlg);
+    if (!host) { host = NS.el('div', { 'class': 'vt-dzp' }); host.innerHTML = '<p class="soft" data-dzw>Getting the preview ready…</p>'; $('.vt-dz', cpDlg).insertAdjacentElement('afterend', host); cpDlg.classList.add('vt-wide'); }
+    var f = $('iframe', host); if (f) f.remove();
+    var w = $('[data-dzw]', host); w.hidden = false;
+    var mp = mountPreview(host, d, function () { return PD.readBox(cpDlg, d, true); }, w);
+    if (!cpDlg._dzCh) { cpDlg._dzCh = true; cpDlg.addEventListener('change', function (e) { if (e.target.matches('[data-dz],[data-pz]') && cpDlg._mp) cpDlg._mp.draw(); }); }
+    cpDlg._mp = mp;
+  }
+  function preview() { previewDoc(A.formDoc && A.formDoc()); }
+  A.vtPreview = preview; A.vtPreviewDoc = previewDoc;
   function go(kind, rec) { swap(function () { A.openForm(kind, rec ? { rec: rec } : {}); }, dlg()); }
   function dayName(v) { if (!/^\d{4}-\d{2}-\d{2}$/.test(v || '')) return ''; var p = v.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]).toLocaleDateString('en-IN', { weekday: 'long' }); }
   function balText(b) { return !b ? 'Nil' : money(Math.abs(b)) + (b > 0 ? ' Dr (to receive)' : ' Cr (to pay)'); }
@@ -95,7 +122,8 @@
     return t === 'receipt' ? 'RECEIPT VOUCHER' : t === 'voucher' ? 'PAYMENT VOUCHER' : t === 'contra' ? 'CONTRA VOUCHER' : t === 'jv' ? 'JOURNAL VOUCHER' :
       t === 'pbill' ? (d.kind === 'return' ? 'PURCHASE RETURN (DEBIT NOTE)' : 'PURCHASE VOUCHER') : t === 'exp' ? 'EXPENSE VOUCHER' : t === 'ob' ? 'OPENING BALANCE' : 'VOUCHER';
   }
-  function vtSheet(d, tag) {
+  function cfgAccent() { try { return (NS.cfgFor(A.cfg(), A.biz()).invoice || {}).accent || ''; } catch (e) { return ''; } }
+  function vtSheet(d, tag, ds) {
     var b = A.biz() || d.seller || {}, P = []; try { P = B.postings(d) || []; } catch (e) {}
     var pend = '';
     if (!P.length && /^(receipt|voucher)$/.test(d.type || '')) {   /* not in the books yet (a cheque not cleared): the money lines from the voucher itself */
@@ -109,7 +137,7 @@
     var itab = items.length ? '<table class="tbl st vt-items"><thead><tr><th>Item</th><th>HSN</th><th class="n">Qty</th><th class="n">Rate</th><th class="n">Amount</th></tr></thead><tbody>' +
       items.map(function (it) { var a = (+it.qty || 0) * (+it.rate || 0) * (1 - (+it.disc || 0) / 100); return '<tr><td>' + esc(it.desc || '') + '</td><td>' + esc(it.hsn || '') + '</td><td class="n">' + esc(String(it.qty || '')) + (it.unit ? ' ' + esc(it.unit) : '') + '</td><td class="n">' + money(+it.rate || 0, false) + '</td><td class="n">' + money(a, false) + '</td></tr>'; }).join('') + '</tbody></table>' : '';
     var amt = Math.max(td, tc), note = d.notes || d.narr || d.note || '', money2 = /^(receipt|voucher|exp)$/.test(d.type || '');
-    return '<div class="stsheet sh vch vt-vch" dir="ltr" lang="en" data-sheet>' + (d.cancelled ? '<div class="stamp cx-stamp">CANCELLED</div>' : '') +
+    return '<div class="stsheet sh vch vt-vch d-' + esc(NS.DESIGNS.indexOf(ds) >= 0 ? ds : 'classic') + '" style="--ac:' + esc((cfgAccent()) || '#0B3B5B') + '" dir="ltr" lang="en" data-sheet>' + (d.cancelled ? '<div class="stamp cx-stamp">CANCELLED</div>' : '') +
       '<p class="vt-tag">' + esc(tag) + '</p>' +
       '<div class="st-hd"><div><b class="vch-biz">' + esc(b.name || '') + '</b>' + (b.addr ? '<br>' + esc(b.addr).replace(/\n/g, '<br>') : '') + ([b.city, b.pin].filter(Boolean).length ? '<br>' + esc([b.city, b.pin].filter(Boolean).join(' - ')) : '') + (b.gstin ? '<br>GSTIN ' + esc(b.gstin) : '') + '</div>' +
       '<div class="r"><b class="vch-ttl">' + vtTitle(d) + '</b>' + (d.type === 'pbill' ? (d.vno ? '<br>No. ' + esc(d.vno) : '') + '<br>Date ' + esc(A.ldate(d.date)) + (d.billNo || d.no ? '<br>Supplier bill ' + esc(d.billNo || d.no) : '') : '<br>No. ' + esc(d.no || d.vno || '') + '<br>Date ' + esc(A.ldate(d.date))) + '</div></div>' +
@@ -124,13 +152,21 @@
   }
   function vtPrint(kind, d, cp) {
     if (!d) return;
+    var ov = A._printOv || null; A._printOv = null;   /* design / paper chosen in the Print box for this one print */
     /* owner 23 Nov: printing a bill keeps its screen open (the maker prints in a frame nobody sees, as for the other documents) */
-    if (((d.type || 'invoice') === 'invoice' || d.type === 'cashmemo' || d.type === 'expinv') && window.NSVDocs && NSVDocs.siteOf(d) && NSVDocs.out(d, 'print', Array.isArray(cp) ? cp : null)) return;
+    if (/^(receipt|voucher)$/.test(d.type || '') && window.NSVDocs && NSVDocs.slipSite(d) && Array.isArray(cp) && NSVDocs.out(d, 'print', cp, Object.assign({}, ov, { copies: Math.max(1, Math.min(3, cp.length)) }))) return;   /* the designed receipt / voucher of the maker */
+    if (((d.type || 'invoice') === 'invoice' || d.type === 'cashmemo' || d.type === 'expinv') && window.NSVDocs && NSVDocs.siteOf(d) && NSVDocs.out(d, 'print', Array.isArray(cp) ? cp : null, ov)) return;
     if ((d.type || 'invoice') === 'invoice' || d.type === 'cashmemo' || d.type === 'expinv') { var u = A.docUrl && A.docUrl(d); if (u) { var bx = dlg(); if (bx && bx.open) bx.close(); u += '&print=1' + (Array.isArray(cp) && cp.length ? '&cp=' + cp.join(',') : ''); if (!(A.openUrl && A.openUrl(u))) location.href = u; } return; }
     var host = $('#vch-print'); if (!host) { host = document.createElement('div'); host.id = 'vch-print'; host.className = 'vch-print'; document.body.appendChild(host); }
-    host.innerHTML = (Array.isArray(cp) && cp.length ? cp : CP[cp] || CP.o).map(function (t) { return vtSheet(d, t); }).join('<div class="vt-pb"></div>');
+    var ds = (ov && ov.design) || (window.NSPrintDesign ? NSPrintDesign.designFor(d) : 'classic');
+    host.innerHTML = (Array.isArray(cp) && cp.length ? cp : CP[cp] || CP.o).map(function (t) { return vtSheet(d, t, ds); }).join('<div class="vt-pb"></div>');
+    /* the paper of this print (Print box, else the one set in Print designs): its page size, and the roll layout on a 58 / 80 mm roll */
+    var pap = (ov && ov.paper && NS.paperRx.test(ov.paper) && ov.paper) || (window.NSPrintDesign && NSPrintDesign.paperFor ? NSPrintDesign.paperFor(d) : 'a4');
+    var pgst = document.getElementById('vch-page') || document.head.appendChild(Object.assign(document.createElement('style'), { id: 'vch-page' }));
+    pgst.textContent = '@page{' + NS.paperCss(pap) + '}';   /* not inside @media print: the App's own page rules would win over it */
+    host.className = 'vch-print' + (/^th/.test(pap) ? ' vch-roll ' + pap : '') + (/^(a3|a6|letter|legal|a5)$/.test(pap) ? ' vch-' + pap : '');
     document.documentElement.classList.add('vch-on');
-    var off = function () { window.removeEventListener('afterprint', off); document.documentElement.classList.remove('vch-on'); host.innerHTML = ''; };
+    var off = function () { window.removeEventListener('afterprint', off); document.documentElement.classList.remove('vch-on'); host.innerHTML = ''; host.className = 'vch-print'; pgst.textContent = ''; };
     window.addEventListener('afterprint', off);
     setTimeout(function () { window.print(); }, 60);
   }
@@ -164,34 +200,38 @@
   }
   var cpDlg = null;
   function choose(kind, d) {
-    var set = copySet(d, kind); if (!set) return Promise.resolve([]);
-    var on = cpStart(kind, d, set);
+    var set = copySet(d, kind), PD = window.NSPrintDesign, dz = PD && PD.supports(d), dzBlock = dz ? PD.printBox(d) : '';
+    if (!set && !dz) return Promise.resolve([]);
+    set = set || [];
+    var on = set.length ? cpStart(kind, d, set) : [];   /* design and paper for this print (printdesign.js) */
     if (!cpDlg) {
       cpDlg = NS.el('dialog', { 'class': 'vt-cpd', 'aria-labelledby': 'vt-cpd-h' });
       document.body.appendChild(cpDlg);
     }
     cpDlg.innerHTML = '<form method="dialog"><div class="dlg-hd"><h2 id="vt-cpd-h">Print</h2></div>' +
-      '<fieldset class="vt-cpf"><legend>Which copies?</legend>' + set.map(function (k, i) {
+      (set.length ? '<fieldset class="vt-cpf"><legend>Which copies?</legend>' : '<div hidden>') + set.map(function (k, i) {
         return '<label class="vt-cpl"><input type="checkbox" value="' + k + '"' + (on.indexOf(k) >= 0 ? ' checked' : '') + '> <span><b>' + (i + 1) + '.</b> ' + esc(cpName(k)) + '</span></label>';
-      }).join('') + '</fieldset>' +
-      '<p class="soft vt-cpn">Each ticked copy prints on its own page. Your ticks are kept for the next print of this kind.</p>' +
+      }).join('') + (set.length ? '</fieldset>' : '</div>') +
+      (set.length ? '<p class="soft vt-cpn">Each ticked copy prints on its own page. Your ticks are kept for the next print of this kind.</p>' : '') + dzBlock +
       '<p class="vt-cpw" role="alert" hidden>Tick at least one copy.</p>' +
       '<div class="dlg-foot"><button type="submit" class="btn primary" value="ok" data-ic="print">Print</button><button type="submit" class="btn" value="cancel" formnovalidate>Cancel</button></div></form>';
-    var f = $('form', cpDlg), boxes = [].slice.call(cpDlg.querySelectorAll('input[type=checkbox]'));
+    var f = $('form', cpDlg), boxes = [].slice.call(cpDlg.querySelectorAll('input[type=checkbox][value]'));
     return new Promise(function (res) {
       var done = false, fin = function (v) { if (done) return; done = true; res(v); };
       f.addEventListener('submit', function (e) {
         var ok = e.submitter ? e.submitter.value === 'ok' : true;
         if (!ok) return;
         var pick = boxes.filter(function (b) { return b.checked; }).map(function (b) { return b.value; });
-        if (!pick.length) { e.preventDefault(); $('.vt-cpw', cpDlg).hidden = false; boxes[0].focus(); return; }
-        try { localStorage.setItem(cpKey(kind, set), JSON.stringify(pick)); } catch (er) {}
+        if (set.length && !pick.length) { e.preventDefault(); $('.vt-cpw', cpDlg).hidden = false; boxes[0].focus(); return; }
+        if (set.length) try { localStorage.setItem(cpKey(kind, set), JSON.stringify(pick)); } catch (er) {}
+        if (dz) PD.readBox(cpDlg, d);   /* sets the one-print design / paper (A._printOv) and the new default when ticked */
         fin(pick);
       });
       /* number keys 1-4 tick and untick, Enter prints */
       cpDlg.onkeydown = function (e) { var n = +e.key; if (n >= 1 && n <= boxes.length && !e.ctrlKey && !e.altKey) { e.preventDefault(); boxes[n - 1].checked = !boxes[n - 1].checked; boxes[n - 1].focus(); } };
       cpDlg.addEventListener('close', function () { fin(null); }, { once: true });
       cpDlg.showModal();
+      if (dz) { var pvb = $('[data-dzv]', cpDlg); if (pvb) pvb.onclick = function () { boxPreview(cpDlg, d, PD); }; cpDlg.classList.remove('vt-wide'); cpDlg._mp = null; }
       var pb = $('button[value=ok]', cpDlg); if (pb) pb.focus();
     });
   }

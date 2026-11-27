@@ -332,15 +332,22 @@
 
   /* ---------- Print / PDF / Share: the maker's paper in a frame nobody sees ---------- */
   var outFr = null;
-  function out(rec, how, cp) {
-    var id = typeof rec === 'string' ? rec : rec.id, d = typeof rec === 'string' ? A().data().doc.filter(function (x) { return x.id === id; })[0] : rec, site = d && siteOf(d);
+  /* a receipt or payment voucher is made by the slip maker (receipt. / voucher.), not by a voucher type of docs.js */
+  function slipSite(d) { var t = d && d.type; return t === 'receipt' || t === 'voucher' ? t : ''; }
+  function out(rec, how, cp, ov) {
+    var id = typeof rec === 'string' ? rec : rec.id, d = typeof rec === 'string' ? A().data().doc.filter(function (x) { return x.id === id; })[0] : rec, site = d && (siteOf(d) || slipSite(d));
+    /* every way of printing a bill or document (list icon, viewer, form, Print now) asks which copies and which design / paper, once (printdesign.js) */
+    if (how === 'print' && cp == null && !ov && d && window.NSPrintDesign && NSPrintDesign.supports(d) && A().chooseCopies) {
+      A().chooseCopies('vdoc', d).then(function (c) { if (!c) return; var o = A()._printOv || {}; A()._printOv = null; out(d, 'print', c, o); });
+      return true;
+    }
     if (!site) return !!(d && window.NSOrd && NSOrd.print && NSOrd.print(d, how));   /* receipt note, goods back / sent back: printed by orders.js */
     if (outFr) outFr.remove();
     NS.toast(t(how === 'share' ? 'pdf.making' : 'vd.wait'));
     var fr = outFr = document.createElement('iframe');
     fr.className = 'vd-out'; fr.setAttribute('aria-hidden', 'true'); fr.tabIndex = -1; fr.title = '';
     fr.style.cssText = 'position:fixed;left:-12000px;top:0;width:1100px;height:1500px;border:0;opacity:0;pointer-events:none';
-    fr.src = '/do/' + site + '/?open=' + encodeURIComponent(id) + (how === 'print' ? '&print=1' + (cp && cp.length ? '&cp=' + cp.join(',') : '') : '');
+    fr.src = '/do/' + site + '/?open=' + encodeURIComponent(id) + (how === 'print' ? '&print=1' + (cp && cp.length ? '&cp=' + cp.join(',') : '') : '') + (ov && ov.design ? '&dz=' + encodeURIComponent(ov.design) : '') + (ov && ov.paper ? '&pz=' + encodeURIComponent(ov.paper) : '') + (ov && ov.copies ? '&cn=' + ov.copies : '');   /* ov: another design / paper for this one print or PDF (the App's Print box) */
     document.body.appendChild(fr);
     var gone = function () { setTimeout(function () { if (outFr === fr) outFr = null; fr.remove(); }, 1500); };
     var tries = 0;
@@ -384,7 +391,7 @@
     if (!A().biz()) return false;   /* no business yet: the maker asks for one */
     var open = q.get('open'), from = q.get('from'), copy = q.get('copy'), ty = SITE2[site];
     var find = function (id) { return A().data().doc.filter(function (x) { return x.id === id; })[0]; };
-    if (open && q.get('print')) { var cps = (q.get('cp') || '').split(',').filter(Boolean); A().whenReady(function () { out(open, 'print', cps); }); return true; }   /* owner 22 Nov: the copies ticked in the print box */
+    if (open && q.get('print')) { var cps = (q.get('cp') || '').split(',').filter(Boolean), asked = !!q.get('cp'); A().whenReady(function () { out(open, 'print', asked ? cps : null); }); return true; }   /* owner 22 Nov: the copies ticked in the print box */
     if (site === 'billing') {
       if (open) { var r0 = find(open); if (r0 && r0.app && !r0.counter) { A().whenReady(function () { A().openForm('sale', { rec: r0 }); }); return true; } return false; }   /* a bill made in the maker is changed there (its charges, TCS, ship-to) */
       if (copy) return false;
@@ -403,5 +410,5 @@
   function fresh(id) { return NSStore.get('doc', id).catch(function () { return null; }).then(function (r) { return r || A().data().doc.filter(function (x) { return x.id === id; })[0]; }); }
   function againOk(src) { return src.status === 'inv' && NS.ask ? NS.ask(t('c.inv2', { no: src.invNo || '' })) : Promise.resolve(true); }
 
-  window.NSVDocs = { after: after, claim: claim, make: make, out: out, markFrom: markFrom, mine: function (d) { return !!vtOf(d); }, siteOf: siteOf, VT: VT };
+  window.NSVDocs = { slipSite: slipSite, after: after, claim: claim, make: make, out: out, markFrom: markFrom, mine: function (d) { return !!vtOf(d); }, siteOf: siteOf, VT: VT };
 })();
