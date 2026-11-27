@@ -177,5 +177,11 @@
     if (b.hasAttribute('data-env-doc')) quick(partyFromDoc(docById(b.getAttribute('data-env-doc'))));
     else { var nm = b.getAttribute('data-env-name'); quick(masterOf(nm) || { name: nm }); }
   }, true);
+  /* its link in the App's menu (Utilities), like bankimp.js: the side menu only lists screens that have one (help-update, 27 Nov 2026) */
+  (function () {
+    function link() { var nav = $('.hub-nav'), app = $('#app'); if (!nav || !app || app.getAttribute('data-secs') || $('[data-sec="env"]', nav)) return;
+      nav.appendChild(NS.el('a', { href: '#env', 'data-sec': 'env' }, '<span>' + esc(A.T('env')) + '</span>')); }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', link); else link();
+  })();
   A.addSection('env', html, wire);
 })();

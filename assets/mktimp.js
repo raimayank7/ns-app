@@ -183,5 +183,11 @@
     return NS.eachSeq(jobs, function (d) { return NSStore.put('doc', d).then(function (saved) { if (d.type === 'receipt' && A.markPaid) return A.markPaid(Object.assign({}, d, { id: saved && saved.id || d.id })); }); }, { label: 'Saving payments' }).then(function () { return n; });
   }
 
+  /* its link in the App's menu (Utilities), like bankimp.js: the side menu only lists screens that have one (help-update, 27 Nov 2026) */
+  (function () {
+    function link() { var nav = $('.hub-nav'), app = $('#app'); if (!nav || !app || app.getAttribute('data-secs') || $('[data-sec="mkimp"]', nav)) return;
+      nav.appendChild(NS.el('a', { href: '#mkimp', 'data-sec': 'mkimp' }, '<span>' + esc(A.T('mkimp')) + '</span>')); }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', link); else link();
+  })();
   A.addSection('mkimp', html, wire);
 })();

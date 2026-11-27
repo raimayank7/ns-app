@@ -223,6 +223,12 @@
       '.pd-th.on{border-color:' + ac + ';box-shadow:0 0 0 2px ' + ac + '}.pd-th b{font-size:13px}.pd-th .sh{box-shadow:none!important;margin:0!important;pointer-events:none}' +
       '.pd-big{background:#fff;border:1px solid ' + ln + ';border-radius:6px;box-shadow:0 2px 10px rgba(0,0,0,.15);margin:0 auto}.pd-big .sh{margin:0!important;box-shadow:none!important}';
   }
+  /* its link in the App's menu (Utilities), like bankimp.js: the side menu only lists screens that have one (help-update, 27 Nov 2026) */
+  (function () {
+    function link() { var nav = $('.hub-nav'), app = $('#app'); if (!nav || !app || app.getAttribute('data-secs') || $('[data-sec="pd"]', nav)) return;
+      nav.appendChild(NS.el('a', { href: '#pd', 'data-sec': 'pd' }, '<span>' + esc(A.T('pd')) + '</span>')); }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', link); else link();
+  })();
   A.addSection('pd', html, wire);
   window.NSPrintDesign = { siteOf: siteOf, designFor: designFor, paperFor: paperFor, supports: supports, printBox: printBox, readBox: readBox, pickers: pickers, save: save, rows: DOCS };
 })();

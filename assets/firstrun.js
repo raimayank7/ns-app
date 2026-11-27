@@ -43,7 +43,7 @@
       ['garment', 'nav.garment', { ic: ['t-garment'] }], ['jewellery', 'nav.jewellery', { ic: ['t-jewellery'] }], ['mandi', 'nav.mandi', { ic: ['t-mandi'] }],
       ['petrol', 'nav.petrol', { ic: ['t-petrol'] }], ['marketplace', 'nav.marketplace', { ic: ['t-marketplace'] }]]],
     ['staff', [['sman', 'app.b2sman', { sec: ['b2sman'] }], ['salary', 'nav.salary', { sec: ['stf'], ic: ['d-salary-slip'], href: ['#stf'] }]]],
-    ['learn', [['lrn', 'fr.f_lrn', { ic: ['t-calc', 't-file', 't-compare', 't-learn'] }], ['packs', 'pk.title', { sec: ['packs'] }], ['caview', 'nav.ca', { sec: ['cacom'], ic: ['t-ca'] }]]]
+    ['learn', [['lrn', 'fr.f_lrn', { ic: ['t-calc', 't-file', 't-compare', 't-learn'] }], ['packs', 'pk.title', { sec: ['packs'] }], ['caview', 'nav.ca', { sec: ['cacom'], ic: ['t-ca'] }], ['pro', 'fr.f_pro', { ic: ['t-cma', 't-audit', 't-itr', 't-roc', 't-advocate', 't-drafts'] }]]]
   ];
   var FEAT = {}; CAT.forEach(function (g) { g[1].forEach(function (f) { FEAT[f[0]] = f; }); });
 
